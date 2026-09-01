@@ -71,6 +71,7 @@ public class Payment extends BaseEntity {
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
+    @ToString.Exclude
     @Column(name = "raw_response", columnDefinition = "jsonb")
     private String rawResponse;
 }
