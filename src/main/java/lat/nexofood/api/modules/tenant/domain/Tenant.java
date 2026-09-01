@@ -84,12 +84,15 @@ public class Tenant extends BaseEntity {
     private BigDecimal defaultDeliveryFee = new BigDecimal("0.00");
 
     @Column(name = "mp_access_token", columnDefinition = "TEXT")
+    @ToString.Exclude
     private String mpAccessToken;
 
     @Column(name = "mp_public_key", columnDefinition = "TEXT")
+    @ToString.Exclude
     private String mpPublicKey;
 
     @Column(name = "mp_refresh_token", columnDefinition = "TEXT")
+    @ToString.Exclude
     private String mpRefreshToken;
 
     @Column(name = "mp_user_id", length = 100)
