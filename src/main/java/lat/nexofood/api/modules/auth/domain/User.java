@@ -40,6 +40,7 @@ public class User extends BaseEntity {
     @Column(name = "email", unique = true, nullable = false, length = 255)
     private String email;
 
+    @ToString.Exclude
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
