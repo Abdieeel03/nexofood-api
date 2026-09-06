@@ -48,9 +48,10 @@ lat.nexofood.api
 
 ## 3. Reglas de Negocio y Flujos Críticos
 
-1. **Modelo SaaS de Suscripciones (1 Tienda por Suscripción):**
+1. **Modelo SaaS y Relación 1 a 1 (1 Negocio por Usuario y por Suscripción):**
    * El servicio se monetiza mediante tarifa plana periódica.
-   * Cada suscripción activa (`subscriptions`) habilita exactamente un restaurante (`tenants`). Un usuario (`users`) puede administrar múltiples tiendas manteniendo una suscripción independiente por cada una[cite: 1, 2].
+   * Cada suscripción activa (`subscriptions`) habilita exactamente un restaurante (`tenants`).
+   * **Restricción 1 a 1 (Owner $\leftrightarrow$ Tenant):** Un usuario (`users`) solo puede ser propietario y registrar un único (1) restaurante o negocio (`tenants`). La relación está modelada como 1 a 1 (`@OneToOne` con `unique = true` en `owner_id`), impidiendo que una misma cuenta posea múltiples tiendas. Los demás usuarios pueden integrarse a una tienda existente como colaboradores mediante roles de membresía (`tenant_members`).
 2. **Cobro Directo en Mercado Pago (Cero Comisión por Pedido):**
    * El restaurante vincula su cuenta mediante Mercado Pago OAuth (`mp_access_token`)[cite: 1, 2].
    * El 100% de la venta de los comensales ingresa de forma directa e inmediata a la cuenta del restaurante (sin retención de split fee por pedido)[cite: 1].

@@ -49,8 +49,8 @@ public class Tenant extends BaseEntity {
     @ToString.Exclude
     private Subscription subscription;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", unique = true, nullable = false)
     @ToString.Exclude
     private User owner;
 
