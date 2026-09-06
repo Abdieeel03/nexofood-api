@@ -4,7 +4,6 @@ import lat.nexofood.api.modules.tenant.domain.Tenant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,7 +14,9 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
 
     boolean existsBySlug(String slug);
 
-    List<Tenant> findAllByOwnerId(UUID ownerId);
+    Optional<Tenant> findByOwnerId(UUID ownerId);
+
+    boolean existsByOwnerId(UUID ownerId);
 
     Optional<Tenant> findBySubscriptionId(UUID subscriptionId);
 }
