@@ -36,11 +36,29 @@ lat.nexofood.api
     ├── subscription/        # Control de planes SaaS, membresías y validación de vigencia
     ├── tenant/              # Inquilinos/Restaurantes, miembros de staff (RBAC)
     ├── catalog/             # Categorías y Productos
-    ├── order/               # Carrito, cálculo de distancias PostGIS y máquina de estados
+    ├── cart/                # Gestión de carritos de compra e ítems
+    ├── order/               # Órdenes, cálculo de distancias PostGIS y máquina de estados
     └── payment/             # Mercado Pago OAuth, Webhooks y auditoría de transacciones
 ```
 
-### 2.2. Estrategia Multitenancy
+### 2.2. Arquitectura Interna de un Módulo
+Cada módulo funcional (`lat.nexofood.api.modules.<module>`) desacopla sus responsabilidades en las siguientes capas:
+
+```text
+module/
+├── api/             # Contratos públicos Java (interfaces, DTOs y eventos compartidos entre módulos)
+├── application/     # Casos de uso (UseCases), servicios de aplicación y coordinación transaccional
+├── domain/          # Entidades, Enums, Value Objects y reglas de negocio puras
+├── infrastructure/  # Implementaciones técnicas (Spring Data JPA, repositorios, clientes externos)
+│   └── repository/
+└── web/             # Capa HTTP externa (Controllers REST, DTOs Request/Response, Mappers)
+    ├── dto/
+    │   ├── request/
+    │   └── response/
+    └── mapper/
+```
+
+### 2.3. Estrategia Multitenancy
 * **Esquema:** *Shared Database, Shared Schema* (Base de datos y esquema compartidos)[cite: 1].
 * **Segregación:** Filtrado obligatorio por `tenant_id` en todos los repositorios y servicios para aislar completamente las operaciones de cada inquilino[cite: 1, 2].
 
