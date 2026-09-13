@@ -1,4 +1,4 @@
-package lat.nexofood.api.jwt;
+package lat.nexofood.api.security.jwt;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -33,9 +33,13 @@ public class JwtService {
     }
 
     public String generateToken(User user) {
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getEmail())
-                .claim("role", user.getSystemRole().name())
+                .claim("role", user.getSystemRole().name());
+        if (user.getId() != null) {
+            builder.claim("userId", user.getId().toString());
+        }
+        return builder
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(getSigningKey(secretKey))
@@ -43,8 +47,13 @@ public class JwtService {
     }
 
     public String generateRefreshToken(User user) {
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getEmail())
+                .claim("type", "refresh");
+        if (user.getId() != null) {
+            builder.claim("userId", user.getId().toString());
+        }
+        return builder
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpirationTime))
                 .signWith(getSigningKey(refreshSecretKey))
@@ -59,14 +68,30 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject, refreshSecretKey);
     }
 
+    public String extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("userId", String.class), secretKey);
+    }
+
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class), secretKey);
+    }
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token, secretKey));
+        try {
+            final String username = extractUsername(token);
+            return (username != null && username.equals(userDetails.getUsername()) && !isTokenExpired(token, secretKey));
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsernameFromRefreshToken(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token, refreshSecretKey));
+        try {
+            final String username = extractUsernameFromRefreshToken(token);
+            return (username != null && username.equals(userDetails.getUsername()) && !isTokenExpired(token, refreshSecretKey));
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private boolean isTokenExpired(String token, String secret) {

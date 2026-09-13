@@ -1,4 +1,4 @@
-package lat.nexofood.api.cors;
+package lat.nexofood.api.security.cors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -33,10 +33,12 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
+        configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins));
         configuration.setAllowedMethods(Arrays.asList(allowedMethods));
         configuration.setAllowedHeaders(Arrays.asList(allowedHeaders));
-        configuration.setExposedHeaders(Arrays.asList(exposedHeaders));
+        if (exposedHeaders != null && exposedHeaders.length > 0) {
+            configuration.setExposedHeaders(Arrays.asList(exposedHeaders));
+        }
         configuration.setAllowCredentials(allowCredentials);
         configuration.setMaxAge(maxAge);
 

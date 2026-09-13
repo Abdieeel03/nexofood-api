@@ -1,10 +1,10 @@
-package lat.nexofood.api.security;
+package lat.nexofood.api.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
-import lat.nexofood.api.common.config.CustomUserDetailsService;
+import lat.nexofood.api.security.custom.CustomUserDetailsService;
 import lat.nexofood.api.common.response.ErrorResponse;
-import lat.nexofood.api.jwt.JwtAuthenticationFilter;
+import lat.nexofood.api.security.jwt.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -65,8 +65,12 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             log.error("Authentication error: {}", authException.getMessage());
+                            Exception jwtEx = (Exception) request.getAttribute("jwt_exception");
+                            String errorMessage = (jwtEx != null)
+                                    ? "Error de autenticación JWT: " + jwtEx.getMessage()
+                                    : "Token inválido o ausente: " + authException.getMessage();
                             writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
-                                    "Token inválido o ausente: " + authException.getMessage(), "UNAUTHORIZED", request.getRequestURI());
+                                    errorMessage, "UNAUTHORIZED", request.getRequestURI());
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             log.error("Access denied error: {}", accessDeniedException.getMessage());
@@ -75,9 +79,11 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/test").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/v1/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

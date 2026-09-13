@@ -14,6 +14,16 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public void handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
+        throw ex;
+    }
+
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public void handleAuthenticationException(org.springframework.security.core.AuthenticationException ex) {
+        throw ex;
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(
             Exception ex,
