@@ -1,0 +1,49 @@
+meta {
+  name: 03 - Renovar Token (Refresh)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Respuesta contiene success true", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+
+  test("Tokens rotados correctamente", function() {
+    const data = res.getBody().data;
+    expect(data.accessToken).to.be.a('string');
+    expect(data.refreshToken).to.be.a('string');
+  });
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.accessToken) {
+      bru.setEnvVar("accessToken", data.accessToken);
+    }
+    if (data && data.refreshToken) {
+      bru.setEnvVar("refreshToken", data.refreshToken);
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "NexoFood API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

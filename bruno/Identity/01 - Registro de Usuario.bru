@@ -1,0 +1,58 @@
+meta {
+  name: 01 - Registro de Usuario
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "admin@nexofood.lat",
+    "password": "Password123!",
+    "fullName": "Carlos Administrador",
+    "phone": "+51999888777"
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.accessToken) {
+      bru.setEnvVar("accessToken", data.accessToken);
+    }
+    if (data && data.refreshToken) {
+      bru.setEnvVar("refreshToken", data.refreshToken);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  
+  test("Respuesta contiene success true", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+  
+  test("Contiene tokens de acceso y refresco", function() {
+    const data = res.getBody().data;
+    expect(data.accessToken).to.be.a('string');
+    expect(data.refreshToken).to.be.a('string');
+    expect(data.tokenType).to.equal('Bearer');
+    expect(data.user.email).to.equal('admin@nexofood.lat');
+  });
+}
