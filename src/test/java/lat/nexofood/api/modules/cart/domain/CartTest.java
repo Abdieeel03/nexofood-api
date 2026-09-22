@@ -1,6 +1,6 @@
 package lat.nexofood.api.modules.cart.domain;
 
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.cart.web.dto.request.CartItemRequest;
 import lat.nexofood.api.modules.cart.web.dto.response.CartItemResponse;

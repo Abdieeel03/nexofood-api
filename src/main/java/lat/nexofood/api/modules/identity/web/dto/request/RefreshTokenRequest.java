@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.auth.dto.request;
+package lat.nexofood.api.modules.identity.web.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;

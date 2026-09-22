@@ -1,7 +1,7 @@
 package lat.nexofood.api.modules.order.web.mapper;
 
 import lat.nexofood.api.common.util.GeoUtils;
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderItem;
 import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;

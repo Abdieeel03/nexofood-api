@@ -1,8 +1,8 @@
 package lat.nexofood.api.security.jwt;
 
 import io.jsonwebtoken.security.WeakKeyException;
-import lat.nexofood.api.modules.auth.domain.User;
-import lat.nexofood.api.modules.auth.domain.UserSystemRole;
+import lat.nexofood.api.modules.identity.domain.User;
+import lat.nexofood.api.modules.identity.domain.UserSystemRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

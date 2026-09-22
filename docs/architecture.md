@@ -32,7 +32,7 @@ lat.nexofood.api
 │   └── util/                # GeoUtils, SecurityUtils
 │
 └── modules/                 # Módulos de dominio funcional
-    ├── auth/                # Autenticación global SSO, JWT y emisión de Claims
+    ├── identity/            # Identidad, Gestión de Usuarios, Autenticación global, JWT y emisión de Claims
     ├── subscription/        # Control de planes SaaS, membresías y validación de vigencia
     ├── tenant/              # Inquilinos/Restaurantes, miembros de staff (RBAC)
     ├── catalog/             # Categorías y Productos

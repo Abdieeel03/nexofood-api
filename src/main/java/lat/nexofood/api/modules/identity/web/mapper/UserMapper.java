@@ -1,8 +1,8 @@
-package lat.nexofood.api.modules.auth.web.mapper;
+package lat.nexofood.api.modules.identity.web.mapper;
 
-import lat.nexofood.api.modules.auth.domain.User;
-import lat.nexofood.api.modules.auth.web.dto.request.UserRegisterRequest;
-import lat.nexofood.api.modules.auth.web.dto.response.UserResponse;
+import lat.nexofood.api.modules.identity.domain.User;
+import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
+import lat.nexofood.api.modules.identity.web.dto.response.UserResponse;
 import org.springframework.stereotype.Component;
 
 @Component

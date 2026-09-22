@@ -3,7 +3,7 @@ package lat.nexofood.api.security.jwt;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;

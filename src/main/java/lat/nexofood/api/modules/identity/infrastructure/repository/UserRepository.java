@@ -1,6 +1,6 @@
-package lat.nexofood.api.modules.auth.infrastructure.repository;
+package lat.nexofood.api.modules.identity.infrastructure.repository;
 
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,10 +1,10 @@
-package lat.nexofood.api.modules.auth.web.mapper;
+package lat.nexofood.api.modules.identity.web.mapper;
 
 import lat.nexofood.api.common.util.GeoUtils;
-import lat.nexofood.api.modules.auth.domain.CustomerAddress;
-import lat.nexofood.api.modules.auth.domain.User;
-import lat.nexofood.api.modules.auth.web.dto.request.CustomerAddressRequest;
-import lat.nexofood.api.modules.auth.web.dto.response.CustomerAddressResponse;
+import lat.nexofood.api.modules.identity.domain.CustomerAddress;
+import lat.nexofood.api.modules.identity.domain.User;
+import lat.nexofood.api.modules.identity.web.dto.request.CustomerAddressRequest;
+import lat.nexofood.api.modules.identity.web.dto.response.CustomerAddressResponse;
 import org.springframework.stereotype.Component;
 
 @Component

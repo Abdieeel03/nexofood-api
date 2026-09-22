@@ -1,6 +1,6 @@
-package lat.nexofood.api.modules.auth.web.dto.response;
+package lat.nexofood.api.modules.identity.web.dto.response;
 
-import lat.nexofood.api.modules.auth.domain.UserSystemRole;
+import lat.nexofood.api.modules.identity.domain.UserSystemRole;
 import lombok.Builder;
 
 import java.time.OffsetDateTime;

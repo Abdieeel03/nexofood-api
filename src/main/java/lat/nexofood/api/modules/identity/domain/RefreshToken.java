@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.auth.domain;
+package lat.nexofood.api.modules.identity.domain;
 
 import jakarta.persistence.*;
 import lat.nexofood.api.common.model.BaseEntity;

@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.auth.domain;
+package lat.nexofood.api.modules.identity.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

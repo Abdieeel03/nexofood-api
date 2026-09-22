@@ -13,7 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.tenant.domain.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

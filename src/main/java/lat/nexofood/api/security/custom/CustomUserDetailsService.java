@@ -1,8 +1,8 @@
 package lat.nexofood.api.security.custom;
 
 import lat.nexofood.api.common.constants.ErrorMessages;
-import lat.nexofood.api.modules.auth.domain.User;
-import lat.nexofood.api.modules.auth.infrastructure.repository.UserRepository;
+import lat.nexofood.api.modules.identity.domain.User;
+import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

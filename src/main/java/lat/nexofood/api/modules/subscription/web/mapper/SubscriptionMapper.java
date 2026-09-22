@@ -1,6 +1,6 @@
 package lat.nexofood.api.modules.subscription.web.mapper;
 
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.subscription.domain.Subscription;
 import lat.nexofood.api.modules.subscription.domain.SubscriptionPlan;
 import lat.nexofood.api.modules.subscription.domain.SubscriptionStatus;

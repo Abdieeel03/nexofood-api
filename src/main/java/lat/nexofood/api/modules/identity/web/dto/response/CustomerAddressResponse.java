@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.auth.web.dto.response;
+package lat.nexofood.api.modules.identity.web.dto.response;
 
 import lombok.Builder;
 

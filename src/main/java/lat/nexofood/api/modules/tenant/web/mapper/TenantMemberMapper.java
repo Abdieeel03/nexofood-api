@@ -1,6 +1,6 @@
 package lat.nexofood.api.modules.tenant.web.mapper;
 
-import lat.nexofood.api.modules.auth.domain.User;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.tenant.domain.Tenant;
 import lat.nexofood.api.modules.tenant.domain.TenantMember;
 import lat.nexofood.api.modules.tenant.domain.TenantStaffRole;
