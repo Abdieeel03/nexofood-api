@@ -9,7 +9,9 @@ import lat.nexofood.api.modules.identity.infrastructure.repository.RefreshTokenR
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lat.nexofood.api.modules.identity.web.dto.request.LoginRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
+import lat.nexofood.api.modules.identity.web.dto.response.TenantStaffMembershipDto;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
+import lat.nexofood.api.modules.store.infrastructure.repository.TenantMemberRepository;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
+
 
 @Slf4j
 @Service
@@ -30,6 +35,7 @@ public class LoginService implements LoginUseCase {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final UserMapper userMapper;
+    private final TenantMemberRepository tenantMemberRepository;
 
     @Override
     @Transactional
@@ -62,6 +68,18 @@ public class LoginService implements LoginUseCase {
                 .build();
 
         refreshTokenRepository.save(refreshToken);
+
+        List<TenantStaffMembershipDto> staffMemberships = tenantMemberRepository
+                .findAllByUserId(user.getId())
+                .stream()
+                .map(member -> TenantStaffMembershipDto.builder()
+                        .tenantId(member.getTenant().getId())
+                        .tenantName(member.getTenant().getName())
+                        .tenantSlug(member.getTenant().getSlug())
+                        .staffRole(member.getRole())
+                        .build())
+                .collect(Collectors.toList());
+
         log.info("Inicio de sesión exitoso para el usuario con ID: {}", user.getId());
 
         return AuthResponse.builder()
@@ -70,6 +88,8 @@ public class LoginService implements LoginUseCase {
                 .tokenType("Bearer")
                 .expiresIn(jwtService.getExpirationTime() / 1000)
                 .user(userMapper.toResponse(user))
+                .staffMemberships(staffMemberships)
                 .build();
     }
 }
+

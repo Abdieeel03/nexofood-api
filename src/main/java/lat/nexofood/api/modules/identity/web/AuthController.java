@@ -12,6 +12,10 @@ import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import lat.nexofood.api.modules.identity.web.dto.response.UserProfileResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,5 +63,19 @@ public class AuthController {
                 .data(response)
                 .build();
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Perfil del usuario autenticado", description = "Retorna datos del usuario, sus membresías de staff y direcciones guardadas")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> me(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserProfileResponse profile = authService.getProfile(userDetails.getUsername());
+        return ResponseEntity.ok(
+                ApiResponse.<UserProfileResponse>builder()
+                        .success(true)
+                        .message("Perfil obtenido exitosamente")
+                        .data(profile)
+                        .build()
+        );
     }
 }
