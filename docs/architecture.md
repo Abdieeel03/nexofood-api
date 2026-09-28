@@ -79,6 +79,8 @@ module/
    * Se evalúa la distancia esférica entre las coordenadas del local y la dirección de entrega del cliente[cite: 1, 2]. Si la distancia supera el radio configurado (`delivery_radius_km`), el pedido a domicilio es bloqueado[cite: 1, 2].
 5. **Snapshots Históricos Inmutables:**
    * Las órdenes preservan una copia inmutable del nombre del producto, precio unitario y dirección textual al momento exacto de la compra para garantizar consistencia histórica[cite: 1, 2].
+6. **Precios Dinámicos y Promociones:**
+   * El precio no es un valor estático en `products`; se desacopla en la tabla `product_prices`, permitiendo precios base y reglas dinámicas por fecha, día de la semana y rangos de horario (ej. Happy Hour, ofertas de fin de semana). Las órdenes y carritos calculan y congelan el precio vigente en el momento exacto de la operación.
 
 ---
 
