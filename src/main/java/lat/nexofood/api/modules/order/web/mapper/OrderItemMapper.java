@@ -1,5 +1,10 @@
 package lat.nexofood.api.modules.order.web.mapper;
 
+import lat.nexofood.api.modules.catalog.application.service.CalculateProductPriceService;
+import lat.nexofood.api.modules.catalog.application.service.GetBasePriceService;
+import lat.nexofood.api.modules.catalog.application.service.GetEffectivePriceRuleService;
+import lat.nexofood.api.modules.catalog.application.service.ProductPricingService;
+import lat.nexofood.api.modules.catalog.application.service.ProductPricingServiceImpl;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderItem;
@@ -11,6 +16,23 @@ import java.math.BigDecimal;
 
 @Component
 public class OrderItemMapper {
+
+    private final ProductPricingService pricingService;
+
+    public OrderItemMapper() {
+        this.pricingService = createDefaultPricingService();
+    }
+
+    public OrderItemMapper(ProductPricingService pricingService) {
+        this.pricingService = pricingService != null ? pricingService : createDefaultPricingService();
+    }
+
+    private static ProductPricingService createDefaultPricingService() {
+        GetBasePriceService basePriceService = new GetBasePriceService();
+        GetEffectivePriceRuleService effectiveRuleService = new GetEffectivePriceRuleService(basePriceService);
+        CalculateProductPriceService calculatePriceService = new CalculateProductPriceService(effectiveRuleService);
+        return new ProductPricingServiceImpl(calculatePriceService, basePriceService, effectiveRuleService);
+    }
 
     public OrderItemResponse toResponse(OrderItem item) {
         if (item == null) {
@@ -33,7 +55,7 @@ public class OrderItemMapper {
         if (request == null || product == null) {
             return null;
         }
-        BigDecimal unitPrice = product.getPrice();
+        BigDecimal unitPrice = pricingService.calculateCurrentPrice(product);
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(request.quantity()));
 
         return OrderItem.builder()

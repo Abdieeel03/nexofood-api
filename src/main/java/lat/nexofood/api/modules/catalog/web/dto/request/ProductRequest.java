@@ -1,12 +1,13 @@
 package lat.nexofood.api.modules.catalog.web.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Builder
@@ -19,10 +20,12 @@ public record ProductRequest(
 
         String description,
 
-        @NotNull(message = "El precio es obligatorio")
         @DecimalMin(value = "0.01", message = "El precio debe ser mayor a 0")
         BigDecimal price,
 
         String imageUrl,
-        Boolean isAvailable
+        Boolean isAvailable,
+
+        @Valid
+        List<ProductPriceRequest> prices
 ) {}

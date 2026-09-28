@@ -1,5 +1,10 @@
 package lat.nexofood.api.modules.cart.web.mapper;
 
+import lat.nexofood.api.modules.catalog.application.service.CalculateProductPriceService;
+import lat.nexofood.api.modules.catalog.application.service.GetBasePriceService;
+import lat.nexofood.api.modules.catalog.application.service.GetEffectivePriceRuleService;
+import lat.nexofood.api.modules.catalog.application.service.ProductPricingService;
+import lat.nexofood.api.modules.catalog.application.service.ProductPricingServiceImpl;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.cart.domain.Cart;
 import lat.nexofood.api.modules.cart.domain.CartItem;
@@ -11,6 +16,23 @@ import java.math.BigDecimal;
 
 @Component
 public class CartItemMapper {
+
+    private final ProductPricingService pricingService;
+
+    public CartItemMapper() {
+        this.pricingService = createDefaultPricingService();
+    }
+
+    public CartItemMapper(ProductPricingService pricingService) {
+        this.pricingService = pricingService != null ? pricingService : createDefaultPricingService();
+    }
+
+    private static ProductPricingService createDefaultPricingService() {
+        GetBasePriceService basePriceService = new GetBasePriceService();
+        GetEffectivePriceRuleService effectiveRuleService = new GetEffectivePriceRuleService(basePriceService);
+        CalculateProductPriceService calculatePriceService = new CalculateProductPriceService(effectiveRuleService);
+        return new ProductPricingServiceImpl(calculatePriceService, basePriceService, effectiveRuleService);
+    }
 
     public CartItemResponse toResponse(CartItem item) {
         if (item == null) {
@@ -33,7 +55,7 @@ public class CartItemMapper {
         if (request == null || product == null) {
             return null;
         }
-        BigDecimal unitPrice = product.getPrice();
+        BigDecimal unitPrice = pricingService.calculateCurrentPrice(product);
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(request.quantity()));
 
         return CartItem.builder()

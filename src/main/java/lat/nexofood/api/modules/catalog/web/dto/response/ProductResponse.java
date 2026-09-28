@@ -4,6 +4,7 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Builder
@@ -15,6 +16,8 @@ public record ProductResponse(
         String name,
         String description,
         BigDecimal price,
+        BigDecimal basePrice,
+        List<ProductPriceResponse> prices,
         String imageUrl,
         Boolean isAvailable,
         OffsetDateTime createdAt,
