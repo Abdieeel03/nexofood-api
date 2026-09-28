@@ -49,9 +49,9 @@ public class InventoryMovement extends BaseEntity {
     private Tenant tenant;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "inventory_id", nullable = false)
+    @JoinColumn(name = "inventory_stock_id", nullable = false)
     @ToString.Exclude
-    private Inventory inventory;
+    private InventoryStock stock;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "inventory_item_id", nullable = false)

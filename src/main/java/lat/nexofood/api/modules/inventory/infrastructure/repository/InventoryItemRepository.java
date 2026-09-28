@@ -32,9 +32,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
 
     Page<InventoryItem> findAllByTenantIdAndCategory(UUID tenantId, String category, Pageable pageable);
 
-    List<InventoryItem> findAllByTenantIdAndUnidad(UUID tenantId, InventoryUnit unidad);
+    List<InventoryItem> findAllByTenantIdAndUnit(UUID tenantId, InventoryUnit unit);
 
-    Page<InventoryItem> findAllByTenantIdAndUnidad(UUID tenantId, InventoryUnit unidad, Pageable pageable);
+    Page<InventoryItem> findAllByTenantIdAndUnit(UUID tenantId, InventoryUnit unit, Pageable pageable);
 
     long countByTenantId(UUID tenantId);
 

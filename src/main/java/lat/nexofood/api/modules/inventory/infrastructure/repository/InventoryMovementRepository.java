@@ -24,9 +24,9 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
 
     Page<InventoryMovement> findAllByTenantId(UUID tenantId, Pageable pageable);
 
-    List<InventoryMovement> findAllByTenantIdAndInventoryId(UUID tenantId, UUID inventoryId);
+    List<InventoryMovement> findAllByTenantIdAndStockId(UUID tenantId, UUID stockId);
 
-    Page<InventoryMovement> findAllByTenantIdAndInventoryId(UUID tenantId, UUID inventoryId, Pageable pageable);
+    Page<InventoryMovement> findAllByTenantIdAndStockId(UUID tenantId, UUID stockId, Pageable pageable);
 
     List<InventoryMovement> findAllByTenantIdAndItemId(UUID tenantId, UUID itemId);
 

@@ -3,8 +3,6 @@ package lat.nexofood.api.modules.inventory.domain;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -32,9 +30,9 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "inventories",
+        name = "inventory_stocks",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_inventories_tenant_item", columnNames = {"tenant_id", "inventory_item_id"})
+                @UniqueConstraint(name = "uk_inventory_stocks_tenant_item", columnNames = {"tenant_id", "inventory_item_id"})
         }
 )
 @Getter
@@ -44,7 +42,7 @@ import java.util.UUID;
 @Builder
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
-public class Inventory extends BaseEntity {
+public class InventoryStock extends BaseEntity {
 
     @Id
     @GeneratedValue
@@ -62,11 +60,6 @@ public class Inventory extends BaseEntity {
     @JoinColumn(name = "inventory_item_id", nullable = false)
     @ToString.Exclude
     private InventoryItem item;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "unit", nullable = false, length = 20)
-    @Builder.Default
-    private InventoryUnit unit = InventoryUnit.UNIT;
 
     @Column(name = "quantity", precision = 12, scale = 3, nullable = false)
     @Builder.Default
@@ -90,8 +83,12 @@ public class Inventory extends BaseEntity {
     @Builder.Default
     private Boolean isActive = true;
 
-    @OneToMany(mappedBy = "inventory", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "stock", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @ToString.Exclude
     @Builder.Default
     private List<InventoryMovement> movements = new ArrayList<>();
+
+    public InventoryUnit getUnit() {
+        return item != null ? item.getUnit() : null;
+    }
 }

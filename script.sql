@@ -14,15 +14,17 @@ CREATE EXTENSION IF NOT EXISTS "postgis";
 -- 2. DROP EXISTING TABLES (Reverse Dependency Order)
 -- ------------------------------------------------------------------------------
 DROP TABLE IF EXISTS inventory_movements CASCADE;
-DROP TABLE IF EXISTS inventories CASCADE;
+DROP TABLE IF EXISTS inventory_stocks CASCADE;
 DROP TABLE IF EXISTS inventory_items CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS cart_items CASCADE;
 DROP TABLE IF EXISTS carts CASCADE;
+DROP TABLE IF EXISTS product_prices CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
+DROP TABLE IF EXISTS tenant_customers CASCADE;
 DROP TABLE IF EXISTS tenant_members CASCADE;
 DROP TABLE IF EXISTS tenants CASCADE;
 DROP TABLE IF EXISTS subscriptions CASCADE;
@@ -146,10 +148,10 @@ BEFORE UPDATE ON subscriptions
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ==============================================================================
--- 6. MODULE: TENANT
+-- 6. MODULE: STORE
 -- ==============================================================================
 
--- Table: tenants (lat.nexofood.api.modules.tenant.domain.Tenant)
+-- Table: tenants (lat.nexofood.api.modules.store.domain.Tenant)
 CREATE TABLE tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     subscription_id UUID NOT NULL UNIQUE REFERENCES subscriptions(id) ON DELETE RESTRICT,
@@ -182,7 +184,7 @@ CREATE TRIGGER trg_tenants_updated_at
 BEFORE UPDATE ON tenants
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Table: tenant_members (lat.nexofood.api.modules.tenant.domain.TenantMember)
+-- Table: tenant_members (lat.nexofood.api.modules.store.domain.TenantMember)
 CREATE TABLE tenant_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -200,6 +202,29 @@ CREATE INDEX idx_tenant_members_user_id ON tenant_members(user_id);
 
 CREATE TRIGGER trg_tenant_members_updated_at
 BEFORE UPDATE ON tenant_members
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Table: tenant_customers (lat.nexofood.api.modules.store.domain.TenantCustomer)
+CREATE TABLE tenant_customers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    loyalty_points INTEGER NOT NULL DEFAULT 0,
+    is_blocked BOOLEAN NOT NULL DEFAULT FALSE,
+    notes TEXT,
+    total_orders INTEGER NOT NULL DEFAULT 0,
+    first_order_at TIMESTAMPTZ,
+    last_order_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_tenant_customer UNIQUE (tenant_id, user_id)
+);
+
+CREATE INDEX idx_tenant_customers_tenant_id ON tenant_customers(tenant_id);
+CREATE INDEX idx_tenant_customers_user_id ON tenant_customers(user_id);
+
+CREATE TRIGGER trg_tenant_customers_updated_at
+BEFORE UPDATE ON tenant_customers
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ==============================================================================
@@ -231,7 +256,6 @@ CREATE TABLE products (
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT,
-    price NUMERIC(10, 2) NOT NULL,
     image_url TEXT,
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -246,6 +270,34 @@ CREATE TRIGGER trg_products_updated_at
 BEFORE UPDATE ON products
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Table: product_prices (lat.nexofood.api.modules.catalog.domain.ProductPrice)
+CREATE TABLE product_prices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    is_base BOOLEAN NOT NULL DEFAULT FALSE,
+    discount_percentage NUMERIC(5, 2),
+    start_date DATE,
+    end_date DATE,
+    start_time TIME,
+    end_time TIME,
+    days_of_week VARCHAR(100),
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_product_prices_product_id ON product_prices(product_id);
+CREATE INDEX idx_product_prices_product_active ON product_prices(product_id, is_active);
+CREATE INDEX idx_product_prices_product_base ON product_prices(product_id, is_base);
+CREATE INDEX idx_product_prices_priority ON product_prices(priority DESC);
+
+CREATE TRIGGER trg_product_prices_updated_at
+BEFORE UPDATE ON product_prices
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- ==============================================================================
 -- 8. MODULE: CART
 -- ==============================================================================
@@ -254,7 +306,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE carts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    customer_id UUID NOT NULL REFERENCES tenant_customers(id) ON DELETE CASCADE,
     total NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -297,7 +349,7 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-    customer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    customer_id UUID NOT NULL REFERENCES tenant_customers(id) ON DELETE RESTRICT,
     delivery_staff_id UUID REFERENCES users(id) ON DELETE SET NULL,
     order_number VARCHAR(20) NOT NULL,
     delivery_type VARCHAR(50) NOT NULL DEFAULT 'DELIVERY'
@@ -402,13 +454,11 @@ CREATE TRIGGER trg_inventory_items_updated_at
 BEFORE UPDATE ON inventory_items
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Table: inventories (lat.nexofood.api.modules.inventory.domain.Inventory)
-CREATE TABLE inventories (
+-- Table: inventory_stocks (lat.nexofood.api.modules.inventory.domain.InventoryStock)
+CREATE TABLE inventory_stocks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     inventory_item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
-    unit VARCHAR(20) NOT NULL DEFAULT 'UNIT'
-        CONSTRAINT chk_inventories_unit CHECK (unit IN ('UNIT', 'KG')),
     quantity NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
     reserved_quantity NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
     minimum_stock NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
@@ -417,21 +467,21 @@ CREATE TABLE inventories (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_inventories_tenant_item UNIQUE (tenant_id, inventory_item_id)
+    CONSTRAINT uk_inventory_stocks_tenant_item UNIQUE (tenant_id, inventory_item_id)
 );
 
-CREATE INDEX idx_inventories_tenant_id ON inventories(tenant_id);
-CREATE INDEX idx_inventories_item_id ON inventories(inventory_item_id);
+CREATE INDEX idx_inventory_stocks_tenant_id ON inventory_stocks(tenant_id);
+CREATE INDEX idx_inventory_stocks_item_id ON inventory_stocks(inventory_item_id);
 
-CREATE TRIGGER trg_inventories_updated_at
-BEFORE UPDATE ON inventories
+CREATE TRIGGER trg_inventory_stocks_updated_at
+BEFORE UPDATE ON inventory_stocks
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Table: inventory_movements (lat.nexofood.api.modules.inventory.domain.InventoryMovement)
 CREATE TABLE inventory_movements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    inventory_id UUID NOT NULL REFERENCES inventories(id) ON DELETE CASCADE,
+    inventory_stock_id UUID NOT NULL REFERENCES inventory_stocks(id) ON DELETE CASCADE,
     inventory_item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
     movement_type VARCHAR(50) NOT NULL
         CONSTRAINT chk_inventory_movements_type CHECK (movement_type IN ('ENTRY', 'EXIT', 'ADJUSTMENT')),
@@ -455,7 +505,7 @@ CREATE TABLE inventory_movements (
 );
 
 CREATE INDEX idx_inventory_movements_tenant_id ON inventory_movements(tenant_id);
-CREATE INDEX idx_inventory_movements_inventory_id ON inventory_movements(inventory_id);
+CREATE INDEX idx_inventory_movements_stock_id ON inventory_movements(inventory_stock_id);
 CREATE INDEX idx_inventory_movements_item_id ON inventory_movements(inventory_item_id);
 CREATE INDEX idx_inventory_movements_performed_by ON inventory_movements(performed_by_id);
 CREATE INDEX idx_inventory_movements_created_at ON inventory_movements(tenant_id, created_at DESC);
