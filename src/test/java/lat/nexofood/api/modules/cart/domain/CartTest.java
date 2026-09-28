@@ -2,6 +2,7 @@ package lat.nexofood.api.modules.cart.domain;
 
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.catalog.domain.ProductPrice;
 import lat.nexofood.api.modules.cart.web.dto.request.CartItemRequest;
 import lat.nexofood.api.modules.cart.web.dto.response.CartItemResponse;
 import lat.nexofood.api.modules.cart.web.dto.response.CartResponse;
@@ -12,6 +13,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,10 +28,16 @@ class CartTest {
         Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Restaurant").build();
         User customer = User.builder().id(UUID.randomUUID()).fullName("John Doe").build();
 
+        ProductPrice price1 = ProductPrice.builder()
+                .name("Precio Base")
+                .price(new BigDecimal("15.50"))
+                .isBase(true)
+                .build();
+
         Product product1 = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Pizza Margherita")
-                .price(new BigDecimal("15.50"))
+                .prices(new ArrayList<>(List.of(price1)))
                 .build();
 
         CartItem item1 = CartItem.builder()
@@ -73,10 +82,16 @@ class CartTest {
                 .total(new BigDecimal("20.00"))
                 .build();
 
+        ProductPrice price = ProductPrice.builder()
+                .name("Precio Base")
+                .price(new BigDecimal("10.00"))
+                .isBase(true)
+                .build();
+
         Product product = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Cheeseburger")
-                .price(new BigDecimal("10.00"))
+                .prices(new ArrayList<>(List.of(price)))
                 .build();
 
         CartItemRequest request = CartItemRequest.builder()
