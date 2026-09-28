@@ -5,7 +5,7 @@ import lat.nexofood.api.modules.payment.domain.Payment;
 import lat.nexofood.api.modules.payment.domain.PaymentStatus;
 import lat.nexofood.api.modules.payment.web.dto.request.PaymentCreateRequest;
 import lat.nexofood.api.modules.payment.web.dto.response.PaymentResponse;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import org.springframework.stereotype.Component;
 
 @Component

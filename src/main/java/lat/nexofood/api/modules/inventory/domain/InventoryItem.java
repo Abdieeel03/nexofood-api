@@ -11,7 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;

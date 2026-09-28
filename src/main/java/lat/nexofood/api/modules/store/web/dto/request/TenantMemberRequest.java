@@ -1,7 +1,7 @@
-package lat.nexofood.api.modules.tenant.web.dto.request;
+package lat.nexofood.api.modules.store.web.dto.request;
 
 import jakarta.validation.constraints.NotNull;
-import lat.nexofood.api.modules.tenant.domain.TenantStaffRole;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lombok.Builder;
 
 import java.util.UUID;

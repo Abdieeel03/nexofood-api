@@ -1,10 +1,10 @@
-package lat.nexofood.api.modules.tenant.web.mapper;
+package lat.nexofood.api.modules.store.web.mapper;
 
 import lat.nexofood.api.modules.identity.domain.User;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
-import lat.nexofood.api.modules.tenant.domain.TenantMember;
-import lat.nexofood.api.modules.tenant.domain.TenantStaffRole;
-import lat.nexofood.api.modules.tenant.web.dto.response.TenantMemberResponse;
+import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.TenantMember;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
+import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -6,7 +6,7 @@ import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderItem;
 import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

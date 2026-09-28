@@ -1,6 +1,6 @@
-package lat.nexofood.api.modules.tenant.web.dto.response;
+package lat.nexofood.api.modules.store.web.dto.response;
 
-import lat.nexofood.api.modules.tenant.domain.TenantStaffRole;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lombok.Builder;
 
 import java.time.OffsetDateTime;

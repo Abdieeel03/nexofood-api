@@ -8,7 +8,7 @@ import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductResponse;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

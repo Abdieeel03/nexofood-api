@@ -1,6 +1,6 @@
-package lat.nexofood.api.modules.tenant.infrastructure.repository;
+package lat.nexofood.api.modules.store.infrastructure.repository;
 
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

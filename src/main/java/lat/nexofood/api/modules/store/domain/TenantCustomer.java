@@ -1,6 +1,5 @@
-package lat.nexofood.api.modules.catalog.domain;
+package lat.nexofood.api.modules.store.domain;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,10 +7,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lat.nexofood.api.common.model.BaseEntity;
-import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.identity.domain.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -21,12 +20,16 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "products")
+@Table(
+        name = "tenant_customers",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_tenant_customer", columnNames = {"tenant_id", "user_id"})
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,7 +37,7 @@ import java.util.UUID;
 @Builder
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
-public class Product extends BaseEntity {
+public class TenantCustomer extends BaseEntity {
 
     @Id
     @GeneratedValue
@@ -49,25 +52,28 @@ public class Product extends BaseEntity {
     private Tenant tenant;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
+    @JoinColumn(name = "user_id", nullable = false)
     @ToString.Exclude
-    private Category category;
+    private User user;
 
-    @Column(name = "name", length = 150, nullable = false)
-    private String name;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
-    @Column(name = "image_url", columnDefinition = "TEXT")
-    private String imageUrl;
-
-    @Column(name = "is_available", nullable = false)
+    @Column(name = "loyalty_points", nullable = false)
     @Builder.Default
-    private Boolean isAvailable = true;
+    private Integer loyaltyPoints = 0;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Column(name = "is_blocked", nullable = false)
     @Builder.Default
-    @ToString.Exclude
-    private List<ProductPrice> prices = new ArrayList<>();
+    private Boolean isBlocked = false;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @Column(name = "total_orders", nullable = false)
+    @Builder.Default
+    private Integer totalOrders = 0;
+
+    @Column(name = "first_order_at")
+    private OffsetDateTime firstOrderAt;
+
+    @Column(name = "last_order_at")
+    private OffsetDateTime lastOrderAt;
 }

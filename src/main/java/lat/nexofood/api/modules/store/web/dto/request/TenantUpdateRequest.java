@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.tenant.web.dto.request;
+package lat.nexofood.api.modules.store.web.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;

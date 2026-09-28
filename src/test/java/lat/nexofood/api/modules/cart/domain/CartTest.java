@@ -8,7 +8,7 @@ import lat.nexofood.api.modules.cart.web.dto.response.CartItemResponse;
 import lat.nexofood.api.modules.cart.web.dto.response.CartResponse;
 import lat.nexofood.api.modules.cart.web.mapper.CartItemMapper;
 import lat.nexofood.api.modules.cart.web.mapper.CartMapper;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,4 +1,4 @@
-package lat.nexofood.api.modules.tenant.web.dto.response;
+package lat.nexofood.api.modules.store.web.dto.response;
 
 import lombok.Builder;
 

@@ -7,7 +7,7 @@ import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductMapper;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductPriceMapper;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

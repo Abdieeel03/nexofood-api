@@ -3,7 +3,7 @@ package lat.nexofood.api.modules.catalog.web.mapper;
 import lat.nexofood.api.modules.catalog.domain.Category;
 import lat.nexofood.api.modules.catalog.web.dto.request.CategoryRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import org.springframework.stereotype.Component;
 
 @Component

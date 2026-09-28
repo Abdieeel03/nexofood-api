@@ -1,11 +1,11 @@
-package lat.nexofood.api.modules.tenant.web.mapper;
+package lat.nexofood.api.modules.store.web.mapper;
 
 import lat.nexofood.api.common.util.GeoUtils;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.subscription.domain.Subscription;
-import lat.nexofood.api.modules.tenant.domain.Tenant;
-import lat.nexofood.api.modules.tenant.web.dto.request.TenantCreateRequest;
-import lat.nexofood.api.modules.tenant.web.dto.response.TenantResponse;
+import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
+import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
