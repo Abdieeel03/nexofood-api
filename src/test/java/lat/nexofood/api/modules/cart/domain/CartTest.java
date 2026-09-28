@@ -9,6 +9,7 @@ import lat.nexofood.api.modules.cart.web.dto.response.CartResponse;
 import lat.nexofood.api.modules.cart.web.mapper.CartItemMapper;
 import lat.nexofood.api.modules.cart.web.mapper.CartMapper;
 import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,12 @@ class CartTest {
     @DisplayName("Should create Cart and CartItem correctly")
     void shouldCreateCartAndCartItemCorrectly() {
         Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Restaurant").build();
-        User customer = User.builder().id(UUID.randomUUID()).fullName("John Doe").build();
+        User user = User.builder().id(UUID.randomUUID()).fullName("John Doe").build();
+        TenantCustomer customer = TenantCustomer.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .user(user)
+                .build();
 
         ProductPrice price1 = ProductPrice.builder()
                 .name("Precio Base")
@@ -72,7 +78,12 @@ class CartTest {
         CartMapper cartMapper = new CartMapper(itemMapper);
 
         Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Burger Joint").build();
-        User customer = User.builder().id(UUID.randomUUID()).fullName("Jane Doe").build();
+        User user = User.builder().id(UUID.randomUUID()).fullName("Jane Doe").build();
+        TenantCustomer customer = TenantCustomer.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .user(user)
+                .build();
 
         Cart cart = Cart.builder()
                 .id(UUID.randomUUID())
@@ -111,6 +122,7 @@ class CartTest {
         assertEquals(cart.getId(), response.id());
         assertEquals(tenant.getId(), response.tenantId());
         assertEquals(customer.getId(), response.customerId());
+        assertEquals(user.getId(), response.customerUserId());
         assertEquals("No plastic cutlery", response.notes());
         assertEquals(new BigDecimal("20.00"), response.total());
         assertEquals(1, response.items().size());

@@ -11,7 +11,11 @@ import java.util.UUID;
 @Repository
 public interface CartRepository extends JpaRepository<Cart, UUID> {
 
+    Optional<Cart> findByCustomerId(UUID customerId);
+
     Optional<Cart> findByTenantIdAndCustomerId(UUID tenantId, UUID customerId);
+
+    Optional<Cart> findByTenantIdAndCustomerUserId(UUID tenantId, UUID userId);
 
     Optional<Cart> findByIdAndTenantId(UUID id, UUID tenantId);
 
@@ -19,7 +23,11 @@ public interface CartRepository extends JpaRepository<Cart, UUID> {
 
     List<Cart> findAllByCustomerId(UUID customerId);
 
+    List<Cart> findAllByCustomerUserId(UUID userId);
+
     boolean existsByTenantIdAndCustomerId(UUID tenantId, UUID customerId);
+
+    void deleteByCustomerId(UUID customerId);
 
     void deleteByTenantIdAndCustomerId(UUID tenantId, UUID customerId);
 }

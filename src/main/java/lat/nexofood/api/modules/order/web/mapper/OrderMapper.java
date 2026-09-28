@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -28,12 +29,31 @@ public class OrderMapper {
                 ? order.getItems().stream().map(orderItemMapper::toResponse).toList()
                 : Collections.emptyList();
 
+        UUID customerId = null;
+        UUID customerUserId = null;
+        String customerFullName = null;
+        String customerEmail = null;
+        String customerPhone = null;
+
+        if (order.getCustomer() != null) {
+            customerId = order.getCustomer().getId();
+            User customerUser = order.getCustomer().getUser();
+            if (customerUser != null) {
+                customerUserId = customerUser.getId();
+                customerFullName = customerUser.getFullName();
+                customerEmail = customerUser.getEmail();
+                customerPhone = customerUser.getPhone();
+            }
+        }
+
         return OrderResponse.builder()
                 .id(order.getId())
                 .tenantId(order.getTenant() != null ? order.getTenant().getId() : null)
-                .customerId(order.getCustomer() != null ? order.getCustomer().getId() : null)
-                .customerFullName(order.getCustomer() != null ? order.getCustomer().getFullName() : null)
-                .customerPhone(order.getCustomer() != null ? order.getCustomer().getPhone() : null)
+                .customerId(customerId)
+                .customerUserId(customerUserId)
+                .customerFullName(customerFullName)
+                .customerEmail(customerEmail)
+                .customerPhone(customerPhone)
                 .deliveryStaffId(order.getDeliveryStaff() != null ? order.getDeliveryStaff().getId() : null)
                 .orderNumber(order.getOrderNumber())
                 .deliveryType(order.getDeliveryType())

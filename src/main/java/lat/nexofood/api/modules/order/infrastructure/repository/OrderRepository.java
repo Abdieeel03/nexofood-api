@@ -20,6 +20,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findAllByCustomerId(UUID customerId);
 
+    List<Order> findAllByTenantIdAndCustomerId(UUID tenantId, UUID customerId);
+
+    List<Order> findAllByCustomerUserId(UUID userId);
+
+    List<Order> findAllByTenantIdAndCustomerUserId(UUID tenantId, UUID userId);
+
     List<Order> findAllByDeliveryStaffId(UUID deliveryStaffId);
 
     boolean existsByOrderNumberAndTenantId(String orderNumber, UUID tenantId);

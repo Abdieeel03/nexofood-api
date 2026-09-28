@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -24,10 +25,16 @@ public class CartMapper {
                 ? cart.getItems().stream().map(cartItemMapper::toResponse).toList()
                 : Collections.emptyList();
 
+        UUID customerId = cart.getCustomer() != null ? cart.getCustomer().getId() : null;
+        UUID customerUserId = (cart.getCustomer() != null && cart.getCustomer().getUser() != null)
+                ? cart.getCustomer().getUser().getId()
+                : null;
+
         return CartResponse.builder()
                 .id(cart.getId())
                 .tenantId(cart.getTenant() != null ? cart.getTenant().getId() : null)
-                .customerId(cart.getCustomer() != null ? cart.getCustomer().getId() : null)
+                .customerId(customerId)
+                .customerUserId(customerUserId)
                 .total(cart.getTotal())
                 .notes(cart.getNotes())
                 .items(itemResponses)

@@ -12,6 +12,7 @@ public record CartResponse(
         UUID id,
         UUID tenantId,
         UUID customerId,
+        UUID customerUserId,
         BigDecimal total,
         String notes,
         List<CartItemResponse> items,

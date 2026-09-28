@@ -13,6 +13,7 @@ import lat.nexofood.api.modules.identity.web.dto.request.RefreshTokenRequest;
 import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
+import lat.nexofood.api.modules.store.infrastructure.repository.TenantMemberRepository;
 import lat.nexofood.api.security.jwt.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +50,9 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private TenantMemberRepository tenantMemberRepository;
+
     @Spy
     private UserMapper userMapper = new UserMapper();
 
@@ -61,7 +65,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         registerService = new RegisterService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper);
-        loginService = new LoginService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper);
+        loginService = new LoginService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, tenantMemberRepository);
         refreshTokenService = new RefreshTokenService(refreshTokenRepository, jwtService, userMapper);
 
         sampleUser = User.builder()
