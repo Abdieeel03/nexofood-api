@@ -27,7 +27,7 @@ DELETE FROM tenants WHERE id IN ('11111111-1111-1111-1111-111111111111', '222222
 DELETE FROM subscriptions WHERE mp_preapproval_id LIKE 'SUB-TEST-%';
 DELETE FROM subscription_plans WHERE name LIKE '[TEST]%';
 DELETE FROM customer_addresses WHERE reference LIKE '[TEST]%';
-DELETE FROM refresh_tokens WHERE token_hash LIKE 'hash_test_%';
+DELETE FROM refresh_tokens WHERE token_hash LIKE 'hash_test_%' OR token_hash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 DELETE FROM users WHERE email LIKE '%@test.nexofood.lat';
 
 -- ==============================================================================
@@ -49,7 +49,7 @@ INSERT INTO customer_addresses (id, user_id, title, address_line, reference, loc
 
 -- Refresh token con hash SHA-256 (64 hex chars)
 INSERT INTO refresh_tokens (id, token_hash, user_id, expiry_date, revoked) VALUES
-('b0000000-0000-0000-0000-000000000001', 'hash_test_e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '00000000-0000-0000-0000-000000000004', NOW() + INTERVAL '7 days', false);
+('b0000000-0000-0000-0000-000000000001', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '00000000-0000-0000-0000-000000000004', NOW() + INTERVAL '7 days', false);
 
 -- ==============================================================================
 -- 3. PLANES Y SUSCRIPCIONES
