@@ -11,6 +11,7 @@ import lat.nexofood.api.modules.identity.web.dto.request.LoginRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
 import lat.nexofood.api.modules.identity.web.dto.response.TenantStaffMembershipDto;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantMemberRepository;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +62,7 @@ public class LoginService implements LoginUseCase {
         String refreshTokenStr = jwtService.generateRefreshToken(user);
 
         RefreshToken refreshToken = RefreshToken.builder()
-                .token(refreshTokenStr)
+                .tokenHash(TokenHashUtil.hash(refreshTokenStr))
                 .user(user)
                 .expiryDate(LocalDateTime.now().plus(jwtService.getRefreshExpirationTime(), ChronoUnit.MILLIS))
                 .revoked(false)

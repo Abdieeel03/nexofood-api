@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.identity.application.service;
 import lat.nexofood.api.common.constants.ErrorMessages;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.UnauthorizedException;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.modules.identity.domain.RefreshToken;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.domain.UserSystemRole;
@@ -178,13 +179,13 @@ class AuthServiceTest {
         RefreshTokenRequest request = new RefreshTokenRequest("valid-refresh-token");
         RefreshToken tokenEntity = RefreshToken.builder()
                 .id(UUID.randomUUID())
-                .token("valid-refresh-token")
+                .tokenHash(TokenHashUtil.hash("valid-refresh-token"))
                 .user(sampleUser)
                 .expiryDate(LocalDateTime.now().plusDays(7))
                 .revoked(false)
                 .build();
 
-        when(refreshTokenRepository.findByToken("valid-refresh-token")).thenReturn(Optional.of(tokenEntity));
+        when(refreshTokenRepository.findByTokenHash(TokenHashUtil.hash("valid-refresh-token"))).thenReturn(Optional.of(tokenEntity));
         when(jwtService.generateToken(sampleUser)).thenReturn("new-access-token");
         when(jwtService.generateRefreshToken(sampleUser)).thenReturn("new-refresh-token");
         when(jwtService.getRefreshExpirationTime()).thenReturn(604800000L);
@@ -204,13 +205,13 @@ class AuthServiceTest {
         RefreshTokenRequest request = new RefreshTokenRequest("revoked-token");
         RefreshToken tokenEntity = RefreshToken.builder()
                 .id(UUID.randomUUID())
-                .token("revoked-token")
+                .tokenHash(TokenHashUtil.hash("revoked-token"))
                 .user(sampleUser)
                 .expiryDate(LocalDateTime.now().plusDays(7))
                 .revoked(true)
                 .build();
 
-        when(refreshTokenRepository.findByToken("revoked-token")).thenReturn(Optional.of(tokenEntity));
+        when(refreshTokenRepository.findByTokenHash(TokenHashUtil.hash("revoked-token"))).thenReturn(Optional.of(tokenEntity));
 
         assertThatThrownBy(() -> refreshTokenService.execute(request))
                 .isInstanceOf(UnauthorizedException.class)

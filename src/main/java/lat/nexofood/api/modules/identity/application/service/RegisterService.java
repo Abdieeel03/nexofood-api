@@ -10,6 +10,7 @@ import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepositor
 import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +49,7 @@ public class RegisterService implements RegisterUseCase {
         String refreshTokenStr = jwtService.generateRefreshToken(savedUser);
 
         RefreshToken refreshToken = RefreshToken.builder()
-                .token(refreshTokenStr)
+                .tokenHash(TokenHashUtil.hash(refreshTokenStr))
                 .user(savedUser)
                 .expiryDate(LocalDateTime.now().plus(jwtService.getRefreshExpirationTime(), ChronoUnit.MILLIS))
                 .revoked(false)

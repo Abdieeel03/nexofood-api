@@ -1,6 +1,7 @@
 package lat.nexofood.api.modules.store.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -83,15 +84,18 @@ public class Tenant extends BaseEntity {
     @Builder.Default
     private BigDecimal defaultDeliveryFee = new BigDecimal("0.00");
 
-    @Column(name = "mp_access_token", columnDefinition = "TEXT")
+    @Column(name = "mp_access_token_enc", columnDefinition = "BYTEA")
+    @Convert(converter = lat.nexofood.api.common.security.EncryptedStringConverter.class)
     @ToString.Exclude
     private String mpAccessToken;
 
-    @Column(name = "mp_public_key", columnDefinition = "TEXT")
+    @Column(name = "mp_public_key_enc", columnDefinition = "BYTEA")
+    @Convert(converter = lat.nexofood.api.common.security.EncryptedStringConverter.class)
     @ToString.Exclude
     private String mpPublicKey;
 
-    @Column(name = "mp_refresh_token", columnDefinition = "TEXT")
+    @Column(name = "mp_refresh_token_enc", columnDefinition = "BYTEA")
+    @Convert(converter = lat.nexofood.api.common.security.EncryptedStringConverter.class)
     @ToString.Exclude
     private String mpRefreshToken;
 

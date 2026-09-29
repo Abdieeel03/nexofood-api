@@ -16,6 +16,7 @@ import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.store.web.mapper.TenantCustomerMapper;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,7 +78,7 @@ public class StoreRegisterService implements StoreRegisterUseCase {
         String accessToken = jwtService.generateToken(savedUser);
         String refreshTokenStr = jwtService.generateRefreshToken(savedUser);
         RefreshToken refreshToken = RefreshToken.builder()
-                .token(refreshTokenStr)
+                .tokenHash(TokenHashUtil.hash(refreshTokenStr))
                 .user(savedUser)
                 .expiryDate(LocalDateTime.now().plus(jwtService.getRefreshExpirationTime(), ChronoUnit.MILLIS))
                 .revoked(false)

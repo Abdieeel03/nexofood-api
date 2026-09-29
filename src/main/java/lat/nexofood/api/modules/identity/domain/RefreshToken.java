@@ -21,8 +21,8 @@ public class RefreshToken extends BaseEntity {
     @Column(updatable = false, nullable = false)
     protected UUID id;
 
-    @Column(columnDefinition = "TEXT", nullable = false, unique = true)
-    private String token;
+    @Column(name = "token_hash", length = 64, nullable = false, unique = true)
+    private String tokenHash;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)

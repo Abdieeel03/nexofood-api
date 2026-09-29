@@ -2,6 +2,7 @@ package lat.nexofood.api.modules.identity.application.service;
 
 import lat.nexofood.api.common.constants.ErrorMessages;
 import lat.nexofood.api.common.exception.UnauthorizedException;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.modules.identity.application.usecase.RefreshTokenUseCase;
 import lat.nexofood.api.modules.identity.domain.RefreshToken;
 import lat.nexofood.api.modules.identity.domain.User;
@@ -32,7 +33,9 @@ public class RefreshTokenService implements RefreshTokenUseCase {
     public AuthResponse execute(RefreshTokenRequest request) {
         log.info("Solicitud de renovación de token recibida");
 
-        RefreshToken currentToken = refreshTokenRepository.findByToken(request.refreshToken())
+        // Buscar por hash SHA-256 del token (nunca se almacena el token en texto plano)
+        String tokenHash = TokenHashUtil.hash(request.refreshToken());
+        RefreshToken currentToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new UnauthorizedException(ErrorMessages.INVALID_REFRESH_TOKEN));
 
         User user = currentToken.getUser();
@@ -55,15 +58,16 @@ public class RefreshTokenService implements RefreshTokenUseCase {
             throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
         }
 
-        // Rotación de token
+        // Rotación de token: revocar el actual
         currentToken.setRevoked(true);
         refreshTokenRepository.save(currentToken);
 
         String newAccessToken = jwtService.generateToken(user);
         String newRefreshTokenStr = jwtService.generateRefreshToken(user);
 
+        // Almacenar solo el hash del nuevo token
         RefreshToken newRefreshToken = RefreshToken.builder()
-                .token(newRefreshTokenStr)
+                .tokenHash(TokenHashUtil.hash(newRefreshTokenStr))
                 .user(user)
                 .expiryDate(LocalDateTime.now().plus(jwtService.getRefreshExpirationTime(), ChronoUnit.MILLIS))
                 .revoked(false)
