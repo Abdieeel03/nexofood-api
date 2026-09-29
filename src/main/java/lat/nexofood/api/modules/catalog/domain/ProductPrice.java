@@ -16,7 +16,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -71,8 +73,10 @@ public class ProductPrice extends BaseEntity {
     @Column(name = "end_time")
     private LocalTime endTime;
 
-    @Column(name = "days_of_week", length = 100)
-    private String daysOfWeek;
+    /** Días de la semana (ISO: 1=Lunes ... 7=Domingo) en que aplica este precio. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "days_of_week", columnDefinition = "SMALLINT[]")
+    private Short[] daysOfWeek;
 
     @Column(name = "priority", nullable = false)
     @Builder.Default

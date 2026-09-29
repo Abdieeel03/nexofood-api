@@ -33,8 +33,7 @@ public record ProductPriceRequest(
         LocalTime startTime,
         LocalTime endTime,
 
-        @Size(max = 100, message = "Los días de la semana no pueden exceder los 100 caracteres")
-        String daysOfWeek,
+        Short[] daysOfWeek,
 
         Integer priority,
         Boolean isActive

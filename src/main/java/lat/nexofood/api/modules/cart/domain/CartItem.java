@@ -10,6 +10,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -46,6 +47,11 @@ public class CartItem extends BaseEntity {
     private Cart cart;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    @ToString.Exclude
+    private Tenant tenant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     @ToString.Exclude
     private Product product;
@@ -57,7 +63,7 @@ public class CartItem extends BaseEntity {
     @Column(name = "unit_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal unitPrice;
 
-    @Column(name = "subtotal", precision = 10, scale = 2, nullable = false)
+    @Column(name = "subtotal", precision = 10, scale = 2, insertable = false, updatable = false)
     private BigDecimal subtotal;
 
     @Column(name = "notes", columnDefinition = "TEXT")

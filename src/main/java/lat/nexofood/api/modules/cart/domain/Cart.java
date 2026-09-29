@@ -61,7 +61,7 @@ public class Cart extends BaseEntity {
     @ToString.Exclude
     private TenantCustomer customer;
 
-    @Column(name = "total", precision = 10, scale = 2, nullable = false)
+    @Column(name = "total", precision = 10, scale = 2, insertable = false, updatable = false)
     @Builder.Default
     private BigDecimal total = BigDecimal.ZERO;
 

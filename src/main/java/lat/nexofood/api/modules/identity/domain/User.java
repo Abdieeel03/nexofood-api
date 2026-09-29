@@ -17,6 +17,7 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -58,4 +59,8 @@ public class User extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    /** Soft delete: fecha en que el usuario fue dado de baja lógicamente. */
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
 }

@@ -35,6 +35,8 @@ DROP TABLE IF EXISTS users CASCADE;
 
 -- Drop function if exists
 DROP FUNCTION IF EXISTS update_updated_at_column CASCADE;
+DROP FUNCTION IF EXISTS update_cart_total CASCADE;
+DROP FUNCTION IF EXISTS sync_tenant_customer_stats CASCADE;
 
 -- ------------------------------------------------------------------------------
 -- 3. UPDATED_AT TRIGGER FUNCTION
@@ -514,3 +516,284 @@ CREATE INDEX idx_inventory_movements_reference ON inventory_movements(reference_
 CREATE TRIGGER trg_inventory_movements_updated_at
 BEFORE UPDATE ON inventory_movements
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ==============================================================================
+-- 12. MEJORAS DE SEGURIDAD, INTEGRIDAD Y NORMALIZACIÓN
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- FASE 1: SEGURIDAD CRÍTICA
+-- ------------------------------------------------------------------------------
+
+-- 1.1 Encriptación de credenciales Mercado Pago (AES-256-GCM desde la aplicación)
+-- Las columnas cambian de TEXT a BYTEA para almacenar el ciphertext binario.
+ALTER TABLE tenants RENAME COLUMN mp_access_token TO mp_access_token_enc;
+ALTER TABLE tenants ALTER COLUMN mp_access_token_enc TYPE BYTEA USING NULL;
+
+ALTER TABLE tenants RENAME COLUMN mp_refresh_token TO mp_refresh_token_enc;
+ALTER TABLE tenants ALTER COLUMN mp_refresh_token_enc TYPE BYTEA USING NULL;
+
+ALTER TABLE tenants RENAME COLUMN mp_public_key TO mp_public_key_enc;
+ALTER TABLE tenants ALTER COLUMN mp_public_key_enc TYPE BYTEA USING NULL;
+
+-- 1.2 Hash de refresh tokens
+-- Se almacena solo el hash SHA-256 del token, nunca el token en texto plano.
+ALTER TABLE refresh_tokens DROP COLUMN IF EXISTS token;
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS token_hash VARCHAR(64);
+DROP INDEX IF EXISTS idx_refresh_tokens_token;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+
+-- Hacer NOT NULL después de agregar (en producción con datos existentes se haría en 2 pasos)
+ALTER TABLE refresh_tokens ALTER COLUMN token_hash SET NOT NULL;
+
+-- 1.3 Raw response de pagos: la sanitización es responsabilidad de la aplicación (PaymentMapper).
+-- No se requieren cambios de schema para este punto.
+
+-- 1.4 Row Level Security (RLS) — Aislamiento multi-tenant a nivel de base de datos
+-- NOTA: El rol de la aplicación (nexofood_app) NO debe ser superuser.
+-- Los superusers bypasean RLS automáticamente.
+
+ALTER TABLE tenant_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_stocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de aislamiento por tenant para tablas con tenant_id directo
+CREATE POLICY tenant_isolation ON tenant_members
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON tenant_customers
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON categories
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON products
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON carts
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON orders
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON payments
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON inventory_items
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON inventory_stocks
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+CREATE POLICY tenant_isolation ON inventory_movements
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+
+-- Políticas para tablas sin tenant_id directo (heredan por JOIN con padre)
+CREATE POLICY tenant_isolation ON cart_items
+    USING (cart_id IN (SELECT id FROM carts));
+CREATE POLICY tenant_isolation ON order_items
+    USING (order_id IN (SELECT id FROM orders));
+
+-- ------------------------------------------------------------------------------
+-- FASE 2: INTEGRIDAD REFERENCIAL Y LÓGICA DE NEGOCIO
+-- ------------------------------------------------------------------------------
+
+-- 2.1 Corregir ON DELETE CASCADE destructivo
+-- Cambiar de CASCADE a RESTRICT en identidades clave para preservar historial
+
+-- tenant_customers.user_id: CASCADE → RESTRICT
+ALTER TABLE tenant_customers
+    DROP CONSTRAINT IF EXISTS tenant_customers_user_id_fkey;
+ALTER TABLE tenant_customers
+    ADD CONSTRAINT tenant_customers_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT;
+
+-- subscriptions.user_id: CASCADE → RESTRICT
+ALTER TABLE subscriptions
+    DROP CONSTRAINT IF EXISTS subscriptions_user_id_fkey;
+ALTER TABLE subscriptions
+    ADD CONSTRAINT subscriptions_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT;
+
+-- tenant_members.user_id: CASCADE → RESTRICT
+ALTER TABLE tenant_members
+    DROP CONSTRAINT IF EXISTS tenant_members_user_id_fkey;
+ALTER TABLE tenant_members
+    ADD CONSTRAINT tenant_members_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT;
+
+-- Soft delete: marcar usuarios como eliminados sin borrarlos físicamente
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- 2.2 Prevenir Cross-Tenant Leakage en cart_items y order_items
+-- FK compuestas garantizan que el producto pertenezca al mismo tenant
+
+-- Clave compuesta única en products
+ALTER TABLE products
+    ADD CONSTRAINT uk_products_id_tenant UNIQUE (id, tenant_id);
+
+-- Agregar tenant_id a cart_items y FK compuesta
+ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS tenant_id UUID;
+UPDATE cart_items ci
+    SET tenant_id = c.tenant_id
+    FROM carts c
+    WHERE ci.cart_id = c.id
+      AND ci.tenant_id IS NULL;
+ALTER TABLE cart_items ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE cart_items
+    DROP CONSTRAINT IF EXISTS cart_items_product_id_fkey;
+ALTER TABLE cart_items
+    ADD CONSTRAINT cart_items_product_tenant_fkey
+        FOREIGN KEY (product_id, tenant_id) REFERENCES products(id, tenant_id);
+
+-- Agregar tenant_id a order_items y FK compuesta
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS tenant_id UUID;
+UPDATE order_items oi
+    SET tenant_id = o.tenant_id
+    FROM orders o
+    WHERE oi.order_id = o.id
+      AND oi.tenant_id IS NULL;
+ALTER TABLE order_items ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE order_items
+    DROP CONSTRAINT IF EXISTS order_items_product_id_fkey;
+ALTER TABLE order_items
+    ADD CONSTRAINT order_items_product_tenant_fkey
+        FOREIGN KEY (product_id, tenant_id) REFERENCES products(id, tenant_id);
+
+-- 2.3 Unicidad de order_number por tenant
+ALTER TABLE orders
+    ADD CONSTRAINT uk_orders_tenant_number UNIQUE (tenant_id, order_number);
+
+-- 2.4 CHECK: inventario no puede ser negativo
+ALTER TABLE inventory_stocks
+    ADD CONSTRAINT chk_inventory_stocks_quantity_non_negative
+        CHECK (quantity >= 0);
+ALTER TABLE inventory_stocks
+    ADD CONSTRAINT chk_inventory_stocks_reserved_non_negative
+        CHECK (reserved_quantity >= 0);
+
+-- ------------------------------------------------------------------------------
+-- FASE 3: NORMALIZACIÓN Y CONSISTENCIA
+-- ------------------------------------------------------------------------------
+
+-- 3.1 Columnas calculadas: subtotal como GENERATED ALWAYS
+
+-- cart_items.subtotal
+ALTER TABLE cart_items DROP COLUMN IF EXISTS subtotal;
+ALTER TABLE cart_items
+    ADD COLUMN subtotal NUMERIC(10, 2)
+    GENERATED ALWAYS AS (quantity * unit_price) STORED;
+
+-- order_items.subtotal
+ALTER TABLE order_items DROP COLUMN IF EXISTS subtotal;
+ALTER TABLE order_items
+    ADD COLUMN subtotal NUMERIC(10, 2)
+    GENERATED ALWAYS AS (quantity * unit_price) STORED;
+
+-- orders.total = subtotal + delivery_fee
+ALTER TABLE orders DROP COLUMN IF EXISTS total;
+ALTER TABLE orders
+    ADD COLUMN total NUMERIC(10, 2)
+    GENERATED ALWAYS AS (subtotal + delivery_fee) STORED;
+
+-- carts.total: no puede ser GENERATED (depende de otra tabla).
+-- Se sincroniza mediante trigger.
+CREATE OR REPLACE FUNCTION update_cart_total()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE carts SET total = (
+        SELECT COALESCE(SUM(quantity * unit_price), 0.00)
+        FROM cart_items
+        WHERE cart_id = COALESCE(NEW.cart_id, OLD.cart_id)
+    ) WHERE id = COALESCE(NEW.cart_id, OLD.cart_id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_cart_items_sync_total
+AFTER INSERT OR UPDATE OR DELETE ON cart_items
+FOR EACH ROW EXECUTE FUNCTION update_cart_total();
+
+-- 3.2 Trigger para mantener sincronizadas las estadísticas de tenant_customers
+-- (total_orders, first_order_at, last_order_at) automáticamente
+
+CREATE OR REPLACE FUNCTION sync_tenant_customer_stats()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_customer_id UUID;
+BEGIN
+    v_customer_id := COALESCE(NEW.customer_id, OLD.customer_id);
+
+    UPDATE tenant_customers SET
+        total_orders = (
+            SELECT COUNT(*)
+            FROM orders
+            WHERE customer_id = v_customer_id
+              AND status != 'CANCELADO'
+        ),
+        first_order_at = (
+            SELECT MIN(created_at)
+            FROM orders
+            WHERE customer_id = v_customer_id
+              AND status != 'CANCELADO'
+        ),
+        last_order_at = (
+            SELECT MAX(created_at)
+            FROM orders
+            WHERE customer_id = v_customer_id
+              AND status != 'CANCELADO'
+        )
+    WHERE id = v_customer_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_orders_sync_customer_stats
+AFTER INSERT OR UPDATE OF status OR DELETE ON orders
+FOR EACH ROW EXECUTE FUNCTION sync_tenant_customer_stats();
+
+-- 3.3 days_of_week: de VARCHAR(100) a SMALLINT[] (ISO: 1=Lunes...7=Domingo)
+-- La migración de datos existentes requiere un script específico según el
+-- formato almacenado. Aquí se realiza el cambio de schema.
+ALTER TABLE product_prices ADD COLUMN IF NOT EXISTS days_of_week_arr SMALLINT[];
+ALTER TABLE product_prices DROP COLUMN IF EXISTS days_of_week;
+ALTER TABLE product_prices RENAME COLUMN days_of_week_arr TO days_of_week;
+
+ALTER TABLE product_prices
+    ADD CONSTRAINT chk_product_prices_days_valid
+        CHECK (days_of_week <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[]);
+
+CREATE INDEX IF NOT EXISTS idx_product_prices_days
+    ON product_prices USING GIN(days_of_week);
+
+-- 3.4 CHECK de consistencia aritmética en inventory_movements
+-- new_quantity debe ser coherente con previous_quantity + delta
+ALTER TABLE inventory_movements
+    ADD CONSTRAINT chk_inventory_movements_quantity_consistency
+        CHECK (
+            (movement_type = 'ENTRY'      AND new_quantity = previous_quantity + quantity) OR
+            (movement_type = 'EXIT'       AND new_quantity = previous_quantity - quantity) OR
+            (movement_type = 'ADJUSTMENT')
+        );
+
+-- ------------------------------------------------------------------------------
+-- FASE 4: MEJORAS OPCIONALES
+-- ------------------------------------------------------------------------------
+
+-- 4.1 Referencia opcional de dirección guardada en orders
+-- Permite rastrear qué dirección guardada originó cada pedido
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_id UUID;
+ALTER TABLE orders
+    ADD CONSTRAINT fk_orders_address
+        FOREIGN KEY (address_id) REFERENCES customer_addresses(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_address_id ON orders(address_id);
+
+-- Nota sobre 4.2 (owner_id UNIQUE en tenants):
+-- Se mantiene la restricción existente. Revisión futura si el modelo
+-- de negocio necesita que un usuario sea owner de múltiples tenants.
+
+-- ------------------------------------------------------------------------------
+-- CONFIGURACIÓN DE VARIABLE DE APLICACIÓN PARA RLS
+-- Ejecutar esto en la configuración inicial de PostgreSQL:
+-- ALTER DATABASE nexofood_db SET app.current_tenant_id = '';
+-- ------------------------------------------------------------------------------

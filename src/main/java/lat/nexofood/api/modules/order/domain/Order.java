@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
+import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
@@ -90,7 +91,7 @@ public class Order extends BaseEntity {
     @Builder.Default
     private BigDecimal deliveryFee = new BigDecimal("0.00");
 
-    @Column(name = "total", precision = 10, scale = 2, nullable = false)
+    @Column(name = "total", precision = 10, scale = 2, insertable = false, updatable = false)
     private BigDecimal total;
 
     @Column(name = "notes", columnDefinition = "TEXT")
@@ -100,4 +101,10 @@ public class Order extends BaseEntity {
     @ToString.Exclude
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
+
+    /** Referencia opcional a la dirección guardada que originó este pedido. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "address_id")
+    @ToString.Exclude
+    private CustomerAddress address;
 }

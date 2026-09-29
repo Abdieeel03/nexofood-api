@@ -57,11 +57,10 @@ public class GetEffectivePriceRuleService implements GetEffectivePriceRuleUseCas
             return false;
         }
 
-        // Validar días de la semana
-        if (price.getDaysOfWeek() != null && !price.getDaysOfWeek().isBlank()) {
-            boolean dayMatches = Arrays.stream(price.getDaysOfWeek().split(","))
-                    .map(String::trim)
-                    .anyMatch(day -> day.equalsIgnoreCase(targetDayOfWeek.name()));
+        // Validar días de la semana (ISO: 1=Lunes, 2=Martes, ..., 7=Domingo)
+        if (price.getDaysOfWeek() != null && price.getDaysOfWeek().length > 0) {
+            short isoDay = (short) targetDayOfWeek.getValue(); // 1=Mon..7=Sun
+            boolean dayMatches = java.util.Arrays.asList(price.getDaysOfWeek()).contains(isoDay);
             if (!dayMatches) {
                 return false;
             }

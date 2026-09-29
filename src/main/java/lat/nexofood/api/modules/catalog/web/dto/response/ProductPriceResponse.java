@@ -20,7 +20,7 @@ public record ProductPriceResponse(
         LocalDate endDate,
         LocalTime startTime,
         LocalTime endTime,
-        String daysOfWeek,
+        Short[] daysOfWeek,
         Integer priority,
         Boolean isActive,
         OffsetDateTime createdAt,

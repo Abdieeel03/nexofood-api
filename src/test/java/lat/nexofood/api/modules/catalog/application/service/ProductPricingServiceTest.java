@@ -68,7 +68,7 @@ class ProductPricingServiceTest {
                 .price(new BigDecimal("5.00"))
                 .startTime(LocalTime.of(18, 0))
                 .endTime(LocalTime.of(20, 0))
-                .daysOfWeek("FRIDAY,SATURDAY")
+                .daysOfWeek(new Short[]{5, 6}) // ISO: 5=Viernes, 6=Sábado
                 .priority(10)
                 .build();
 
