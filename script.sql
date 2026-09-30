@@ -484,6 +484,7 @@ CREATE TABLE order_items (
     order_id     UUID           NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     tenant_id    UUID           NOT NULL,
     product_id   UUID,
+    price_id     UUID           REFERENCES product_prices(id) ON DELETE SET NULL,
     product_name VARCHAR(150)   NOT NULL,
     unit_price   NUMERIC(10, 2) NOT NULL,
     quantity     INTEGER        NOT NULL,
@@ -497,6 +498,7 @@ CREATE TABLE order_items (
 
 CREATE INDEX idx_order_items_order_id   ON order_items(order_id);
 CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+CREATE INDEX idx_order_items_price_id   ON order_items(price_id);
 CREATE INDEX idx_order_items_tenant_id  ON order_items(tenant_id);
 
 CREATE TRIGGER trg_order_items_updated_at

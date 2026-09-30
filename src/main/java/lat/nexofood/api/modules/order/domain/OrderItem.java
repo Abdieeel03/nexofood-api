@@ -10,6 +10,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.catalog.domain.ProductPrice;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -55,6 +56,11 @@ public class OrderItem extends BaseEntity {
     @JoinColumn(name = "product_id")
     @ToString.Exclude
     private Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "price_id")
+    @ToString.Exclude
+    private ProductPrice price;
 
     @Column(name = "product_name", length = 150, nullable = false)
     private String productName;
