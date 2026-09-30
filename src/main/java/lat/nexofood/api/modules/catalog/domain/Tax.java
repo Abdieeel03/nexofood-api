@@ -1,6 +1,5 @@
 package lat.nexofood.api.modules.catalog.domain;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,7 +7,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.store.domain.Tenant;
@@ -21,12 +19,11 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
-@Table(name = "products")
+@Table(name = "taxes")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,7 +31,7 @@ import java.util.UUID;
 @Builder
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
-public class Product extends BaseEntity {
+public class Tax extends BaseEntity {
 
     @Id
     @GeneratedValue
@@ -48,31 +45,20 @@ public class Product extends BaseEntity {
     @ToString.Exclude
     private Tenant tenant;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    @ToString.Exclude
-    private Category category;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tax_id")
-    @ToString.Exclude
-    private Tax tax;
-
-    @Column(name = "name", length = 150, nullable = false)
+    @Column(name = "name", length = 50, nullable = false)
     private String name;
 
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
+    @Column(name = "rate", precision = 5, scale = 2, nullable = false)
+    private BigDecimal rate;
 
-    @Column(name = "image_url", columnDefinition = "TEXT")
-    private String imageUrl;
+    @Column(name = "code", length = 20)
+    private String code;
 
-    @Column(name = "is_available", nullable = false)
+    @Column(name = "is_inclusive", nullable = false)
     @Builder.Default
-    private Boolean isAvailable = true;
+    private Boolean isInclusive = true;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Column(name = "is_active", nullable = false)
     @Builder.Default
-    @ToString.Exclude
-    private List<ProductPrice> prices = new ArrayList<>();
+    private Boolean isActive = true;
 }

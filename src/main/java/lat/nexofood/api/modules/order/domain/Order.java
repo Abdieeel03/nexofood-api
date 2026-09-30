@@ -68,6 +68,9 @@ public class Order extends BaseEntity {
     @Column(name = "order_number", length = 20, nullable = false)
     private String orderNumber;
 
+    @Column(name = "ruc", length = 20)
+    private String ruc;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "delivery_type", nullable = false, length = 50)
     @Builder.Default

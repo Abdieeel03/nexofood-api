@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS cart_items CASCADE;
 DROP TABLE IF EXISTS carts CASCADE;
 DROP TABLE IF EXISTS product_prices CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS taxes CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS tenant_customers CASCADE;
 DROP TABLE IF EXISTS tenant_members CASCADE;
@@ -166,6 +167,7 @@ CREATE TABLE tenants (
     owner_id             UUID                  NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
     name                 VARCHAR(150)          NOT NULL,
     slug                 VARCHAR(100)          NOT NULL UNIQUE,
+    ruc                  VARCHAR(20),
     logo_url             TEXT,
     banner_url           TEXT,
     phone                VARCHAR(20),
@@ -273,6 +275,30 @@ ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON categories
     USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
 
+-- Table: taxes
+-- is_inclusive: TRUE indica que los precios de venta de los productos ya incluyen este impuesto.
+CREATE TABLE taxes (
+    id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name         VARCHAR(50)   NOT NULL,
+    rate         NUMERIC(5, 2) NOT NULL,
+    code         VARCHAR(20),
+    is_inclusive BOOLEAN       NOT NULL DEFAULT TRUE,
+    is_active    BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_taxes_tenant_id ON taxes(tenant_id);
+
+CREATE TRIGGER trg_taxes_updated_at
+BEFORE UPDATE ON taxes
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE taxes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON taxes
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+
 -- Table: products
 -- UNIQUE(id, tenant_id): habilita llaves foráneas compuestas desde cart_items y order_items
 -- para prevenir inyecciones cross-tenant a nivel de base de datos.
@@ -280,6 +306,7 @@ CREATE TABLE products (
     id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id    UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     category_id  UUID         REFERENCES categories(id) ON DELETE SET NULL,
+    tax_id       UUID         REFERENCES taxes(id) ON DELETE SET NULL,
     name         VARCHAR(150) NOT NULL,
     description  TEXT,
     image_url    TEXT,
@@ -291,6 +318,7 @@ CREATE TABLE products (
 
 CREATE INDEX idx_products_tenant_id       ON products(tenant_id);
 CREATE INDEX idx_products_category_id     ON products(category_id);
+CREATE INDEX idx_products_tax_id          ON products(tax_id);
 CREATE INDEX idx_products_tenant_available ON products(tenant_id, is_available);
 
 CREATE TRIGGER trg_products_updated_at
@@ -424,6 +452,7 @@ CREATE TABLE orders (
     delivery_staff_id UUID                  REFERENCES users(id) ON DELETE SET NULL,
     address_id        UUID                  REFERENCES customer_addresses(id) ON DELETE SET NULL,
     order_number      VARCHAR(20)           NOT NULL,
+    ruc               VARCHAR(20),
     delivery_type     VARCHAR(50)           NOT NULL DEFAULT 'DELIVERY'
         CONSTRAINT chk_orders_delivery_type CHECK (delivery_type IN ('DELIVERY', 'TAKEAWAY', 'DINE_IN')),
     status            VARCHAR(50)           NOT NULL DEFAULT 'PENDIENTE'

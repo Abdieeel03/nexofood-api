@@ -61,6 +61,9 @@ public class Tenant extends BaseEntity {
     @Column(name = "slug", unique = true, length = 100, nullable = false)
     private String slug;
 
+    @Column(name = "ruc", length = 20)
+    private String ruc;
+
     @Column(name = "logo_url", columnDefinition = "TEXT")
     private String logoUrl;
 
