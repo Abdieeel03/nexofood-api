@@ -26,6 +26,7 @@ public record OrderResponse(
         Double deliveryLatitude,
         Double deliveryLongitude,
         BigDecimal subtotal,
+        BigDecimal taxTotal,
         BigDecimal deliveryFee,
         BigDecimal total,
         String notes,
