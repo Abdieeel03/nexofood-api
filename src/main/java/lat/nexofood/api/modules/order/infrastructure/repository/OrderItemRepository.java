@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
     List<OrderItem> findAllByOrderId(UUID orderId);
+
+    boolean existsByTaxId(UUID taxId);
 }

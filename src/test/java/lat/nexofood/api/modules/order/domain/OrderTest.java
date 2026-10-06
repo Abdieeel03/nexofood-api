@@ -108,6 +108,7 @@ class OrderTest {
                 .deliveryType(DeliveryType.TAKEAWAY)
                 .status(OrderStatus.PENDIENTE)
                 .subtotal(new BigDecimal("50.00"))
+                .taxTotal(BigDecimal.ZERO)
                 .deliveryFee(BigDecimal.ZERO)
                 .total(new BigDecimal("50.00"))
                 .items(new ArrayList<>(List.of(item)))
