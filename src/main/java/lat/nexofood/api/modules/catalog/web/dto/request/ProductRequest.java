@@ -13,6 +13,7 @@ import java.util.UUID;
 @Builder
 public record ProductRequest(
         UUID categoryId,
+        UUID taxId,
 
         @NotBlank(message = "El nombre del producto es obligatorio")
         @Size(max = 150)

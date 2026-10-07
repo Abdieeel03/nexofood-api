@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.catalog.domain.ProductPrice;
+import lat.nexofood.api.modules.catalog.domain.Tax;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -62,6 +63,11 @@ public class OrderItem extends BaseEntity {
     @ToString.Exclude
     private ProductPrice price;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_id")
+    @ToString.Exclude
+    private Tax tax;
+
     @Column(name = "product_name", length = 150, nullable = false)
     private String productName;
 
@@ -73,6 +79,14 @@ public class OrderItem extends BaseEntity {
 
     @Column(name = "subtotal", precision = 10, scale = 2, insertable = false, updatable = false)
     private BigDecimal subtotal;
+
+    @Column(name = "tax_rate", precision = 5, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal taxRate = BigDecimal.ZERO;
+
+    @Column(name = "tax_amount", precision = 10, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal taxAmount = BigDecimal.ZERO;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;

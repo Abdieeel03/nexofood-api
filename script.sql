@@ -277,16 +277,20 @@ CREATE POLICY tenant_isolation ON categories
 
 -- Table: taxes
 -- is_inclusive: TRUE indica que los precios de venta de los productos ya incluyen este impuesto.
+-- UNIQUE(id, tenant_id): habilita FK compuestas desde products y order_items
+-- para prevenir asignaciones cross-tenant a nivel de base de datos.
+-- ON DELETE RESTRICT: impide eliminar un tenant que tenga impuestos configurados.
 CREATE TABLE taxes (
     id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id    UUID          NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id    UUID          NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
     name         VARCHAR(50)   NOT NULL,
     rate         NUMERIC(5, 2) NOT NULL,
     code         VARCHAR(20),
     is_inclusive BOOLEAN       NOT NULL DEFAULT TRUE,
     is_active    BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_taxes_id_tenant UNIQUE (id, tenant_id)
 );
 
 CREATE INDEX idx_taxes_tenant_id ON taxes(tenant_id);
@@ -302,18 +306,22 @@ CREATE POLICY tenant_isolation ON taxes
 -- Table: products
 -- UNIQUE(id, tenant_id): habilita llaves foráneas compuestas desde cart_items y order_items
 -- para prevenir inyecciones cross-tenant a nivel de base de datos.
+-- FK compuesta (tax_id, tenant_id): garantiza que el impuesto pertenezca al mismo tenant.
+-- ON DELETE RESTRICT en tax_id: impide eliminar un impuesto asignado a productos.
 CREATE TABLE products (
     id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id    UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     category_id  UUID         REFERENCES categories(id) ON DELETE SET NULL,
-    tax_id       UUID         REFERENCES taxes(id) ON DELETE SET NULL,
+    tax_id       UUID,
     name         VARCHAR(150) NOT NULL,
     description  TEXT,
     image_url    TEXT,
     is_available BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_products_id_tenant UNIQUE (id, tenant_id)
+    CONSTRAINT uk_products_id_tenant UNIQUE (id, tenant_id),
+    CONSTRAINT products_tax_tenant_fkey
+        FOREIGN KEY (tax_id, tenant_id) REFERENCES taxes(id, tenant_id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_products_tenant_id       ON products(tenant_id);
@@ -442,7 +450,8 @@ FOR EACH ROW EXECUTE FUNCTION update_cart_total();
 -- ==============================================================================
 
 -- Table: orders
--- total: GENERATED ALWAYS AS (subtotal + delivery_fee) STORED.
+-- total: GENERATED ALWAYS AS (subtotal + tax_total + delivery_fee) STORED.
+-- tax_total: suma de impuestos de todos los items (snapshot histórico).
 -- CONSTRAINT uk_orders_tenant_number: unicidad de número de pedido por tenant.
 -- address_id: FK opcional hacia customer_addresses para trazabilidad de recurrencia.
 CREATE TABLE orders (
@@ -460,8 +469,9 @@ CREATE TABLE orders (
     delivery_address  TEXT,
     delivery_location geometry(Point, 4326),
     subtotal          NUMERIC(10, 2)        NOT NULL,
+    tax_total         NUMERIC(10, 2)        NOT NULL DEFAULT 0.00,
     delivery_fee      NUMERIC(10, 2)        NOT NULL DEFAULT 0.00,
-    total             NUMERIC(10, 2)        GENERATED ALWAYS AS (subtotal + delivery_fee) STORED,
+    total             NUMERIC(10, 2)        GENERATED ALWAYS AS (subtotal + tax_total + delivery_fee) STORED,
     notes             TEXT,
     created_at        TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -507,27 +517,35 @@ FOR EACH ROW EXECUTE FUNCTION sync_tenant_customer_stats();
 -- Table: order_items
 -- tenant_id + FK compuesta: aislamiento estricto por tenant.
 -- product_name: fotografía histórica inmutable del ítem al emitir la comanda.
--- subtotal: GENERATED ALWAYS AS (quantity * unit_price) STORED.
+-- subtotal: GENERATED ALWAYS AS (quantity * unit_price) STORED — base sin impuesto.
+-- tax_id, tax_rate, tax_amount: snapshot histórico del impuesto aplicado al emitir la venta.
+-- tax_rate y tax_amount son inmutables: no se recalculan si la tasa legal cambia en el futuro.
 CREATE TABLE order_items (
     id           UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id     UUID           NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     tenant_id    UUID           NOT NULL,
     product_id   UUID,
     price_id     UUID           REFERENCES product_prices(id) ON DELETE SET NULL,
+    tax_id       UUID,
     product_name VARCHAR(150)   NOT NULL,
     unit_price   NUMERIC(10, 2) NOT NULL,
     quantity     INTEGER        NOT NULL,
     subtotal     NUMERIC(10, 2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
+    tax_rate     NUMERIC(5, 2)  NOT NULL DEFAULT 0.00,
+    tax_amount   NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     notes        TEXT,
     created_at   TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT order_items_product_tenant_fkey
-        FOREIGN KEY (product_id, tenant_id) REFERENCES products(id, tenant_id)
+        FOREIGN KEY (product_id, tenant_id) REFERENCES products(id, tenant_id),
+    CONSTRAINT order_items_tax_tenant_fkey
+        FOREIGN KEY (tax_id, tenant_id) REFERENCES taxes(id, tenant_id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_order_items_order_id   ON order_items(order_id);
 CREATE INDEX idx_order_items_product_id ON order_items(product_id);
 CREATE INDEX idx_order_items_price_id   ON order_items(price_id);
+CREATE INDEX idx_order_items_tax_id     ON order_items(tax_id);
 CREATE INDEX idx_order_items_tenant_id  ON order_items(tenant_id);
 
 CREATE TRIGGER trg_order_items_updated_at

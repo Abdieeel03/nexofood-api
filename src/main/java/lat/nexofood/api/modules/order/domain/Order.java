@@ -90,6 +90,10 @@ public class Order extends BaseEntity {
     @Column(name = "subtotal", precision = 10, scale = 2, nullable = false)
     private BigDecimal subtotal;
 
+    @Column(name = "tax_total", precision = 10, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal taxTotal = new BigDecimal("0.00");
+
     @Column(name = "delivery_fee", precision = 10, scale = 2, nullable = false)
     @Builder.Default
     private BigDecimal deliveryFee = new BigDecimal("0.00");

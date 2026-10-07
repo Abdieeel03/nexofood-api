@@ -20,4 +20,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByIdAndTenantId(UUID id, UUID tenantId);
 
     long countByTenantId(UUID tenantId);
+
+    boolean existsByTaxId(UUID taxId);
 }

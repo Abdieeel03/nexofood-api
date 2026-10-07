@@ -4,6 +4,7 @@ import lat.nexofood.api.modules.catalog.application.service.ProductPricingServic
 import lat.nexofood.api.modules.catalog.domain.Category;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.catalog.domain.ProductPrice;
+import lat.nexofood.api.modules.catalog.domain.Tax;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
@@ -37,6 +38,10 @@ public class ProductMapper {
                 .tenantId(product.getTenant() != null ? product.getTenant().getId() : null)
                 .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
                 .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
+                .taxId(product.getTax() != null ? product.getTax().getId() : null)
+                .taxName(product.getTax() != null ? product.getTax().getName() : null)
+                .taxRate(product.getTax() != null ? product.getTax().getRate() : null)
+                .taxInclusive(product.getTax() != null ? product.getTax().getIsInclusive() : null)
                 .name(product.getName())
                 .description(product.getDescription())
                 .price(pricingService.calculateCurrentPrice(product))
@@ -50,6 +55,10 @@ public class ProductMapper {
     }
 
     public Product toEntity(ProductRequest request, Tenant tenant, Category category) {
+        return toEntity(request, tenant, category, null);
+    }
+
+    public Product toEntity(ProductRequest request, Tenant tenant, Category category, Tax tax) {
         if (request == null) {
             return null;
         }
@@ -57,6 +66,7 @@ public class ProductMapper {
         Product product = Product.builder()
                 .tenant(tenant)
                 .category(category)
+                .tax(tax)
                 .name(request.name())
                 .description(request.description())
                 .imageUrl(request.imageUrl())

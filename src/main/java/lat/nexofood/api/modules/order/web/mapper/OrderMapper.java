@@ -62,6 +62,7 @@ public class OrderMapper {
                 .deliveryLatitude(GeoUtils.getLatitude(order.getDeliveryLocation()))
                 .deliveryLongitude(GeoUtils.getLongitude(order.getDeliveryLocation()))
                 .subtotal(order.getSubtotal())
+                .taxTotal(order.getTaxTotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())
                 .notes(order.getNotes())

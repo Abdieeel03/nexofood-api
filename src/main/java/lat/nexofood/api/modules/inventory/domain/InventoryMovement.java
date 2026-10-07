@@ -85,10 +85,4 @@ public class InventoryMovement extends BaseEntity {
 
     @Column(name = "reason_details", columnDefinition = "TEXT", nullable = false)
     private String reasonDetails;
-
-    @Column(name = "reference_id")
-    private UUID referenceId;
-
-    @Column(name = "reference_type", length = 50)
-    private String referenceType;
 }
