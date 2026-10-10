@@ -27,7 +27,7 @@ public class GetTenantCustomersService implements GetTenantCustomersUseCase {
     public Page<TenantCustomerResponse> execute(UUID tenantId, Pageable pageable) {
         tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado"));
-        return tenantCustomerRepository.findByTenantId(tenantId, pageable)
+        return tenantCustomerRepository.findByIdTenantId(tenantId, pageable)
                 .map(tenantCustomerMapper::toResponse);
     }
 }
