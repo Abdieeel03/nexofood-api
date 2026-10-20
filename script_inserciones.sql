@@ -76,10 +76,10 @@ INSERT INTO tenant_members (id, tenant_id, user_id, role, is_active) VALUES
 ('e0000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000003', 'OWNER', true);
 
 -- Clientes asociados a cada restaurante
-INSERT INTO tenant_customers (id, tenant_id, user_id, loyalty_points, is_blocked, notes, total_orders) VALUES
-('f0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000004', 10, false, '[TEST] Cliente frecuente de pizzas', 0),
-('f0000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000004', 0,  false, '[TEST] Carlos en Burger House', 0),
-('f0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000005', 5,  false, '[TEST] Ana en Bella Napoli', 0);
+INSERT INTO tenant_customers (tenant_id, user_id, loyalty_points, is_blocked, notes, total_orders) VALUES
+('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000004', 10, false, '[TEST] Cliente frecuente de pizzas', 0),
+('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000004', 0,  false, '[TEST] Carlos en Burger House', 0),
+('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000005', 5,  false, '[TEST] Ana en Bella Napoli', 0);
 
 -- ==============================================================================
 -- 5. CATÁLOGO: CATEGORÍAS, PRODUCTOS Y PRECIOS
@@ -110,7 +110,7 @@ INSERT INTO product_prices (id, product_id, name, price, is_base, discount_perce
 -- ==============================================================================
 -- El total de carts se inicializa en 0.00 y se sincroniza automáticamente con el trigger de cart_items
 INSERT INTO carts (id, tenant_id, customer_id, total, notes) VALUES
-('30000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'f0000000-0000-0000-0000-000000000001', 0.00, '[TEST] Carrito activo de Carlos en Bella Napoli');
+('30000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000004', 0.00, '[TEST] Carrito activo de Carlos en Bella Napoli');
 
 -- Items en carrito (subtotal es GENERATED ALWAYS AS (quantity * unit_price), NO se inserta manualmente)
 INSERT INTO cart_items (id, cart_id, tenant_id, product_id, quantity, unit_price, notes) VALUES
@@ -123,11 +123,11 @@ INSERT INTO cart_items (id, cart_id, tenant_id, product_id, quantity, unit_price
 -- ==============================================================================
 -- Orden 1 en Bella Napoli (subtotal = 80.00, delivery = 5.00 -> total generado = 85.00)
 INSERT INTO orders (id, tenant_id, customer_id, delivery_staff_id, address_id, order_number, delivery_type, status, delivery_address, delivery_location, subtotal, delivery_fee, notes) VALUES
-('40000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'f0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'ORD-001', 'DELIVERY', 'ENTREGADO', 'Av. Larco 456', ST_SetSRID(ST_MakePoint(-77.0298, -12.1221), 4326), 80.00, 5.00, '[TEST] Comanda inicial pagada');
+('40000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'ORD-001', 'DELIVERY', 'ENTREGADO', 'Av. Larco 456', ST_SetSRID(ST_MakePoint(-77.0298, -12.1221), 4326), 80.00, 5.00, '[TEST] Comanda inicial pagada');
 
 -- Orden 1 en Burger House (mismo order_number 'ORD-001' pero en DISTINTO tenant: permitido por CONSTRAINT uk_orders_tenant_number)
 INSERT INTO orders (id, tenant_id, customer_id, delivery_staff_id, address_id, order_number, delivery_type, status, delivery_address, delivery_location, subtotal, delivery_fee, notes) VALUES
-('40000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'f0000000-0000-0000-0000-000000000002', NULL, 'a0000000-0000-0000-0000-000000000001', 'ORD-001', 'TAKEAWAY', 'EN_PREPARACION', 'Para recoger en tienda', NULL, 28.00, 0.00, '[TEST] Pedido takeaway Burger');
+('40000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000004', NULL, 'a0000000-0000-0000-0000-000000000001', 'ORD-001', 'TAKEAWAY', 'EN_PREPARACION', 'Para recoger en tienda', NULL, 28.00, 0.00, '[TEST] Pedido takeaway Burger');
 
 -- Items de la orden (subtotal es GENERATED ALWAYS, NO se especifica en el INSERT)
 INSERT INTO order_items (id, order_id, tenant_id, product_id, product_name, unit_price, quantity, notes) VALUES
@@ -196,7 +196,7 @@ SELECT
     tc.first_order_at,
     tc.last_order_at
 FROM carts c
-JOIN tenant_customers tc ON tc.id = c.customer_id
+JOIN tenant_customers tc ON tc.tenant_id = c.tenant_id AND tc.user_id = c.customer_id
 WHERE c.tenant_id = '11111111-1111-1111-1111-111111111111';
 
 -- ------------------------------------------------------------------------------

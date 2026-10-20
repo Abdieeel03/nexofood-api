@@ -220,11 +220,12 @@ CREATE POLICY tenant_isolation ON tenant_members
     USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
 
 -- Table: tenant_customers
+-- PK compuesta (tenant_id, user_id): un usuario es cliente de un tenant una sola vez.
+-- Las tablas hijas (carts, orders) la referencian mediante FK compuesta (tenant_id, customer_id).
 -- ON DELETE RESTRICT en user_id: garantiza que no se elimine en cascada la relación con órdenes.
 -- total_orders, first_order_at, last_order_at: desnormalización por rendimiento (Read-Model),
 -- mantenida de forma 100% consistente mediante el trigger trg_orders_sync_customer_stats.
 CREATE TABLE tenant_customers (
-    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id      UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     user_id        UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     loyalty_points INTEGER     NOT NULL DEFAULT 0,
@@ -235,10 +236,9 @@ CREATE TABLE tenant_customers (
     last_order_at  TIMESTAMPTZ,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_tenant_customer UNIQUE (tenant_id, user_id)
+    PRIMARY KEY (tenant_id, user_id)
 );
 
-CREATE INDEX idx_tenant_customers_tenant_id ON tenant_customers(tenant_id);
 CREATE INDEX idx_tenant_customers_user_id   ON tenant_customers(user_id);
 
 CREATE TRIGGER trg_tenant_customers_updated_at
@@ -379,12 +379,14 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE carts (
     id          UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    customer_id UUID           NOT NULL REFERENCES tenant_customers(id) ON DELETE CASCADE,
+    customer_id UUID           NOT NULL,
     total       NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     notes       TEXT,
     created_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_carts_tenant_customer UNIQUE (tenant_id, customer_id)
+    CONSTRAINT uk_carts_tenant_customer UNIQUE (tenant_id, customer_id),
+    CONSTRAINT carts_tenant_customer_fkey
+        FOREIGN KEY (tenant_id, customer_id) REFERENCES tenant_customers(tenant_id, user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_carts_tenant_id   ON carts(tenant_id);
@@ -457,7 +459,7 @@ FOR EACH ROW EXECUTE FUNCTION update_cart_total();
 CREATE TABLE orders (
     id                UUID                  PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id         UUID                  NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-    customer_id       UUID                  NOT NULL REFERENCES tenant_customers(id) ON DELETE RESTRICT,
+    customer_id       UUID                  NOT NULL,
     delivery_staff_id UUID                  REFERENCES users(id) ON DELETE SET NULL,
     address_id        UUID                  REFERENCES customer_addresses(id) ON DELETE SET NULL,
     order_number      VARCHAR(20)           NOT NULL,
@@ -475,7 +477,9 @@ CREATE TABLE orders (
     notes             TEXT,
     created_at        TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_orders_tenant_number UNIQUE (tenant_id, order_number)
+    CONSTRAINT uk_orders_tenant_number UNIQUE (tenant_id, order_number),
+    CONSTRAINT orders_tenant_customer_fkey
+        FOREIGN KEY (tenant_id, customer_id) REFERENCES tenant_customers(tenant_id, user_id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_orders_tenant_id          ON orders(tenant_id);
@@ -497,15 +501,17 @@ CREATE POLICY tenant_isolation ON orders
 CREATE OR REPLACE FUNCTION sync_tenant_customer_stats()
 RETURNS TRIGGER AS $$
 DECLARE
+    v_tenant_id   UUID;
     v_customer_id UUID;
 BEGIN
+    v_tenant_id   := COALESCE(NEW.tenant_id, OLD.tenant_id);
     v_customer_id := COALESCE(NEW.customer_id, OLD.customer_id);
 
     UPDATE tenant_customers SET
-        total_orders   = (SELECT COUNT(*) FROM orders WHERE customer_id = v_customer_id AND status != 'CANCELADO'),
-        first_order_at = (SELECT MIN(created_at) FROM orders WHERE customer_id = v_customer_id AND status != 'CANCELADO'),
-        last_order_at  = (SELECT MAX(created_at) FROM orders WHERE customer_id = v_customer_id AND status != 'CANCELADO')
-    WHERE id = v_customer_id;
+        total_orders   = (SELECT COUNT(*) FROM orders WHERE tenant_id = v_tenant_id AND customer_id = v_customer_id AND status != 'CANCELADO'),
+        first_order_at = (SELECT MIN(created_at) FROM orders WHERE tenant_id = v_tenant_id AND customer_id = v_customer_id AND status != 'CANCELADO'),
+        last_order_at  = (SELECT MAX(created_at) FROM orders WHERE tenant_id = v_tenant_id AND customer_id = v_customer_id AND status != 'CANCELADO')
+    WHERE tenant_id = v_tenant_id AND user_id = v_customer_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
