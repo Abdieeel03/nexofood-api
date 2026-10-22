@@ -10,6 +10,7 @@ import lat.nexofood.api.modules.cart.web.mapper.CartItemMapper;
 import lat.nexofood.api.modules.cart.web.mapper.CartMapper;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +30,7 @@ class CartTest {
         Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Restaurant").build();
         User user = User.builder().id(UUID.randomUUID()).fullName("John Doe").build();
         TenantCustomer customer = TenantCustomer.builder()
-                .id(UUID.randomUUID())
+                .id(new TenantCustomerId(tenant.getId(), user.getId()))
                 .tenant(tenant)
                 .user(user)
                 .build();
@@ -80,7 +81,7 @@ class CartTest {
         Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Burger Joint").build();
         User user = User.builder().id(UUID.randomUUID()).fullName("Jane Doe").build();
         TenantCustomer customer = TenantCustomer.builder()
-                .id(UUID.randomUUID())
+                .id(new TenantCustomerId(tenant.getId(), user.getId()))
                 .tenant(tenant)
                 .user(user)
                 .build();
@@ -121,7 +122,7 @@ class CartTest {
         assertNotNull(response);
         assertEquals(cart.getId(), response.id());
         assertEquals(tenant.getId(), response.tenantId());
-        assertEquals(customer.getId(), response.customerId());
+        assertEquals(user.getId(), response.customerId());
         assertEquals(user.getId(), response.customerUserId());
         assertEquals("No plastic cutlery", response.notes());
         assertEquals(new BigDecimal("20.00"), response.total());

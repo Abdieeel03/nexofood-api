@@ -20,20 +20,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +59,7 @@ class AuthServiceTest {
     private RegisterService registerService;
     private LoginService loginService;
     private RefreshTokenService refreshTokenService;
+    private LogoutService logoutService;
 
     private User sampleUser;
 
@@ -68,6 +68,7 @@ class AuthServiceTest {
         registerService = new RegisterService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper);
         loginService = new LoginService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, tenantMemberRepository);
         refreshTokenService = new RefreshTokenService(refreshTokenRepository, jwtService, userMapper);
+        logoutService = new LogoutService(refreshTokenRepository);
 
         sampleUser = User.builder()
                 .id(UUID.randomUUID())
@@ -218,5 +219,39 @@ class AuthServiceTest {
                 .hasMessage(ErrorMessages.TOKEN_REVOKED);
 
         verify(refreshTokenRepository).revokeAllUserTokens(sampleUser.getEmail());
+    }
+
+    @Test
+    @DisplayName("Debe rechazar login cuando el usuario tiene deletedAt (soft delete)")
+    void shouldRejectLoginWhenUserIsSoftDeleted() {
+        sampleUser.setDeletedAt(OffsetDateTime.now());
+        LoginRequest request = new LoginRequest("test@nexofood.lat", "password123");
+
+        when(userRepository.findByEmail("test@nexofood.lat")).thenReturn(Optional.of(sampleUser));
+
+        assertThatThrownBy(() -> loginService.execute(request))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage(ErrorMessages.USER_INACTIVE);
+    }
+
+    @Test
+    @DisplayName("Logout debe revocar el refresh token actual")
+    void shouldRevokeRefreshTokenOnLogout() {
+        RefreshTokenRequest request = new RefreshTokenRequest("active-refresh-token");
+        RefreshToken tokenEntity = RefreshToken.builder()
+                .id(UUID.randomUUID())
+                .tokenHash(TokenHashUtil.hash("active-refresh-token"))
+                .user(sampleUser)
+                .expiryDate(LocalDateTime.now().plusDays(7))
+                .revoked(false)
+                .build();
+
+        when(refreshTokenRepository.findByTokenHash(TokenHashUtil.hash("active-refresh-token")))
+                .thenReturn(Optional.of(tokenEntity));
+
+        logoutService.execute(request);
+
+        assertThat(tokenEntity.isRevoked()).isTrue();
+        verify(refreshTokenRepository).save(tokenEntity);
     }
 }
