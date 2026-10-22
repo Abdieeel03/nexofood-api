@@ -4,17 +4,28 @@ import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class TenantCustomerMapper {
 
     public TenantCustomerResponse toResponse(TenantCustomer tc) {
         if (tc == null) return null;
+
+        UUID tenantId = tc.getTenant() != null && tc.getTenant().getId() != null
+                ? tc.getTenant().getId()
+                : (tc.getId() != null ? tc.getId().getTenantId() : null);
+
+        UUID userId = tc.getUser() != null && tc.getUser().getId() != null
+                ? tc.getUser().getId()
+                : (tc.getId() != null ? tc.getId().getUserId() : null);
+
         return TenantCustomerResponse.builder()
-                .id(tc.getId())
-                .tenantId(tc.getTenant() != null ? tc.getTenant().getId() : null)
+                .id(userId)
+                .tenantId(tenantId)
                 .tenantName(tc.getTenant() != null ? tc.getTenant().getName() : null)
                 .tenantSlug(tc.getTenant() != null ? tc.getTenant().getSlug() : null)
-                .userId(tc.getUser() != null ? tc.getUser().getId() : null)
+                .userId(userId)
                 .userFullName(tc.getUser() != null ? tc.getUser().getFullName() : null)
                 .userEmail(tc.getUser() != null ? tc.getUser().getEmail() : null)
                 .loyaltyPoints(tc.getLoyaltyPoints())
