@@ -1,0 +1,45 @@
+meta {
+  name: 05 - Actualizar Restaurante (Solo OWNER)
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Pizzería Don Mario - Sede Principal",
+    "logoUrl": "https://cdn.nexofood.lat/logos/don-mario-v2.png",
+    "bannerUrl": "https://cdn.nexofood.lat/banners/don-mario-v2.png",
+    "phone": "+51999111333",
+    "address": "Av. Larco 456, Miraflores, Lima",
+    "latitude": -12.1205,
+    "longitude": -77.0290,
+    "deliveryRadiusKm": 6.50,
+    "defaultDeliveryFee": 5.00,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Datos del restaurante actualizados", function() {
+    const data = res.getBody().data;
+    expect(data.name).to.equal("Pizzería Don Mario - Sede Principal");
+  });
+}

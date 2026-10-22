@@ -1,0 +1,36 @@
+meta {
+  name: 09 - Cambiar Rol de Miembro (OWNER o ADMIN)
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/members/{{memberId}}/role
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "REPARTIDOR"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("El rol fue actualizado a REPARTIDOR", function() {
+    const data = res.getBody().data;
+    expect(data.role).to.equal("REPARTIDOR");
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: 14 - Admin Clientes - Ver Perfil Cliente (OWNER o ADMIN)
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/tenants/{{tenantId}}/customers/{{customerId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna detalle del cliente en la tienda", function() {
+    const data = res.getBody().data;
+    expect(data.userId).to.equal(bru.getEnvVar("customerId"));
+    expect(data.tenantId).to.equal(bru.getEnvVar("tenantId"));
+  });
+}
