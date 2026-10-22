@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.cart.web.mapper;
 import lat.nexofood.api.modules.cart.domain.Cart;
 import lat.nexofood.api.modules.cart.web.dto.response.CartItemResponse;
 import lat.nexofood.api.modules.cart.web.dto.response.CartResponse;
+import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -25,15 +26,20 @@ public class CartMapper {
                 ? cart.getItems().stream().map(cartItemMapper::toResponse).toList()
                 : Collections.emptyList();
 
-        UUID customerId = cart.getCustomer() != null ? cart.getCustomer().getId() : null;
-        UUID customerUserId = (cart.getCustomer() != null && cart.getCustomer().getUser() != null)
-                ? cart.getCustomer().getUser().getId()
-                : null;
+        TenantCustomer customer = cart.getCustomer();
+        UUID customerUserId = null;
+        if (customer != null) {
+            if (customer.getUser() != null && customer.getUser().getId() != null) {
+                customerUserId = customer.getUser().getId();
+            } else if (customer.getId() != null) {
+                customerUserId = customer.getId().getUserId();
+            }
+        }
 
         return CartResponse.builder()
                 .id(cart.getId())
                 .tenantId(cart.getTenant() != null ? cart.getTenant().getId() : null)
-                .customerId(customerId)
+                .customerId(customerUserId)
                 .customerUserId(customerUserId)
                 .total(cart.getTotal())
                 .notes(cart.getNotes())
