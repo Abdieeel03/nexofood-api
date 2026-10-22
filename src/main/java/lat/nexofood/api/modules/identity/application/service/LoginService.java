@@ -25,7 +25,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,6 +44,11 @@ public class LoginService implements LoginUseCase {
 
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UnauthorizedException(ErrorMessages.INVALID_CREDENTIALS));
+
+        if (user.getDeletedAt() != null) {
+            log.warn("Intento de login con cuenta eliminada (soft delete): {}", request.email());
+            throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
+        }
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             log.warn("Contraseña incorrecta para el usuario: {}", request.email());
@@ -93,4 +97,3 @@ public class LoginService implements LoginUseCase {
                 .build();
     }
 }
-
