@@ -114,20 +114,20 @@ flowchart TD
 > Todo lo demás depende de esto. Son piezas reutilizables por todos los módulos.
 
 ### 0.1 Configuración y perfiles
-- [ ] Agregar `nexofood.crypto.master-key: ${CRYPTO_MASTER_KEY}` en `application.yaml` (**sin valor por defecto**). *(H3)*
-- [ ] Quitar los valores por defecto de `JWT_SECRET` y `JWT_SECRET_REFRESH`; fallar al iniciar si no existen. *(H4)*
-- [ ] Crear perfiles `application-dev.yaml` y `application-prod.yaml` (`show-sql`, `format_sql`, Swagger habilitado solo en dev). *(H6)*
-- [ ] Crear `.env.example` documentando todas las variables requeridas.
+- [x] Agregar `nexofood.crypto.master-key: ${CRYPTO_MASTER_KEY}` en `application.yaml` (**sin valor por defecto**). *(H3)*
+- [x] Quitar los valores por defecto de `JWT_SECRET` y `JWT_SECRET_REFRESH`; fallar al iniciar si no existen. *(H4)*
+- [x] Crear perfiles `application-dev.yaml` y `application-prod.yaml` (`show-sql`, `format_sql`, Swagger habilitado solo en dev). *(H6)*
+- [x] Crear `.env.example` documentando todas las variables requeridas.
 
 ### 0.2 Configuración de persistencia (JPA / Hibernate)
-- [ ] Configurar adecuadamente `ddl-auto: update` para desarrollo en `application-dev.yaml`.
-- [ ] Asegurar que las restricciones en anotaciones JPA (`@Column(unique = ..., nullable = ...)`, `@Table(uniqueConstraints = ...)`) reflejen las reglas de negocio de la BD.
+- [x] Configurar adecuadamente `ddl-auto: update` para desarrollo en `application-dev.yaml`.
+- [x] Asegurar que las restricciones en anotaciones JPA (`@Column(unique = ..., nullable = ...)`, `@Table(uniqueConstraints = ...)`) reflejen las reglas de negocio de la BD.
 
 ### 0.3 Infraestructura común (`common/`)
-- [ ] `ForbiddenException` + handler 403 en `GlobalExceptionHandler`.
-- [ ] Handlers faltantes: `HttpMessageNotReadableException`, `MethodArgumentTypeMismatchException`, `DataIntegrityViolationException` (→ 409), `IllegalArgumentException` (→ 400). *(H10)*
-- [ ] `PageResponse<T>` + convención de paginación (`page`, `size`, `sort`) para todos los listados.
-- [ ] `SecurityUtils` / `CurrentUserProvider`: obtiene el `User` autenticado (id, email, rol) desde el `SecurityContext`. **Todas las fases lo usan.**
+- [x] `ForbiddenException` + handler 403 en `GlobalExceptionHandler`.
+- [x] Handlers faltantes: `HttpMessageNotReadableException`, `MethodArgumentTypeMismatchException`, `DataIntegrityViolationException` (→ 409), `IllegalArgumentException` (→ 400). *(H10)*
+- [x] `PageResponse<T>` + convención de paginación (`page`, `size`, `sort`) para todos los listados.
+- [x] `SecurityUtils` / `CurrentUserProvider`: obtiene el `User` autenticado (id, email, rol) desde el `SecurityContext`. **Todas las fases lo usan.**
 
 **✅ Definición de Hecho F0:** la app arranca solo con variables de entorno, Hibernate actualiza el esquema automáticamente con las entidades `@Entity`, y existe un helper para obtener el usuario actual.
 
@@ -139,23 +139,23 @@ flowchart TD
 > Resuelve el hallazgo más grave (H1) **antes** de exponer más endpoints.
 
 ### 1.1 Servicio de autorización por tenant
-- [ ] `TenantMemberRepository`: queries `findByTenantIdAndUserIdAndIsActiveTrue`, `existsByTenantIdAndUserIdAndRoleIn`.
-- [ ] `TenantAccessService` (bean `@tenantAccess`) con métodos:
+- [x] `TenantMemberRepository`: queries `findByTenantIdAndUserIdAndIsActiveTrue`, `existsByTenantIdAndUserIdAndRoleIn`.
+- [x] `TenantAccessService` (bean `@tenantAccess`) con métodos:
   - `isMember(tenantId)`
   - `hasAnyRole(tenantId, TenantStaffRole...)`
   - `isOwner(tenantId)`
   - `isSuperAdmin()`
-- [ ] Tests unitarios del servicio.
+- [x] Tests unitarios del servicio.
 
 ### 1.2 Proteger los controladores existentes
-- [ ] `TenantController`: `PUT /{id}` y `PATCH /{id}/status` → solo `OWNER` / `SUPERADMIN`.
-- [ ] `TenantMemberController`: listar → `OWNER`/`ADMIN`; agregar/cambiar rol/eliminar → `OWNER`/`ADMIN` (un `ADMIN` no puede tocar al `OWNER`; el `OWNER` no puede eliminarse a sí mismo).
-- [ ] `TenantCustomerController`: → `OWNER`/`ADMIN`.
-- [ ] Reemplazar `Map<String, Boolean>` y `Map<String, String>` por DTOs validados: `TenantStatusRequest`, `MemberRoleUpdateRequest`. *(H10)*
+- [x] `TenantController`: `PUT /{id}` y `PATCH /{id}/status` → solo `OWNER` / `SUPERADMIN`.
+- [x] `TenantMemberController`: listar → `OWNER`/`ADMIN`; agregar/cambiar rol/eliminar → `OWNER`/`ADMIN` (un `ADMIN` no puede tocar al `OWNER`; el `OWNER` no puede eliminarse a sí mismo).
+- [x] `TenantCustomerController`: → `OWNER`/`ADMIN`.
+- [x] Reemplazar `Map<String, Boolean>` y `Map<String, String>` por DTOs validados: `TenantStatusRequest`, `MemberRoleUpdateRequest`. *(H10)*
 
 ### 1.3 Corregir la creación de tenant
-- [ ] `CreateTenantService`: el `owner` sale del token (`CurrentUserProvider`), **no** del body. Eliminar `ownerId` de `TenantCreateRequest`. *(H2)*
-- [ ] Validar que la suscripción pertenezca al usuario autenticado.
+- [x] `CreateTenantService`: el `owner` sale del token (`CurrentUserProvider`), **no** del body. Eliminar `ownerId` de `TenantCreateRequest`. *(H2)*
+- [x] Validar que la suscripción pertenezca al usuario autenticado.
 
 **✅ Definición de Hecho F1:** un usuario que no es miembro del tenant recibe **403** en todos los endpoints de `/tenants/{id}/**` y `/admin/tenants/{id}/**`. Tests de integración que lo comprueban.
 
@@ -166,19 +166,19 @@ flowchart TD
 > **Depende de:** F0, F1. Necesario antes del carrito/checkout (direcciones).
 
 ### 2.1 Direcciones del cliente (`CustomerAddress`)
-- [ ] Servicios/UseCases: `CreateAddress`, `GetMyAddresses`, `UpdateAddress`, `DeleteAddress` (siempre filtrando por el usuario autenticado).
-- [ ] Validar coordenadas con `GeoUtils`.
-- [ ] Controller: `/api/v1/users/me/addresses` (CRUD).
+- [x] Servicios/UseCases: `CreateAddress`, `GetMyAddresses`, `UpdateAddress`, `DeleteAddress` (siempre filtrando por el usuario autenticado).
+- [x] Validar coordenadas con `GeoUtils`.
+- [x] Controller: `/api/v1/users/me/addresses` (CRUD).
 
 ### 2.2 Perfil y sesión del usuario
-- [ ] `UpdateProfileService` (usa `UserUpdateRequest` existente).
-- [ ] `ChangePasswordService` (verifica password actual y **revoca todos los refresh tokens**).
-- [ ] `LogoutService`: revoca el refresh token actual (`POST /api/v1/auth/logout`).
-- [ ] Soft delete de cuenta (`deletedAt`) + `CustomUserDetailsService` y `LoginService` rechazan usuarios borrados. *(H11)*
-- [ ] Endpoints en `AuthController` / `UserController` (`PUT /users/me`, `PATCH /users/me/password`, `DELETE /users/me`).
+- [x] `UpdateProfileService` (usa `UserUpdateRequest` existente).
+- [x] `ChangePasswordService` (verifica password actual y **revoca todos los refresh tokens**).
+- [x] `LogoutService`: revoca el refresh token actual (`POST /api/v1/auth/logout`).
+- [x] Soft delete de cuenta (`deletedAt`) + `CustomUserDetailsService` y `LoginService` rechazan usuarios borrados. *(H11)*
+- [x] Endpoints en `AuthController` / `UserController` (`PUT /users/me`, `PATCH /users/me/password`, `DELETE /users/me`).
 
 ### 2.3 (Opcional) Gestión de usuarios para `SUPERADMIN`
-- [ ] Listar / activar / desactivar usuarios: `/api/v1/admin/users`.
+- [x] Listar / activar / desactivar usuarios: `/api/v1/admin/users`.
 
 **✅ Definición de Hecho F2:** un cliente puede gestionar sus direcciones y su perfil; un usuario eliminado no puede iniciar sesión.
 
@@ -189,19 +189,19 @@ flowchart TD
 > **Depende de:** F1 (roles `SUPERADMIN`). Debe existir antes de F4 (límite `maxProducts`) y de la creación correcta de tenants.
 
 ### 3.1 Planes (`SubscriptionPlan`)
-- [ ] `SubscriptionPlanService`: CRUD + activar/desactivar.
-- [ ] Controller: `GET /api/v1/plans` (público, solo activos) y `/api/v1/admin/plans` (`SUPERADMIN`).
+- [x] `SubscriptionPlanService`: CRUD + activar/desactivar.
+- [x] Controller: `GET /api/v1/plans` (público, solo activos) y `/api/v1/admin/plans` (`SUPERADMIN`).
 
 ### 3.2 Suscripciones (`Subscription`)
-- [ ] `SubscriptionService`: `startTrial(planId)`, `getMySubscription()`, `cancel()`. El usuario sale del token; eliminar `userId` de `SubscriptionCreateRequest`. *(H9)*
-- [ ] Controller: `/api/v1/subscriptions` (`POST`, `GET /me`, `PATCH /me/cancel`).
+- [x] `SubscriptionService`: `startTrial(planId)`, `getMySubscription()`, `cancel()`. El usuario sale del token; eliminar `userId` de `SubscriptionCreateRequest`. *(H9)*
+- [x] Controller: `/api/v1/subscriptions` (`POST`, `GET /me`, `PATCH /me/cancel`).
 
 ### 3.3 Integración con Tenant
-- [ ] `CreateTenantService` usa la suscripción vigente del usuario (ya no se envía por body).
-- [ ] `SubscriptionGuard`: método reutilizable `assertActive(tenantId)` y `getLimits(tenantId)`.
+- [x] `CreateTenantService` usa la suscripción vigente del usuario (ya no se envía por body).
+- [x] `SubscriptionGuard`: método reutilizable `assertActive(tenantId)` y `getLimits(tenantId)`.
 
 ### 3.4 Expiración automática
-- [ ] `@EnableScheduling` + job diario: `TRIAL`/`ACTIVE` vencidas → `EXPIRED`/`PAST_DUE` y tenant `isActive = false`.
+- [x] `@EnableScheduling` + job diario: `TRIAL`/`ACTIVE` vencidas → `EXPIRED`/`PAST_DUE` y tenant `isActive = false`.
 
 > [!NOTE]
 > El cobro recurrente con Mercado Pago (preapproval) se implementa en **Fase 7.5**, porque requiere la integración con MP.
