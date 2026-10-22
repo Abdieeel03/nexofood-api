@@ -1,6 +1,8 @@
 package lat.nexofood.api.modules.identity.infrastructure.repository;
 
 import lat.nexofood.api.modules.identity.domain.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,5 +14,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmail(String email);
 
+    Optional<User> findByEmailAndDeletedAtIsNull(String email);
+
     boolean existsByEmail(String email);
+
+    Page<User> findAllByDeletedAtIsNull(Pageable pageable);
 }
