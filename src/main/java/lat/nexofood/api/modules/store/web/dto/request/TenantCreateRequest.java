@@ -2,7 +2,6 @@ package lat.nexofood.api.modules.store.web.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
@@ -12,11 +11,7 @@ import java.util.UUID;
 
 @Builder
 public record TenantCreateRequest(
-        @NotNull(message = "El ID de la suscripción es obligatorio")
         UUID subscriptionId,
-
-        @NotNull(message = "El ID del propietario es obligatorio")
-        UUID ownerId,
 
         @NotBlank(message = "El nombre del restaurante es obligatorio")
         @Size(max = 150)
