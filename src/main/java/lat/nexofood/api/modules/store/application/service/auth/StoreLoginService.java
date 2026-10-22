@@ -9,6 +9,7 @@ import lat.nexofood.api.modules.identity.infrastructure.repository.RefreshTokenR
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
 import lat.nexofood.api.modules.store.application.usecase.auth.StoreLoginUseCase;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import lat.nexofood.api.modules.store.web.dto.request.StoreLoginRequest;
 import lat.nexofood.api.modules.store.web.dto.response.StoreAuthResponse;
 import lat.nexofood.api.modules.store.domain.Tenant;
@@ -52,7 +53,7 @@ public class StoreLoginService implements StoreLoginUseCase {
             throw new UnauthorizedException(ErrorMessages.INVALID_CREDENTIALS);
         }
 
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
+        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
             throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
         }
 
@@ -62,10 +63,11 @@ public class StoreLoginService implements StoreLoginUseCase {
 
         // 3. Autoasociación: si no existe TenantCustomer para este tenant, crearlo
         TenantCustomer tenantCustomer = tenantCustomerRepository
-                .findByTenantIdAndUserId(tenant.getId(), user.getId())
+                .findById(new TenantCustomerId(tenant.getId(), user.getId()))
                 .orElseGet(() -> {
                     log.info("Autoasociando usuario {} al tenant '{}'", user.getId(), tenantSlug);
                     TenantCustomer newCustomer = TenantCustomer.builder()
+                            .id(new TenantCustomerId(tenant.getId(), user.getId()))
                             .tenant(tenant)
                             .user(user)
                             .build();

@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.application.service.customer;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.modules.store.application.usecase.customer.UpdateTenantCustomerNotesUseCase;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantCustomerMapper;
@@ -22,8 +23,7 @@ public class UpdateTenantCustomerNotesService implements UpdateTenantCustomerNot
     @Override
     @Transactional
     public TenantCustomerResponse execute(UUID tenantId, UUID customerId, String notes) {
-        TenantCustomer customer = tenantCustomerRepository.findById(customerId)
-                .filter(tc -> tc.getTenant().getId().equals(tenantId))
+        TenantCustomer customer = tenantCustomerRepository.findById(new TenantCustomerId(tenantId, customerId))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado en este restaurante"));
 
         customer.setNotes(notes);
