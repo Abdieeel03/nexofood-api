@@ -1,0 +1,28 @@
+meta {
+  name: 16 - Admin - Listar Usuarios (SUPERADMIN)
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/users?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK (SUPERADMIN)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna PageResponse de usuarios", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.content).to.be.an('array');
+    expect(body.data.totalElements).to.be.a('number');
+  });
+}
