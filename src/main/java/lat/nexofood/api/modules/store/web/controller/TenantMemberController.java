@@ -5,21 +5,22 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
-import lat.nexofood.api.modules.store.domain.TenantStaffRole;
+import lat.nexofood.api.modules.store.web.dto.request.MemberRoleUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantMemberRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/tenants/{tenantId}/members")
 @RequiredArgsConstructor
+@PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
 @Tag(name = "Tenant Members", description = "Gestión del equipo/staff del restaurante")
 public class TenantMemberController {
 
@@ -59,9 +60,8 @@ public class TenantMemberController {
     public ResponseEntity<ApiResponse<TenantMemberResponse>> updateMemberRole(
             @PathVariable UUID tenantId,
             @PathVariable UUID memberId,
-            @RequestBody Map<String, String> body) {
-        TenantStaffRole newRole = TenantStaffRole.valueOf(body.get("role"));
-        TenantMemberResponse response = tenantService.updateMemberRole(tenantId, memberId, newRole);
+            @Valid @RequestBody MemberRoleUpdateRequest request) {
+        TenantMemberResponse response = tenantService.updateMemberRole(tenantId, memberId, request.role());
         return ResponseEntity.ok(
                 ApiResponse.<TenantMemberResponse>builder()
                         .success(true)

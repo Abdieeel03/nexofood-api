@@ -6,16 +6,17 @@ import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
+import lat.nexofood.api.modules.store.web.dto.request.TenantStatusRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -41,6 +42,7 @@ public class TenantController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@tenantAccess.isMember(#id)")
     @Operation(summary = "Obtener restaurante por ID")
     public ResponseEntity<ApiResponse<TenantResponse>> getTenantById(@PathVariable UUID id) {
         TenantResponse response = tenantService.getTenantById(id);
@@ -67,6 +69,7 @@ public class TenantController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAccess.isOwner(#id)")
     @Operation(summary = "Actualizar datos del restaurante")
     public ResponseEntity<ApiResponse<TenantResponse>> updateTenant(
             @PathVariable UUID id,
@@ -82,20 +85,12 @@ public class TenantController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("@tenantAccess.isOwner(#id)")
     @Operation(summary = "Activar o desactivar el restaurante")
     public ResponseEntity<ApiResponse<Void>> changeStatus(
             @PathVariable UUID id,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean isActive = body.get("isActive");
-        if (isActive == null) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.<Void>builder()
-                            .success(false)
-                            .message("El campo 'isActive' es obligatorio")
-                            .build()
-            );
-        }
-        tenantService.changeStatus(id, isActive);
+            @Valid @RequestBody TenantStatusRequest request) {
+        tenantService.changeStatus(id, request.isActive());
         return ResponseEntity.ok(
                 ApiResponse.<Void>builder()
                         .success(true)
