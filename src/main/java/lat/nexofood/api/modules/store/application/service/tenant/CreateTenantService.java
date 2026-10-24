@@ -1,9 +1,10 @@
 package lat.nexofood.api.modules.store.application.service.tenant;
 
+import lat.nexofood.api.common.exception.ForbiddenException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
+import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.modules.identity.domain.User;
-import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lat.nexofood.api.modules.subscription.domain.Subscription;
 import lat.nexofood.api.modules.subscription.domain.SubscriptionStatus;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionRepository;
@@ -21,15 +22,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreateTenantService implements CreateTenantUseCase {
 
+    private static final List<SubscriptionStatus> VALID_STATUSES = List.of(
+            SubscriptionStatus.TRIAL,
+            SubscriptionStatus.ACTIVE
+    );
+
     private final TenantRepository tenantRepository;
     private final TenantMemberRepository tenantMemberRepository;
-    private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final CurrentUserProvider currentUserProvider;
     private final TenantMapper tenantMapper;
 
     @Override
@@ -37,22 +46,37 @@ public class CreateTenantService implements CreateTenantUseCase {
     public TenantResponse execute(TenantCreateRequest request) {
         log.info("Creando tenant con slug: {}", request.slug());
 
-        Subscription subscription = subscriptionRepository.findById(request.subscriptionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+        User owner = currentUserProvider.getCurrentUser();
 
-        if (subscription.getStatus() != SubscriptionStatus.ACTIVE
-                && subscription.getStatus() != SubscriptionStatus.TRIAL) {
-            throw new ResourceConflictException("La suscripción no está activa");
+        Subscription subscription;
+        if (request.subscriptionId() != null) {
+            subscription = subscriptionRepository.findById(request.subscriptionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+
+            if (subscription.getUser() == null || !subscription.getUser().getId().equals(owner.getId())) {
+                throw new ForbiddenException("La suscripción especificada no pertenece al usuario autenticado");
+            }
+        } else {
+            subscription = subscriptionRepository
+                    .findFirstByUserIdAndStatusInOrderByCreatedAtDesc(owner.getId(), VALID_STATUSES)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "No cuentas con una suscripción vigente para crear un restaurante"));
         }
 
-        User owner = userRepository.findById(request.ownerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario propietario no encontrado"));
+        if (!VALID_STATUSES.contains(subscription.getStatus())
+                || (subscription.getEndDate() != null && subscription.getEndDate().isBefore(OffsetDateTime.now()))) {
+            throw new ResourceConflictException("La suscripción no está activa o se encuentra vencida");
+        }
+
+        if (tenantRepository.findBySubscriptionId(subscription.getId()).isPresent()) {
+            throw new ResourceConflictException("La suscripción ya se encuentra vinculada a un restaurante");
+        }
 
         if (tenantRepository.existsBySlug(request.slug())) {
             throw new ResourceConflictException("El slug ya está en uso por otro restaurante");
         }
 
-        if (tenantRepository.existsByOwnerId(request.ownerId())) {
+        if (tenantRepository.existsByOwnerId(owner.getId())) {
             throw new ResourceConflictException("El usuario ya es propietario de un restaurante");
         }
 

@@ -8,6 +8,7 @@ import lat.nexofood.api.modules.order.web.mapper.OrderItemMapper;
 import lat.nexofood.api.modules.order.web.mapper.OrderMapper;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,7 @@ class OrderTest {
                 .phone("+51987654321")
                 .build();
         TenantCustomer customer = TenantCustomer.builder()
-                .id(UUID.randomUUID())
+                .id(new TenantCustomerId(tenant.getId(), user.getId()))
                 .tenant(tenant)
                 .user(user)
                 .build();
@@ -74,7 +75,7 @@ class OrderTest {
                 .phone("+51987654321")
                 .build();
         TenantCustomer customer = TenantCustomer.builder()
-                .id(UUID.randomUUID())
+                .id(new TenantCustomerId(tenant.getId(), user.getId()))
                 .tenant(tenant)
                 .user(user)
                 .build();
@@ -121,7 +122,7 @@ class OrderTest {
         assertNotNull(response);
         assertEquals(order.getId(), response.id());
         assertEquals(tenant.getId(), response.tenantId());
-        assertEquals(customer.getId(), response.customerId());
+        assertEquals(user.getId(), response.customerId());
         assertEquals(user.getId(), response.customerUserId());
         assertEquals("Carlos Mendoza", response.customerFullName());
         assertEquals("carlos@example.com", response.customerEmail());

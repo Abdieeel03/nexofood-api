@@ -9,10 +9,10 @@ import lat.nexofood.api.modules.identity.web.dto.request.LoginRequest;
 import lat.nexofood.api.modules.identity.web.dto.request.RefreshTokenRequest;
 import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
+import lat.nexofood.api.modules.identity.web.dto.response.UserProfileResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import lat.nexofood.api.modules.identity.web.dto.response.UserProfileResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,6 +63,18 @@ public class AuthController {
                 .data(response)
                 .build();
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Cerrar sesión", description = "Revoca el refresh token proporcionado")
+    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        authService.logout(request);
+        return ResponseEntity.ok(
+                ApiResponse.<Void>builder()
+                        .success(true)
+                        .message("Sesión cerrada exitosamente")
+                        .build()
+        );
     }
 
     @GetMapping("/me")

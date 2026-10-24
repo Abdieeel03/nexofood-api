@@ -1,0 +1,37 @@
+meta {
+  name: 18 - Error Acceso A Otro Tenant No Autorizado (403)
+  type: http
+  seq: 18
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/00000000-0000-0000-0000-000000000099
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Intento de Modificación No Autorizada",
+    "phone": "+51900000000",
+    "address": "Calle Falsa 123"
+  }
+}
+
+tests {
+  test("Código de estado es 403 Forbidden (Protección Multi-Tenant Fase 1)", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+
+  test("Respuesta indica success false", function() {
+    expect(res.getBody().success).to.be.false;
+  });
+}

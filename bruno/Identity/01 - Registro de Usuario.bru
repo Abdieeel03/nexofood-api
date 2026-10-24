@@ -36,6 +36,9 @@ script:post-response {
     if (data && data.refreshToken) {
       bru.setEnvVar("refreshToken", data.refreshToken);
     }
+    if (data && data.user && data.user.id) {
+      bru.setEnvVar("userId", data.user.id);
+    }
   }
 }
 

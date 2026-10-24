@@ -1,4 +1,4 @@
-# 📘 Guía de Documentación de API para Frontend
+﻿# 📘 Guía de Documentación de API para Frontend
 
 > **Proyecto:** NexoFood API  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS  
@@ -291,58 +291,7 @@ Dentro de cada grupo, los endpoints se ordenan:
 
 ---
 
-## 🧩 Regla 8: Incluir Ejemplos de Integración con el Frontend
-
-Cada sección de módulo debe incluir al menos un ejemplo de cómo consumir el endpoint desde el frontend usando `fetch` o `axios`.
-
-### Formato obligatorio:
-
-```markdown
-#### 💻 Ejemplo de integración (fetch)
-
-```javascript
-// Ejemplo: Login
-const response = await fetch('http://localhost:8080/api/v1/auth/login', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    email: 'usuario@ejemplo.com',
-    password: 'Password123!'
-  })
-});
-
-const data = await response.json();
-
-if (data.success) {
-  // Guardar tokens
-  localStorage.setItem('accessToken', data.data.accessToken);
-  localStorage.setItem('refreshToken', data.data.refreshToken);
-  console.log('Bienvenido', data.data.user.fullName);
-} else {
-  console.error(data.message);
-}
-```
-
-#### 💻 Ejemplo de petición autenticada (fetch)
-
-```javascript
-const token = localStorage.getItem('accessToken');
-
-const response = await fetch('http://localhost:8080/api/v1/recurso', {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  }
-});
-```
-```
-
----
-
-## 🏗️ Regla 9: Documentar la Arquitectura Multi-Tenant
+## 🏗️ Regla 8: Documentar la Arquitectura Multi-Tenant
 
 NexoFood es una plataforma **SaaS multi-tenant**. Esto afecta al frontend de forma importante:
 
@@ -361,7 +310,7 @@ NexoFood es una plataforma **SaaS multi-tenant**. Esto afecta al frontend de for
 
 ---
 
-## 📋 Regla 10: Notas Especiales para el Frontend
+## 📋 Regla 9: Notas Especiales para el Frontend
 
 Al final de cada sección de módulo, incluir una sección de "Notas para el Frontend":
 
@@ -389,7 +338,6 @@ Antes de finalizar cualquier documento de API, verificar que cumple con:
 - [ ] Los envelopes `ApiResponse<T>` y `ErrorResponse` están explicados
 - [ ] Los errores están documentados con formato y códigos HTTP (incluyendo 409)
 - [ ] Los endpoints están agrupados por módulo y ordenados por CRUD
-- [ ] Incluye al menos un ejemplo de integración con fetch/axios por módulo
 - [ ] La naturaleza multi-tenant del sistema está documentada
 - [ ] Incluye notas especiales para el frontend (UUIDs, fechas ISO 8601, Bearer token)
 - [ ] Indica qué endpoints están activos vs. preparados para futuro

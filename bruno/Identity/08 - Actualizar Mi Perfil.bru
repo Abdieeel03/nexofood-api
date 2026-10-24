@@ -1,0 +1,39 @@
+meta {
+  name: 08 - Actualizar Mi Perfil
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/api/v1/users/me
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "fullName": "Carlos Administrador Actualizado",
+    "phone": "+51999111222"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Nombre y teléfono actualizados", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.fullName).to.equal("Carlos Administrador Actualizado");
+    expect(body.data.phone).to.equal("+51999111222");
+  });
+}

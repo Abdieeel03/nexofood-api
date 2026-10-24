@@ -2,22 +2,27 @@ package lat.nexofood.api.modules.store.web.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.customer.TenantCustomerService;
+import lat.nexofood.api.modules.store.web.dto.request.CustomerBlockRequest;
+import lat.nexofood.api.modules.store.web.dto.request.CustomerNotesRequest;
+import lat.nexofood.api.modules.store.web.dto.request.CustomerPointsAdjustmentRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/admin/tenants/{tenantId}/customers")
 @RequiredArgsConstructor
+@PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
 @Tag(name = "Tenant Customers", description = "Gestión de clientes del restaurante (panel admin)")
 public class TenantCustomerController {
 
@@ -58,21 +63,12 @@ public class TenantCustomerController {
     public ResponseEntity<ApiResponse<TenantCustomerResponse>> blockCustomer(
             @PathVariable UUID tenantId,
             @PathVariable UUID customerId,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean isBlocked = body.get("isBlocked");
-        if (isBlocked == null) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.<TenantCustomerResponse>builder()
-                            .success(false)
-                            .message("El campo 'isBlocked' es obligatorio")
-                            .build()
-            );
-        }
-        TenantCustomerResponse response = tenantCustomerService.blockCustomer(tenantId, customerId, isBlocked);
+            @Valid @RequestBody CustomerBlockRequest request) {
+        TenantCustomerResponse response = tenantCustomerService.blockCustomer(tenantId, customerId, request.isBlocked());
         return ResponseEntity.ok(
                 ApiResponse.<TenantCustomerResponse>builder()
                         .success(true)
-                        .message(isBlocked ? "Cliente bloqueado" : "Cliente desbloqueado")
+                        .message(Boolean.TRUE.equals(request.isBlocked()) ? "Cliente bloqueado" : "Cliente desbloqueado")
                         .data(response)
                         .build()
         );
@@ -83,9 +79,8 @@ public class TenantCustomerController {
     public ResponseEntity<ApiResponse<TenantCustomerResponse>> updateNotes(
             @PathVariable UUID tenantId,
             @PathVariable UUID customerId,
-            @RequestBody Map<String, String> body) {
-        String notes = body.get("notes");
-        TenantCustomerResponse response = tenantCustomerService.updateNotes(tenantId, customerId, notes);
+            @Valid @RequestBody CustomerNotesRequest request) {
+        TenantCustomerResponse response = tenantCustomerService.updateNotes(tenantId, customerId, request.notes());
         return ResponseEntity.ok(
                 ApiResponse.<TenantCustomerResponse>builder()
                         .success(true)
@@ -100,17 +95,8 @@ public class TenantCustomerController {
     public ResponseEntity<ApiResponse<TenantCustomerResponse>> adjustPoints(
             @PathVariable UUID tenantId,
             @PathVariable UUID customerId,
-            @RequestBody Map<String, Integer> body) {
-        Integer adjustment = body.get("adjustment");
-        if (adjustment == null) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.<TenantCustomerResponse>builder()
-                            .success(false)
-                            .message("El campo 'adjustment' es obligatorio")
-                            .build()
-            );
-        }
-        TenantCustomerResponse response = tenantCustomerService.adjustPoints(tenantId, customerId, adjustment);
+            @Valid @RequestBody CustomerPointsAdjustmentRequest request) {
+        TenantCustomerResponse response = tenantCustomerService.adjustPoints(tenantId, customerId, request.adjustment());
         return ResponseEntity.ok(
                 ApiResponse.<TenantCustomerResponse>builder()
                         .success(true)

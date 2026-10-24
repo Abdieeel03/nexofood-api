@@ -22,6 +22,7 @@ import lat.nexofood.api.modules.order.web.mapper.OrderItemMapper;
 import lat.nexofood.api.modules.order.web.mapper.OrderMapper;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +62,7 @@ public class OrderServiceImpl implements OrderService {
 
         TenantCustomer customer = null;
         if (customerId != null) {
-            customer = tenantCustomerRepository.findById(customerId)
+            customer = tenantCustomerRepository.findById(new TenantCustomerId(tenantId, customerId))
                     .orElse(null);
         }
 

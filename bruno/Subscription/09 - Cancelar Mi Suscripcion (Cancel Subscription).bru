@@ -1,0 +1,26 @@
+meta {
+  name: 09 - Cancelar Mi Suscripcion (Cancel Subscription)
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/subscriptions/me/cancel
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("La suscripción pasa a estado CANCELED", function() {
+    const data = res.getBody().data;
+    expect(data.status).to.equal("CANCELED");
+  });
+}

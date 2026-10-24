@@ -1,0 +1,47 @@
+meta {
+  name: 08 - Agregar Miembro al Staff (OWNER o ADMIN)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/members
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "role": "COCINERO"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("memberId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Miembro creado con el rol asignado", function() {
+    const data = res.getBody().data;
+    expect(data.role).to.equal("COCINERO");
+    expect(data.isActive).to.be.true;
+  });
+}
