@@ -53,8 +53,8 @@ public class RefreshTokenService implements RefreshTokenUseCase {
             throw new UnauthorizedException(ErrorMessages.INVALID_REFRESH_TOKEN);
         }
 
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            log.warn("Intento de refresh token con usuario desactivado: {}", user.getEmail());
+        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
+            log.warn("Intento de refresh token con usuario desactivado o eliminado: {}", user.getEmail());
             throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
         }
 

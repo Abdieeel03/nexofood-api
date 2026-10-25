@@ -3,10 +3,9 @@ package lat.nexofood.api.modules.order.web.mapper;
 import lat.nexofood.api.common.util.GeoUtils;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.order.domain.Order;
-import lat.nexofood.api.modules.order.domain.OrderItem;
 import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
-import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -35,14 +34,19 @@ public class OrderMapper {
         String customerEmail = null;
         String customerPhone = null;
 
-        if (order.getCustomer() != null) {
-            customerId = order.getCustomer().getId();
-            User customerUser = order.getCustomer().getUser();
+        TenantCustomer customer = order.getCustomer();
+        if (customer != null) {
+            User customerUser = customer.getUser();
             if (customerUser != null) {
                 customerUserId = customerUser.getId();
+                customerId = customerUserId;
                 customerFullName = customerUser.getFullName();
                 customerEmail = customerUser.getEmail();
                 customerPhone = customerUser.getPhone();
+            }
+            if (customerId == null && customer.getId() != null) {
+                customerId = customer.getId().getUserId();
+                customerUserId = customerId;
             }
         }
 

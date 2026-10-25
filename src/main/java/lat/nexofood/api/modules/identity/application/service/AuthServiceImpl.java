@@ -2,6 +2,7 @@ package lat.nexofood.api.modules.identity.application.service;
 
 import lat.nexofood.api.modules.identity.application.usecase.GetUserProfileUseCase;
 import lat.nexofood.api.modules.identity.application.usecase.LoginUseCase;
+import lat.nexofood.api.modules.identity.application.usecase.LogoutUseCase;
 import lat.nexofood.api.modules.identity.application.usecase.RefreshTokenUseCase;
 import lat.nexofood.api.modules.identity.application.usecase.RegisterUseCase;
 import lat.nexofood.api.modules.identity.web.dto.request.LoginRequest;
@@ -19,6 +20,7 @@ public class AuthServiceImpl implements AuthService {
     private final RegisterUseCase registerUseCase;
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
+    private final LogoutUseCase logoutUseCase;
     private final GetUserProfileUseCase getUserProfileUseCase;
 
     @Override
@@ -37,8 +39,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public void logout(RefreshTokenRequest request) {
+        logoutUseCase.execute(request);
+    }
+
+    @Override
     public UserProfileResponse getProfile(String email) {
         return getUserProfileUseCase.execute(email);
     }
 }
-

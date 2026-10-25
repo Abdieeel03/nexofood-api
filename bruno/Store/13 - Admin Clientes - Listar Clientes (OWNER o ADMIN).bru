@@ -1,0 +1,31 @@
+meta {
+  name: 13 - Admin Clientes - Listar Clientes (OWNER o ADMIN)
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/tenants/{{tenantId}}/customers?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna página de clientes del restaurante", function() {
+    const data = res.getBody().data;
+    expect(data.content).to.be.an('array');
+  });
+}

@@ -1,0 +1,29 @@
+meta {
+  name: 07 - Mi Perfil (Get Me)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Respuesta contiene perfil, membresías y direcciones", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.email).to.be.a('string');
+    expect(body.data.staffMemberships).to.be.an('array');
+    expect(body.data.addresses).to.be.an('array');
+  });
+}

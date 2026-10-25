@@ -85,6 +85,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         // Identity: registro y login de plataforma (público)
                         .requestMatchers("/api/auth/**", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+                        // Planes de suscripción SaaS (público)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/plans").permitAll()
                         // Tenants: datos públicos de la tienda para el storefront (sin token)
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenants/slug/**").permitAll()
                         // Store: registro y login contextual de clientes (público)

@@ -1,0 +1,35 @@
+meta {
+  name: 06 - Cambiar Estado Restaurante (Solo OWNER)
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Respuesta confirma actualización de estado", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}

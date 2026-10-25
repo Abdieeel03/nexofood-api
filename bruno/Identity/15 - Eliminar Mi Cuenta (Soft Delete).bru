@@ -1,0 +1,27 @@
+meta {
+  name: 15 - Eliminar Mi Cuenta (Soft Delete)
+  type: http
+  seq: 15
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Cuenta eliminada lógicamente", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.message).to.equal("Cuenta eliminada exitosamente");
+  });
+}

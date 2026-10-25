@@ -23,6 +23,10 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException(
                         ErrorMessages.USER_NOT_FOUND));
 
+        if (user.getDeletedAt() != null) {
+            throw new UsernameNotFoundException(ErrorMessages.USER_NOT_FOUND);
+        }
+
         return org.springframework.security.core.userdetails.User
                 .builder()
                 .username(user.getEmail())

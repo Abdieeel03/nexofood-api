@@ -1,13 +1,17 @@
 package lat.nexofood.api.modules.store.application.service.member;
 
 import lat.nexofood.api.common.constants.ErrorMessages;
+import lat.nexofood.api.common.exception.BadRequestException;
+import lat.nexofood.api.common.exception.ForbiddenException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
+import lat.nexofood.api.common.security.TenantAccessService;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lat.nexofood.api.modules.store.application.usecase.member.AddTenantMemberUseCase;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantMember;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantMemberRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.store.web.dto.request.TenantMemberRequest;
@@ -29,10 +33,21 @@ public class AddTenantMemberService implements AddTenantMemberUseCase {
     private final TenantMemberRepository tenantMemberRepository;
     private final UserRepository userRepository;
     private final TenantMemberMapper tenantMemberMapper;
+    private final TenantAccessService tenantAccessService;
 
     @Override
     @Transactional
     public TenantMemberResponse execute(UUID tenantId, TenantMemberRequest request) {
+        if (request.role() == TenantStaffRole.OWNER && !tenantAccessService.isSuperAdmin()) {
+            throw new BadRequestException("No se puede asignar el rol OWNER a un empleado");
+        }
+
+        if (request.role() == TenantStaffRole.ADMIN
+                && !tenantAccessService.isSuperAdmin()
+                && !tenantAccessService.isOwner(tenantId)) {
+            throw new ForbiddenException("Solo el propietario (OWNER) puede agregar administradores");
+        }
+
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado"));
 
@@ -45,6 +60,7 @@ public class AddTenantMemberService implements AddTenantMemberUseCase {
 
         TenantMember member = tenantMemberMapper.toEntity(tenant, user, request.role());
         TenantMember saved = tenantMemberRepository.save(member);
+
         log.info("Miembro agregado al tenant {}: usuario {}", tenantId, request.userId());
         return tenantMemberMapper.toResponse(saved);
     }

@@ -14,5 +14,7 @@ public interface AuthService {
 
     AuthResponse refreshToken(RefreshTokenRequest request);
 
+    void logout(RefreshTokenRequest request);
+
     UserProfileResponse getProfile(String email);
 }

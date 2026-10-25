@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.application.service.customer;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.modules.store.application.usecase.customer.AdjustLoyaltyPointsUseCase;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantCustomerMapper;
@@ -24,14 +25,13 @@ public class AdjustLoyaltyPointsService implements AdjustLoyaltyPointsUseCase {
     @Override
     @Transactional
     public TenantCustomerResponse execute(UUID tenantId, UUID customerId, int pointsAdjustment) {
-        TenantCustomer customer = tenantCustomerRepository.findById(customerId)
-                .filter(tc -> tc.getTenant().getId().equals(tenantId))
+        TenantCustomer customer = tenantCustomerRepository.findById(new TenantCustomerId(tenantId, customerId))
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado en este restaurante"));
 
         int newPoints = customer.getLoyaltyPoints() + pointsAdjustment;
         customer.setLoyaltyPoints(Math.max(0, newPoints)); // no permitir puntos negativos
         TenantCustomer updated = tenantCustomerRepository.save(customer);
-        log.info("Puntos de cliente {} ajustados en {} → total: {}", customerId, pointsAdjustment, updated.getLoyaltyPoints());
+        log.info("Puntos de cliente {} ajustados en {} -> total: {}", customerId, pointsAdjustment, updated.getLoyaltyPoints());
         return tenantCustomerMapper.toResponse(updated);
     }
 }

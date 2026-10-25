@@ -1,9 +1,9 @@
-# 📖 NexoFood API — Documentación para Frontend
+﻿# 📖 NexoFood API — Documentación para Frontend
 
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-10-06  
+> **Última actualización:** 2026-10-22  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -77,65 +77,6 @@ Usuario (User)
 - `ADMIN`: Administrador delegado con permisos de catálogo, miembros y pedidos.
 - `COCINERO`: Visualización de pedidos en preparación y actualización de estado.
 - `REPARTIDOR`: Gestión de pedidos en camino y confirmación de entrega.
-
-### Configuración del Cliente Axios (Recomendada)
-
-```javascript
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:8080/api/v1',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Interceptor de petición: inyecta el token Bearer si existe
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Interceptor de respuesta: auto-refresh de token
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        const { data } = await axios.post(
-          'http://localhost:8080/api/v1/auth/refresh',
-          { refreshToken }
-        );
-
-        // Guardar nuevos tokens rotados
-        localStorage.setItem('accessToken', data.data.accessToken);
-        localStorage.setItem('refreshToken', data.data.refreshToken);
-
-        // Reintentar la petición original
-        originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
-        return api.request(originalRequest);
-      } catch (refreshError) {
-        // Fallo de refresh: sesión caducada
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
-
-export default api;
-```
-
----
 
 ## 📤 Envelopes de Respuesta
 
@@ -442,10 +383,10 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 #### POST `/api/v1/tenants`
 
-> Registra un nuevo restaurante vinculado a una suscripción activa y a su dueño.
+> Registra un nuevo restaurante. El propietario (owner) se extrae directamente del token JWT y la suscripción se vincula automáticamente buscando la suscripción activa o trial vigente del usuario (opcionalmente se puede pasar subscriptionId).
 
-**Autenticación:** Requerida  
-**Rol requerido:** `USER` (que tenga suscripción activa)  
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** USER (con suscripción activa o trial vigente)  
 **Content-Type:** `application/json`
 
 ##### 📥 Request
@@ -454,8 +395,7 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 | Campo                | Tipo       | Requerido | Validación                                  | Descripción                     |
 |----------------------|------------|-----------|---------------------------------------------|---------------------------------|
-| `subscriptionId`     | UUID       | Sí        | UUID válido                                 | ID de la suscripción SaaS       |
-| `ownerId`            | UUID       | Sí        | UUID válido                                 | ID del usuario propietario      |
+| subscriptionId     | UUID       | No        | UUID válido                                 | Opcional: ID de la suscripción (se infiere si se omite)|
 | `name`               | string     | Sí        | Máx. 150 caracteres                         | Nombre comercial                |
 | `slug`               | string     | Sí        | Regex `^[a-z0-9-]+$`, máx. 100 caracteres   | Slug para la URL del storefront |
 | `logoUrl`            | string     | No        | URL válida                                  | Logo de la tienda               |
@@ -470,8 +410,6 @@ Módulo central para la administración de restaurantes, asignación de colabora
 **Ejemplo:**
 ```json
 {
-  "subscriptionId": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
-  "ownerId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "name": "Burger Bros",
   "slug": "burger-bros",
   "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
@@ -520,10 +458,10 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 #### GET `/api/v1/tenants/{id}`
 
-> Obtiene los datos detallados de un restaurante por su identificador único UUID.
+> Obtiene los datos detallados de un restaurante por su identificador único UUID. Protegido por membresía en el restaurante.
 
-**Autenticación:** Requerida  
-**Rol requerido:** Cualquier usuario autenticado  
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** Miembro activo del restaurante (OWNER, ADMIN, COCINERO, REPARTIDOR) o SUPERADMIN  
 
 ##### 📤 Response
 
@@ -583,8 +521,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 > Actualiza la información operativa y comercial del restaurante.
 
-**Autenticación:** Requerida  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante  
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** OWNER del restaurante o SUPERADMIN  
 **Content-Type:** `application/json`
 
 ##### 📥 Request
@@ -626,10 +564,10 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 #### PATCH `/api/v1/tenants/{id}/status`
 
-> Activa o desactiva las operaciones del restaurante.
+> Activa o desactiva las operaciones del restaurante mediante el DTO validado TenantStatusRequest.
 
-**Autenticación:** Requerida  
-**Rol requerido:** `OWNER`  
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** OWNER del restaurante o SUPERADMIN  
 **Content-Type:** `application/json`
 
 ##### 📥 Request
@@ -775,10 +713,10 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 
 #### PATCH `/api/v1/tenants/{tenantId}/members/{memberId}/role`
 
-> Modifica el rol asignado a un empleado del restaurante.
+> Modifica el rol asignado a un empleado del restaurante mediante el DTO validado MemberRoleUpdateRequest. El OWNER no puede ser modificado por un ADMIN.
 
-**Autenticación:** Requerida  
-**Rol requerido:** `OWNER`  
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** OWNER o ADMIN  
 **Content-Type:** `application/json`
 
 ##### 📥 Request
@@ -1313,49 +1251,345 @@ PENDIENTE  ──>  EN_PREPARACION  ──>  LISTO_PARA_ENTREGA  ──>  EN_CAM
 
 ## 6. Subscription — Suscripciones SaaS para Restaurantes
 
+Módulo de monetización SaaS que administra los planes comerciales de la plataforma y el ciclo de vida de las suscripciones de los restaurantes (TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED).
+
 ---
 
-### 📥 DTO: SubscriptionPlanRequest
+### 💳 Planes de Suscripción Públicos (SubscriptionPlanController)
+
+Ruta base: /api/v1/plans
+
+---
+
+#### GET /api/v1/plans
+
+> Obtiene la lista de planes de suscripción activos disponibles públicamente en la plataforma.
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+`json
+{
+  "success": true,
+  "message": "Planes de suscripción obtenidos exitosamente",
+  "data": [
+    {
+      "id": "p1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Plan Emprendedor",
+      "price": 59.90,
+      "billingCycleDays": 30,
+      "maxProducts": 50,
+      "isActive": true,
+      "createdAt": "2026-10-22T00:00:00Z",
+      "updatedAt": "2026-10-22T00:00:00Z"
+    }
+  ]
+}
+`
+
+---
+
+### 🛡️ Administración de Planes (AdminSubscriptionPlanController - SUPERADMIN)
+
+Ruta base: /api/v1/admin/plans
+
+---
+
+#### GET /api/v1/admin/plans
+
+> Lista todos los planes registrados en la plataforma, incluyendo inactivos.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** SUPERADMIN  
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+`json
+{
+  "success": true,
+  "message": "Todos los planes obtenidos exitosamente",
+  "data": [
+    {
+      "id": "p1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Plan Emprendedor",
+      "price": 59.90,
+      "billingCycleDays": 30,
+      "maxProducts": 50,
+      "isActive": true
+    }
+  ]
+}
+`
+
+---
+
+#### GET /api/v1/admin/plans/{planId}
+
+> Obtiene los datos de un plan por su ID único.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** SUPERADMIN  
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna ApiResponse<SubscriptionPlanResponse>.
+
+---
+
+#### POST /api/v1/admin/plans
+
+> Crea un nuevo plan de suscripción en la plataforma.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** SUPERADMIN  
+**Content-Type:** pplication/json
+
+##### 📥 Request
+
+**Body (JSON) — SubscriptionPlanRequest:**
+
+| Campo              | Tipo       | Requerido | Validación                             | Descripción                                |
+|--------------------|------------|-----------|----------------------------------------|--------------------------------------------|
+| 
+ame             | string     | Sí        | Máx. 100 caracteres, único             | Nombre comercial del plan                  |
+| price            | BigDecimal | Sí        | ≥ 0.00                                 | Tarifa del plan                            |
+| illingCycleDays | number     | Sí        | ≥ 1 (default: 30)                      | Días de vigencia por ciclo                 |
+| maxProducts      | number     | No        | ≥ 1                                    | Límite máximo de productos permitidos      |
+| isActive         | boolean    | No        | Default: 	rue                        | Si el plan está visible para contratación  |
+
+`json
+{
+  "name": "Plan Pro",
+  "price": 99.90,
+  "billingCycleDays": 30,
+  "maxProducts": 150,
+  "isActive": true
+}
+`
+
+##### 📤 Response
+
+**Éxito (201 Created):**
+`json
+{
+  "success": true,
+  "message": "Plan de suscripción creado exitosamente",
+  "data": {
+    "id": "p2a2c3d4-e5f6-7890-abcd-ef1234567891",
+    "name": "Plan Pro",
+    "price": 99.90,
+    "billingCycleDays": 30,
+    "maxProducts": 150,
+    "isActive": true,
+    "createdAt": "2026-10-22T02:00:00Z",
+    "updatedAt": "2026-10-22T02:00:00Z"
+  }
+}
+`
+
+---
+
+#### PUT /api/v1/admin/plans/{planId}
+
+> Actualiza la información y límites de un plan existente.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** SUPERADMIN  
+**Content-Type:** pplication/json
+
+##### 📥 Request
+Mismo formato SubscriptionPlanRequest.
+
+##### 📤 Response
+**Éxito (200 OK):** Retorna ApiResponse<SubscriptionPlanResponse>.
+
+---
+
+#### PATCH /api/v1/admin/plans/{planId}/status
+
+> Activa o desactiva la disponibilidad de un plan.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** SUPERADMIN  
+**Content-Type:** pplication/json
+
+##### 📥 Request
+
+**Body (JSON) — SubscriptionPlanStatusRequest:**
+
+| Campo      | Tipo    | Requerido | Descripción                     |
+|------------|---------|-----------|---------------------------------|
+| isActive | boolean | Sí        | 	rue para activar, alse para desactivar |
+
+`json
+{
+  "isActive": false
+}
+`
+
+##### 📤 Response
+**Éxito (200 OK):** Retorna ApiResponse<SubscriptionPlanResponse>.
+
+---
+
+### 📦 Suscripciones del Usuario (SubscriptionController)
+
+Ruta base: /api/v1/subscriptions
+
+---
+
+#### POST /api/v1/subscriptions
+
+> Inicia una nueva suscripción en período de prueba (TRIAL) para el usuario autenticado. El usuario se obtiene del token JWT.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** Cualquier usuario autenticado sin suscripción vigente  
+**Content-Type:** pplication/json
+
+##### 📥 Request
+
+**Body (JSON) — SubscriptionCreateRequest:**
+
+| Campo    | Tipo | Requerido | Descripción                 |
+|----------|------|-----------|-----------------------------|
+| planId | UUID | Sí        | ID del plan elegido         |
+
+`json
+{
+  "planId": "p1a2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+`
+
+##### 📤 Response
+
+**Éxito (201 Created):**
+`json
+{
+  "success": true,
+  "message": "Suscripción iniciada exitosamente",
+  "data": {
+    "id": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "plan": {
+      "id": "p1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Plan Emprendedor",
+      "price": 59.90,
+      "billingCycleDays": 30,
+      "maxProducts": 50,
+      "isActive": true
+    },
+    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "status": "TRIAL",
+    "startDate": "2026-10-22T02:00:00Z",
+    "endDate": "2026-11-21T02:00:00Z",
+    "mpPreapprovalId": null,
+    "createdAt": "2026-10-22T02:00:00Z",
+    "updatedAt": "2026-10-22T02:00:00Z"
+  }
+}
+`
+
+---
+
+#### GET /api/v1/subscriptions/me
+
+> Obtiene la suscripción vigente o más reciente del usuario autenticado actual.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** Cualquier usuario autenticado  
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+`json
+{
+  "success": true,
+  "message": "Suscripción obtenida exitosamente",
+  "data": {
+    "id": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "plan": {
+      "id": "p1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Plan Emprendedor",
+      "maxProducts": 50
+    },
+    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "status": "TRIAL",
+    "startDate": "2026-10-22T02:00:00Z",
+    "endDate": "2026-11-21T02:00:00Z"
+  }
+}
+`
+
+---
+
+#### PATCH /api/v1/subscriptions/me/cancel
+
+> Cancela la suscripción activa del usuario autenticado y desactiva el restaurante vinculado.
+
+**Autenticación:** Requerida (Bearer <token>)  
+**Rol requerido:** Usuario autenticado con suscripción activa o trial  
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+`json
+{
+  "success": true,
+  "message": "Suscripción cancelada exitosamente",
+  "data": {
+    "id": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "status": "CANCELED"
+  }
+}
+`
+
+---
+
+### 📦 Modelos de Datos / DTOs de Suscripción
+
+#### 📥 DTO: SubscriptionPlanRequest
 
 | Campo              | Tipo       | Requerido | Validación    | Descripción                                |
 |--------------------|------------|-----------|---------------|--------------------------------------------|
-| `name`             | string     | Sí        | Máx. 100 char | Nombre del plan (ej. "Plan Pro")           |
-| `price`            | BigDecimal | Sí        | ≥ 0.00        | Tarifa mensual del plan                    |
-| `billingCycleDays` | number     | Sí        | ≥ 1           | Días del ciclo de facturación (default: 30)|
-| `maxProducts`      | number     | Sí        | ≥ 1           | Límite de productos en el catálogo         |
-| `isActive`         | boolean    | No        | —             | Estado activo                              |
+| 
+ame             | string     | Sí        | Máx. 100 char | Nombre del plan (ej. "Plan Pro")           |
+| price            | BigDecimal | Sí        | ≥ 0.00        | Tarifa mensual del plan                    |
+| illingCycleDays | number     | Sí        | ≥ 1           | Días del ciclo de facturación (default: 30)|
+| maxProducts      | number     | No        | ≥ 1           | Límite de productos en el catálogo         |
+| isActive         | boolean    | No        | —             | Estado activo                              |
 
-### 📤 DTO: SubscriptionPlanResponse
+#### 📤 DTO: SubscriptionPlanResponse
 
 | Campo              | Tipo       | Nullable | Descripción                        |
 |--------------------|------------|----------|------------------------------------|
-| `id`               | UUID       | No       | ID del plan                        |
-| `name`             | string     | No       | Nombre del plan                    |
-| `price`            | BigDecimal | No       | Precio recurrente                  |
-| `billingCycleDays` | number     | No       | Días del período                   |
-| `maxProducts`      | number     | Sí       | Capacidad máxima de productos      |
-| `isActive`         | boolean    | No       | Estado                             |
+| id               | UUID       | No       | ID del plan                        |
+| 
+ame             | string     | No       | Nombre del plan                    |
+| price            | BigDecimal | No       | Precio recurrente                  |
+| illingCycleDays | number     | No       | Días del período                   |
+| maxProducts      | number     | Sí       | Capacidad máxima de productos      |
+| isActive         | boolean    | No       | Estado                             |
 
-### 📥 DTO: SubscriptionCreateRequest
+#### 📥 DTO: SubscriptionCreateRequest
 
-| Campo     | Tipo | Requerido | Descripción                 |
-|-----------|------|-----------|-----------------------------|
-| `planId`  | UUID | Sí        | ID del plan elegido         |
-| `userId`  | UUID | Sí        | ID del usuario suscriptor   |
+| Campo    | Tipo | Requerido | Descripción                 |
+|----------|------|-----------|-----------------------------|
+| planId | UUID | Sí        | ID del plan elegido         |
 
-### 📤 DTO: SubscriptionResponse
+#### 📤 DTO: SubscriptionResponse
 
 | Campo             | Tipo                     | Nullable | Descripción                                               |
 |-------------------|--------------------------|----------|-----------------------------------------------------------|
-| `id`              | UUID                     | No       | ID de la suscripción                                      |
-| `plan`            | SubscriptionPlanResponse | No       | Detalle del plan contratado                               |
-| `userId`          | UUID                     | No       | Propietario de la cuenta                                  |
-| `status`          | string                   | No       | `TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`, `EXPIRED`      |
-| `startDate`       | string                   | No       | Fecha inicio (ISO 8601)                                   |
-| `endDate`         | string                   | No       | Fecha fin del período (ISO 8601)                          |
-| `mpPreapprovalId` | string                   | Sí       | ID de suscripción automática Mercado Pago                 |
-
----
+| id              | UUID                     | No       | ID de la suscripción                                      |
+| plan            | SubscriptionPlanResponse | No       | Detalle del plan contratado                               |
+| userId          | UUID                     | No       | Propietario de la cuenta                                  |
+| status          | string                   | No       | TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED      |
+| startDate       | string                   | No       | Fecha inicio (ISO 8601)                                   |
+| endDate         | string                   | No       | Fecha fin del período (ISO 8601)                          |
+| mpPreapprovalId | string                   | Sí       | ID de suscripción automática Mercado Pago                 |
 
 ## 7. Payment — Pagos y Mercado Pago
 
@@ -1427,89 +1661,6 @@ PENDIENTE  ──>  EN_PREPARACION  ──>  LISTO_PARA_ENTREGA  ──>  EN_CAM
 - `newQuantity` (BigDecimal): Saldo resultante.
 - `performedBy` (UUID): Usuario que registró la operación.
 - `reasonDetails` (string): Justificación textual obligatoria.
-
----
-
-## 💻 Ejemplos de Integración para el Frontend
-
-### 1. Iniciar Sesión en la Plataforma
-```javascript
-async function loginUser(email, password) {
-  const response = await fetch('http://localhost:8080/api/v1/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  const res = await response.json();
-  if (res.success) {
-    localStorage.setItem('accessToken', res.data.accessToken);
-    localStorage.setItem('refreshToken', res.data.refreshToken);
-    console.log(`Sesión iniciada: ${res.data.user.fullName}`);
-    return res.data;
-  } else {
-    throw new Error(res.message);
-  }
-}
-```
-
-### 2. Cargar Menú Público de un Restaurante por Slug
-```javascript
-async function loadStorefrontBySlug(slug) {
-  const response = await fetch(`http://localhost:8080/api/v1/tenants/slug/${slug}`);
-  const res = await response.json();
-
-  if (res.success) {
-    console.log(`Restaurante cargado: ${res.data.name}`, res.data);
-    return res.data;
-  } else {
-    console.error('Error al cargar tienda:', res.message);
-  }
-}
-```
-
-### 3. Registro Contextual de Cliente en Storefront
-```javascript
-async function registerInStore(tenantSlug, customerData) {
-  const response = await fetch(`http://localhost:8080/api/v1/store/${tenantSlug}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(customerData)
-  });
-
-  const res = await response.json();
-  if (res.success) {
-    localStorage.setItem('accessToken', res.data.accessToken);
-    localStorage.setItem('refreshToken', res.data.refreshToken);
-    console.log('Registrado en la tienda con éxito. Perfil:', res.data.customerProfile);
-    return res.data;
-  } else {
-    throw new Error(res.message);
-  }
-}
-```
-
-### 4. Petición Autenticada con Manejo de Errores
-```javascript
-async function fetchMyRestaurant() {
-  const token = localStorage.getItem('accessToken');
-  const response = await fetch('http://localhost:8080/api/v1/tenants/me', {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    if (response.status === 401) {
-      console.warn('Token expirado, necesario refrescar');
-    }
-    throw new Error(result.message || 'Error en la petición');
-  }
-
-  return result.data;
-}
-```
 
 ---
 

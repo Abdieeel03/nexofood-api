@@ -17,6 +17,8 @@ public interface TenantCustomerRepository extends JpaRepository<TenantCustomer, 
 
     Page<TenantCustomer> findByIdTenantId(UUID tenantId, Pageable pageable);
 
+    Optional<TenantCustomer> findByIdTenantIdAndIdUserId(UUID tenantId, UUID userId);
+
     @Query("SELECT tc FROM TenantCustomer tc JOIN tc.tenant t JOIN tc.user u " +
             "WHERE t.slug = :slug AND u.email = :email")
     Optional<TenantCustomer> findByTenantSlugAndUserEmail(
