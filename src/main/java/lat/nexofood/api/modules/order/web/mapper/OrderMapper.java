@@ -5,6 +5,7 @@ import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -50,16 +51,23 @@ public class OrderMapper {
             }
         }
 
+        Tenant tenant = order.getTenant();
+        User deliveryStaff = order.getDeliveryStaff();
+
         return OrderResponse.builder()
                 .id(order.getId())
-                .tenantId(order.getTenant() != null ? order.getTenant().getId() : null)
+                .tenantId(tenant != null ? tenant.getId() : null)
+                .tenantSlug(tenant != null ? tenant.getSlug() : null)
+                .tenantName(tenant != null ? tenant.getName() : null)
                 .customerId(customerId)
                 .customerUserId(customerUserId)
                 .customerFullName(customerFullName)
                 .customerEmail(customerEmail)
                 .customerPhone(customerPhone)
-                .deliveryStaffId(order.getDeliveryStaff() != null ? order.getDeliveryStaff().getId() : null)
+                .deliveryStaffId(deliveryStaff != null ? deliveryStaff.getId() : null)
+                .deliveryStaffName(deliveryStaff != null ? deliveryStaff.getFullName() : null)
                 .orderNumber(order.getOrderNumber())
+                .ruc(order.getRuc())
                 .deliveryType(order.getDeliveryType())
                 .status(order.getStatus())
                 .deliveryAddress(order.getDeliveryAddress())

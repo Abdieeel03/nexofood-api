@@ -1,0 +1,41 @@
+meta {
+  name: 02 - Storefront - Listar Mis Pedidos en Tienda
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && Array.isArray(data.content) && data.content.length > 0 && data.content[0].id) {
+      bru.setEnvVar("orderId", data.content[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna historial paginado de pedidos del cliente en la tienda", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.content).to.be.an('array');
+  });
+}

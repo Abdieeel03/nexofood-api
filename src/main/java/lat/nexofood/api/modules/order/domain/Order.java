@@ -12,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
@@ -58,11 +60,14 @@ public class Order extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
-            @JoinColumn(name = "tenant_id", referencedColumnName = "tenant_id", insertable = false, updatable = false),
-            @JoinColumn(name = "customer_id", referencedColumnName = "user_id", nullable = false)
+            @JoinColumn(name = "tenant_id", referencedColumnName = "tenant_id", insertable = false, updatable = false, nullable = false),
+            @JoinColumn(name = "customer_id", referencedColumnName = "user_id", insertable = false, updatable = false, nullable = false)
     })
     @ToString.Exclude
     private TenantCustomer customer;
+
+    @Column(name = "customer_id", nullable = false)
+    private UUID customerId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "delivery_staff_id")
@@ -118,4 +123,27 @@ public class Order extends BaseEntity {
     @JoinColumn(name = "address_id")
     @ToString.Exclude
     private CustomerAddress address;
+
+    @PrePersist
+    @PreUpdate
+    private void syncCustomerId() {
+        if (this.customerId == null && this.customer != null) {
+            if (this.customer.getUser() != null && this.customer.getUser().getId() != null) {
+                this.customerId = this.customer.getUser().getId();
+            } else if (this.customer.getId() != null) {
+                this.customerId = this.customer.getId().getUserId();
+            }
+        }
+    }
+
+    public void setCustomer(TenantCustomer customer) {
+        this.customer = customer;
+        if (customer != null) {
+            if (customer.getUser() != null && customer.getUser().getId() != null) {
+                this.customerId = customer.getUser().getId();
+            } else if (customer.getId() != null) {
+                this.customerId = customer.getId().getUserId();
+            }
+        }
+    }
 }

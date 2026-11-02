@@ -1,0 +1,28 @@
+meta {
+  name: 03 - Storefront - Obtener Detalle de Mi Pedido
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders/{{orderId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el detalle del pedido propio del cliente", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.equal(bru.getEnvVar("orderId"));
+    expect(data.items).to.be.an('array');
+  });
+}
