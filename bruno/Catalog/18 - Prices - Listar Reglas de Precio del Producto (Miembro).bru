@@ -1,0 +1,38 @@
+meta {
+  name: 18 - Prices - Listar Reglas de Precio del Producto (Miembro)
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/prices
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (Array.isArray(data)) {
+      const promo = data.find(p => p.isBase === false) || data[0];
+      if (promo && promo.id) {
+        bru.setEnvVar("priceId", promo.id);
+      }
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK (accesible por cualquier miembro del staff)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna las reglas de precio del producto", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data).to.be.an('array');
+  });
+}

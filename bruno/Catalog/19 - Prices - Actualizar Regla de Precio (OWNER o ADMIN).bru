@@ -1,0 +1,46 @@
+meta {
+  name: 19 - Prices - Actualizar Regla de Precio (OWNER o ADMIN)
+  type: http
+  seq: 19
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Happy Hour Fin de Semana",
+    "price": 20.90,
+    "isBase": false,
+    "discountPercentage": 27.68,
+    "startTime": "18:00:00",
+    "endTime": "22:00:00",
+    "daysOfWeek": [5, 6, 7],
+    "priority": 15,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna la regla de precio actualizada", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Happy Hour Fin de Semana");
+    expect(data.priority).to.equal(15);
+  });
+}

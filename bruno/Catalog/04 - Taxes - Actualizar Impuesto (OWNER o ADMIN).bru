@@ -1,0 +1,41 @@
+meta {
+  name: 04 - Taxes - Actualizar Impuesto (OWNER o ADMIN)
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes/{{taxId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "IGV 18% General",
+    "rate": 18.00,
+    "code": "1000",
+    "isInclusive": true,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el impuesto actualizado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("IGV 18% General");
+  });
+}

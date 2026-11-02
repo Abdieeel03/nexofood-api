@@ -1,0 +1,50 @@
+meta {
+  name: 06 - Categories - Crear Categoria (OWNER o ADMIN)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/categories
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Hamburguesas Artesanales",
+    "description": "100% carne Angus a la parrilla",
+    "sortOrder": 1,
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("categoryId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Retorna la categoría creada y guarda categoryId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Hamburguesas Artesanales");
+    expect(data.isActive).to.be.true;
+  });
+}

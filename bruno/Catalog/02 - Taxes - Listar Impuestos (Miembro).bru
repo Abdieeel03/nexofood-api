@@ -1,0 +1,35 @@
+meta {
+  name: 02 - Taxes - Listar Impuestos (Miembro)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (Array.isArray(data) && data.length > 0 && data[0].id) {
+      bru.setEnvVar("taxId", data[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK (accesible por cualquier miembro del staff)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna arreglo de impuestos del restaurante", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data).to.be.an('array');
+  });
+}

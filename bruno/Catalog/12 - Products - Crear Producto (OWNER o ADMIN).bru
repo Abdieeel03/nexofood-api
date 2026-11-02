@@ -1,0 +1,53 @@
+meta {
+  name: 12 - Products - Crear Producto (OWNER o ADMIN)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "categoryId": "{{categoryId}}",
+    "taxId": "{{taxId}}",
+    "name": "Hamburguesa Royal Angus",
+    "description": "Doble carne Angus, queso cheddar, tocino y huevo frito",
+    "price": 26.90,
+    "imageUrl": "https://cdn.nexofood.lat/products/royal-angus.png",
+    "isAvailable": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("productId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Crea el producto con su regla de precio base automática y guarda productId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Hamburguesa Royal Angus");
+    expect(data.prices).to.be.an('array');
+  });
+}

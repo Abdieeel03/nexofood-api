@@ -1,0 +1,25 @@
+meta {
+  name: 21 - Products - Deshabilitar Producto Soft Delete (OWNER o ADMIN)
+  type: http
+  seq: 21
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Deshabilita el producto mediante soft delete", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}
