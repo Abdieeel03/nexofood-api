@@ -1,0 +1,25 @@
+meta {
+  name: 22 - Storefront - Obtener Detalle Publico de Producto (Sin Token)
+  type: http
+  seq: 22
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/products/{{productId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna detalle público del producto con precio final calculado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.equal(bru.getEnvVar("productId"));
+    expect(data.finalPrice).to.be.a('number');
+    expect(data.isAvailable).to.be.true;
+  });
+}

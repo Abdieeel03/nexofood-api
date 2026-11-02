@@ -1,0 +1,32 @@
+meta {
+  name: 20 - Storefront - Listar Categorias Activas de Tienda (Sin Token)
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/categories
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (Array.isArray(data) && data.length > 0 && data[0].id) {
+      bru.setEnvVar("categoryId", data[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna lista de categorías activas de la tienda", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data).to.be.an('array');
+  });
+}
