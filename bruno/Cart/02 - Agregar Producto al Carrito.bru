@@ -1,0 +1,55 @@
+meta {
+  name: 02 - Agregar Producto al Carrito
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart/items
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "productId": "{{productId}}",
+    "quantity": 2,
+    "notes": "Sin cebolla y término tres cuartos"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("cartId", data.id);
+    }
+    if (data && Array.isArray(data.items) && data.items.length > 0) {
+      const added = data.items.find(i => i.productId === bru.getEnvVar("productId")) || data.items[0];
+      if (added && added.id) {
+        bru.setEnvVar("cartItemId", added.id);
+      }
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Agrega el producto al carrito de la tienda y calcula subtotal/total en backend", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.items).to.be.an('array').that.is.not.empty;
+    expect(data.total).to.be.a('number').and.to.be.above(0);
+  });
+}

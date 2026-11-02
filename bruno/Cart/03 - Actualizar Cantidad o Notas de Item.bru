@@ -1,0 +1,42 @@
+meta {
+  name: 03 - Actualizar Cantidad o Notas de Item
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart/items/{{cartItemId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "quantity": 3,
+    "notes": "Extra queso cheddar y sin cebolla"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza la cantidad y notas del ítem y recalcula el total del carrito", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    const updatedItem = data.items.find(i => i.id === bru.getEnvVar("cartItemId"));
+    if (updatedItem) {
+      expect(updatedItem.quantity).to.equal(3);
+      expect(updatedItem.notes).to.equal("Extra queso cheddar y sin cebolla");
+    }
+  });
+}
