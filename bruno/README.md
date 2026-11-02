@@ -1,6 +1,6 @@
 # Colección Bruno - NexoFood API
 
-Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints de la **Fase 0, Fase 1, Fase 2 y Fase 3**.
+Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints de la **Fase 0, Fase 1, Fase 2, Fase 3, Fase 4, Fase 5 y Fase 6**.
 
 ---
 
@@ -49,25 +49,68 @@ bruno/
 │   ├── 07 - Iniciar Suscripcion Trial (Start Trial).bru      # POST   /api/v1/subscriptions (201 Created - userId desde JWT)
 │   ├── 08 - Obtener Mi Suscripcion (Get My Subscription).bru # GET    /api/v1/subscriptions/me (200 OK)
 │   └── 09 - Cancelar Mi Suscripcion (Cancel Subscription).bru # PATCH /api/v1/subscriptions/me/cancel (200 OK)
-└── Store/
-    ├── 01 - Crear Restaurante (Tenant).bru                   # POST   /api/v1/tenants (201 Created - owner y sub desde JWT)
-    ├── 02 - Obtener Mi Restaurante (Get My Tenant).bru       # GET    /api/v1/tenants/me (200 OK)
-    ├── 03 - Obtener Restaurante por Slug (Publico).bru       # GET    /api/v1/tenants/slug/{{tenantSlug}} (200 OK)
-    ├── 04 - Obtener Restaurante por ID (Miembro).bru         # GET    /api/v1/tenants/{{tenantId}} (200 OK - @tenantAccess.isMember)
-    ├── 05 - Actualizar Restaurante (Solo OWNER).bru          # PUT    /api/v1/tenants/{{tenantId}} (200 OK - @tenantAccess.isOwner)
-    ├── 06 - Cambiar Estado Restaurante (Solo OWNER).bru      # PATCH  /api/v1/tenants/{{tenantId}}/status (200 OK - DTO validado)
-    ├── 07 - Listar Miembros del Staff (OWNER o ADMIN).bru    # GET    /api/v1/tenants/{{tenantId}}/members (200 OK)
-    ├── 08 - Agregar Miembro al Staff (OWNER o ADMIN).bru     # POST   /api/v1/tenants/{{tenantId}}/members (201 Created)
-    ├── 09 - Cambiar Rol de Miembro (OWNER o ADMIN).bru       # PATCH  /api/v1/tenants/{{tenantId}}/members/{{memberId}}/role (200 OK)
-    ├── 10 - Eliminar Miembro del Staff (OWNER o ADMIN).bru   # DELETE /api/v1/tenants/{{tenantId}}/members/{{memberId}} (200 OK)
-    ├── 11 - Store Auth - Registro de Cliente en Tienda.bru   # POST   /api/v1/store/{{tenantSlug}}/auth/register (201 Created)
-    ├── 12 - Store Auth - Login de Cliente en Tienda.bru      # POST   /api/v1/store/{{tenantSlug}}/auth/login (200 OK)
-    ├── 13 - Admin Clientes - Listar Clientes (OWNER o ADMIN).bru
-    ├── 14 - Admin Clientes - Ver Perfil Cliente (OWNER o ADMIN).bru
-    ├── 15 - Admin Clientes - Bloquear o Desbloquear Cliente.bru
-    ├── 16 - Admin Clientes - Actualizar Notas Privadas.bru
-    ├── 17 - Admin Clientes - Ajustar Puntos de Fidelidad.bru
-    └── 18 - Error Acceso A Otro Tenant No Autorizado (403).bru # PUT  /api/v1/tenants/{otroId} (403 Forbidden)
+├── Store/
+│   ├── 01 - Crear Restaurante (Tenant).bru                   # POST   /api/v1/tenants (201 Created - owner y sub desde JWT)
+│   ├── 02 - Obtener Mi Restaurante (Get My Tenant).bru       # GET    /api/v1/tenants/me (200 OK)
+│   ├── 03 - Obtener Restaurante por Slug (Publico).bru       # GET    /api/v1/tenants/slug/{{tenantSlug}} (200 OK)
+│   ├── 04 - Obtener Restaurante por ID (Miembro).bru         # GET    /api/v1/tenants/{{tenantId}} (200 OK - @tenantAccess.isMember)
+│   ├── 05 - Actualizar Restaurante (Solo OWNER).bru          # PUT    /api/v1/tenants/{{tenantId}} (200 OK - @tenantAccess.isOwner)
+│   ├── 06 - Cambiar Estado Restaurante (Solo OWNER).bru      # PATCH  /api/v1/tenants/{{tenantId}}/status (200 OK - DTO validado)
+│   ├── 07 - Listar Miembros del Staff (OWNER o ADMIN).bru    # GET    /api/v1/tenants/{{tenantId}}/members (200 OK)
+│   ├── 08 - Agregar Miembro al Staff (OWNER o ADMIN).bru     # POST   /api/v1/tenants/{{tenantId}}/members (201 Created)
+│   ├── 09 - Cambiar Rol de Miembro (OWNER o ADMIN).bru       # PATCH  /api/v1/tenants/{{tenantId}}/members/{{memberId}}/role (200 OK)
+│   ├── 10 - Eliminar Miembro del Staff (OWNER o ADMIN).bru   # DELETE /api/v1/tenants/{{tenantId}}/members/{{memberId}} (200 OK)
+│   ├── 11 - Store Auth - Registro de Cliente en Tienda.bru   # POST   /api/v1/store/{{tenantSlug}}/auth/register (201 Created)
+│   ├── 12 - Store Auth - Login de Cliente en Tienda.bru      # POST   /api/v1/store/{{tenantSlug}}/auth/login (200 OK)
+│   ├── 13 - Admin Clientes - Listar Clientes (OWNER o ADMIN).bru
+│   ├── 14 - Admin Clientes - Ver Perfil Cliente (OWNER o ADMIN).bru
+│   ├── 15 - Admin Clientes - Bloquear o Desbloquear Cliente.bru
+│   ├── 16 - Admin Clientes - Actualizar Notas Privadas.bru
+│   ├── 17 - Admin Clientes - Ajustar Puntos de Fidelidad.bru
+│   ├── 18 - Error Acceso A Otro Tenant No Autorizado (403).bru # PUT  /api/v1/tenants/{otroId} (403 Forbidden)
+│   ├── 19 - Storefront - Obtener Menu Publico por Slug (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/menu (200 OK)
+│   ├── 20 - Storefront - Listar Categorias Activas de Tienda (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/categories (200 OK)
+│   ├── 21 - Storefront - Listar Productos Disponibles Paginados (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products (200 OK)
+│   └── 22 - Storefront - Obtener Detalle Publico de Producto (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products/{{productId}} (200 OK)
+├── Catalog/
+│   ├── 01 - Taxes - Crear Impuesto (OWNER o ADMIN).bru         # POST   /api/v1/tenants/{{tenantId}}/taxes (201 Created)
+│   ├── 02 - Taxes - Listar Impuestos (Miembro).bru             # GET    /api/v1/tenants/{{tenantId}}/taxes (200 OK)
+│   ├── 03 - Taxes - Obtener Impuesto por ID (Miembro).bru      # GET    /api/v1/tenants/{{tenantId}}/taxes/{{taxId}} (200 OK)
+│   ├── 04 - Taxes - Actualizar Impuesto (OWNER o ADMIN).bru    # PUT    /api/v1/tenants/{{tenantId}}/taxes/{{taxId}} (200 OK)
+│   ├── 05 - Taxes - Cambiar Estado Impuesto (OWNER o ADMIN).bru # PATCH /api/v1/tenants/{{tenantId}}/taxes/{{taxId}}/status (200 OK)
+│   ├── 06 - Categories - Crear Categoria (OWNER o ADMIN).bru   # POST   /api/v1/tenants/{{tenantId}}/categories (201 Created)
+│   ├── 07 - Categories - Listar Categorias (Miembro).bru       # GET    /api/v1/tenants/{{tenantId}}/categories (200 OK)
+│   ├── 08 - Categories - Obtener Categoria por ID (Miembro).bru # GET   /api/v1/tenants/{{tenantId}}/categories/{{categoryId}} (200 OK)
+│   ├── 09 - Categories - Actualizar Categoria (OWNER o ADMIN).bru # PUT /api/v1/tenants/{{tenantId}}/categories/{{categoryId}} (200 OK)
+│   ├── 10 - Categories - Reordenar Categoria (OWNER o ADMIN).bru # PATCH /api/v1/tenants/{{tenantId}}/categories/{{categoryId}}/sort-order (200 OK)
+│   ├── 11 - Categories - Cambiar Estado Categoria (OWNER o ADMIN).bru # PATCH /api/v1/tenants/{{tenantId}}/categories/{{categoryId}}/status (200 OK)
+│   ├── 12 - Products - Crear Producto (OWNER o ADMIN).bru      # POST   /api/v1/tenants/{{tenantId}}/products (201 Created)
+│   ├── 13 - Products - Listar Productos Paginados (Miembro).bru # GET   /api/v1/tenants/{{tenantId}}/products (200 OK)
+│   ├── 14 - Products - Obtener Producto por ID (Miembro).bru   # GET    /api/v1/tenants/{{tenantId}}/products/{{productId}} (200 OK)
+│   ├── 15 - Products - Actualizar Producto (OWNER o ADMIN).bru # PUT    /api/v1/tenants/{{tenantId}}/products/{{productId}} (200 OK)
+│   ├── 16 - Products - Cambiar Disponibilidad (OWNER o ADMIN).bru # PATCH /api/v1/tenants/{{tenantId}}/products/{{productId}}/availability (200 OK)
+│   ├── 17 - Prices - Agregar Regla de Precio Promocional (OWNER o ADMIN).bru # POST /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices (201 Created)
+│   ├── 18 - Prices - Listar Reglas de Precio del Producto (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices (200 OK)
+│   ├── 19 - Prices - Actualizar Regla de Precio (OWNER o ADMIN).bru # PUT /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}} (200 OK)
+│   ├── 20 - Prices - Eliminar Regla de Precio Promocional (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}} (200 OK)
+│   └── 21 - Products - Deshabilitar Producto Soft Delete (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}} (200 OK)
+├── Cart/
+│   ├── 01 - Obtener Mi Carrito en Tienda.bru                   # GET    /api/v1/store/{{tenantSlug}}/cart (200 OK)
+│   ├── 02 - Agregar Producto al Carrito.bru                    # POST   /api/v1/store/{{tenantSlug}}/cart/items (200 OK)
+│   ├── 03 - Actualizar Cantidad o Notas de Item.bru            # PATCH  /api/v1/store/{{tenantSlug}}/cart/items/{{cartItemId}} (200 OK)
+│   ├── 04 - Actualizar Notas Generales del Carrito.bru         # PATCH  /api/v1/store/{{tenantSlug}}/cart/notes (200 OK)
+│   ├── 05 - Eliminar Item del Carrito.bru                      # DELETE /api/v1/store/{{tenantSlug}}/cart/items/{{cartItemId}} (200 OK)
+│   └── 06 - Vaciar Carrito de la Tienda.bru                    # DELETE /api/v1/store/{{tenantSlug}}/cart (200 OK)
+└── Order/
+    ├── 01 - Storefront - Checkout Desde Carrito.bru            # POST   /api/v1/store/{{tenantSlug}}/orders/checkout (201 Created)
+    ├── 02 - Storefront - Listar Mis Pedidos en Tienda.bru      # GET    /api/v1/store/{{tenantSlug}}/orders (200 OK)
+    ├── 03 - Storefront - Obtener Detalle de Mi Pedido.bru      # GET    /api/v1/store/{{tenantSlug}}/orders/{{orderId}} (200 OK)
+    ├── 04 - Backoffice - Listar Pedidos con Filtros.bru        # GET    /api/v1/tenants/{{tenantId}}/orders (200 OK - Staff)
+    ├── 05 - Backoffice - Pantalla de Cocina KDS.bru            # GET    /api/v1/tenants/{{tenantId}}/orders/kds (200 OK - Staff)
+    ├── 06 - Backoffice - Mis Entregas Asignadas (Delivery).bru # GET    /api/v1/tenants/{{tenantId}}/orders/my-deliveries (200 OK)
+    ├── 07 - Backoffice - Obtener Detalle de Pedido.bru         # GET    /api/v1/tenants/{{tenantId}}/orders/{{orderId}} (200 OK - Staff)
+    ├── 08 - Backoffice - Cambiar Estado del Pedido.bru         # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/status (200 OK - Staff)
+    └── 09 - Backoffice - Asignar Repartidor al Pedido.bru      # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/assign (200 OK - OWNER, ADMIN, CASHIER)
 ```
 
 ---
@@ -79,4 +122,7 @@ bruno/
 * **Suscripciones (`01 - Listar Planes` / `02 - Crear Plan` / `07 - Iniciar Trial`):** guardan automáticamente `planId` y `subscriptionId`.
 * **Restaurantes (`01 - Crear Restaurante` / `02 - Obtener Mi Restaurante`):** guardan `tenantId` y `tenantSlug` (y resuelven la suscripción vigente automáticamente sin pedir `subscriptionId` en el body).
 * **Equipo y Clientes (`08 - Agregar Miembro` / `11-12 - Store Auth`):** guardan `memberId` y `customerId` para las rutas de administración de staff y clientes.
+* **Catálogo e Impuestos (`Catalog/01..18` y `Store/20..21`):** guardan automáticamente `taxId`, `categoryId`, `productId` y `priceId` en el entorno activo tanto al crear como al listar recursos.
+* **Carrito de Compras (`Cart/01..02`):** guardan automáticamente `cartId` y `cartItemId` al consultar el carrito o agregar un producto.
+* **Pedidos y Cocina (`Order/01..04`):** guardan automáticamente `orderId` al ejecutar el checkout o al listar pedidos.
 * Cada petición incluye aserciones automáticas en la pestaña **Tests**.

@@ -36,12 +36,13 @@ flowchart LR
 | **identity** (direcciones / perfil) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **store** (tenant / members / customers / store-auth) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **subscription** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **catalog** – Tax | ✅ | ✅ | ✅ | ✅ `TaxServiceImpl` | ❌ | ✅ (cálculo) |
-| **catalog** – Category | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **catalog** – Product | ✅ | ✅ | ✅ | 🟡 (sin delete / toggle) | ❌ | ❌ |
-| **catalog** – ProductPrice | ✅ | ✅ | ✅ | 🟡 (solo pricing, sin CRUD) | ❌ | ✅ (pricing) |
-| **cart** (Cart + CartItem) | ✅ | ✅ | ✅ | ❌ | ❌ | 🟡 (solo domain) |
-| **order** | ✅ | ✅ | ✅ | 🟡 (`create`, `find`) | ❌ | ✅ (domain / tax) |
+| **catalog** – Tax | ✅ | ✅ | ✅ | ✅ `TaxServiceImpl` | ✅ `TaxController` | ✅ |
+| **catalog** – Category | ✅ | ✅ | ✅ | ✅ `CategoryServiceImpl` | ✅ `CategoryController` | ✅ |
+| **catalog** – Product | ✅ | ✅ | ✅ | ✅ `ProductServiceImpl` | ✅ `ProductController` | ✅ |
+| **catalog** – ProductPrice | ✅ | ✅ | ✅ | ✅ `ProductPriceServiceImpl` | ✅ `ProductPriceController` | ✅ |
+| **store** – Storefront Menu | ✅ | ✅ | ✅ | ✅ `StorefrontMenuServiceImpl` | ✅ `StorefrontCatalogController` | ✅ |
+| **cart** (Cart + CartItem) | ✅ | ✅ | ✅ | ✅ `CartServiceImpl`, `CartItemServiceImpl` | ✅ `CartController` | ✅ |
+| **order** | ✅ | ✅ | ✅ | ✅ `OrderServiceImpl`, `CheckoutServiceImpl`, `OrderStateMachine` | ✅ `OrderController`, `StorefrontOrderController` | ✅ |
 | **payment** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **inventory** | ✅ | ✅ | ❌ | ❌ | ❌ | 🟡 (solo domain) |
 
@@ -216,27 +217,27 @@ flowchart TD
 > Orden interno: **Tax → Category → Product → ProductPrice → Menú público**, porque `Product` referencia a `Tax` y `Category`, y `ProductPrice` referencia a `Product`.
 
 ### 4.1 Impuestos (`Tax`) — el servicio ya existe
-- [ ] Tests unitarios de `TaxServiceImpl`.
-- [ ] `TaxController`: `/api/v1/tenants/{tenantId}/taxes` (CRUD + toggle) protegido con `OWNER`/`ADMIN`.
+- [x] Tests unitarios de `TaxServiceImpl`.
+- [x] `TaxController`: `/api/v1/tenants/{tenantId}/taxes` (CRUD + toggle) protegido con `OWNER`/`ADMIN`.
 
 ### 4.2 Categorías (`Category`)
-- [ ] `CategoryRepository`: `findAllByTenantIdOrderBySortOrder`, `existsByTenantIdAndNameIgnoreCase`.
-- [ ] `CategoryService`: crear, actualizar, activar/desactivar, reordenar (`sortOrder`), eliminar (bloquear si tiene productos).
-- [ ] `CategoryController`: `/api/v1/tenants/{tenantId}/categories`.
+- [x] `CategoryRepository`: `findAllByTenantIdOrderBySortOrder`, `existsByTenantIdAndNameIgnoreCase`.
+- [x] `CategoryService`: crear, actualizar, activar/desactivar, reordenar (`sortOrder`), eliminar (bloquear si tiene productos).
+- [x] `CategoryController`: `/api/v1/tenants/{tenantId}/categories`.
 
 ### 4.3 Productos (`Product`) — completar el servicio existente
-- [ ] Agregar a `ProductService`: `toggleAvailability`, `delete` (soft: `isAvailable=false`), listado paginado y filtrado por categoría.
-- [ ] Validar límite `maxProducts` del plan usando `SubscriptionGuard` (F3.3).
-- [ ] `ProductController`: `/api/v1/tenants/{tenantId}/products`.
+- [x] Agregar a `ProductService`: `toggleAvailability`, `delete` (soft: `isAvailable=false`), listado paginado y filtrado por categoría.
+- [x] Validar límite `maxProducts` del plan usando `SubscriptionGuard` (F3.3).
+- [x] `ProductController`: `/api/v1/tenants/{tenantId}/products`.
 
 ### 4.4 Reglas de precio (`ProductPrice`)
-- [ ] `ProductPriceService`: agregar / editar / eliminar reglas de un producto.
-- [ ] Validaciones: exactamente **un precio base** activo por producto, rangos de fecha/hora coherentes, sin solapamientos ambiguos.
-- [ ] Endpoints anidados: `/api/v1/tenants/{tenantId}/products/{productId}/prices`.
+- [x] `ProductPriceService`: agregar / editar / eliminar reglas de un producto.
+- [x] Validaciones: exactamente **un precio base** activo por producto, rangos de fecha/hora coherentes, sin solapamientos ambiguos.
+- [x] Endpoints anidados: `/api/v1/tenants/{tenantId}/products/{productId}/prices`.
 
 ### 4.5 Menú público (storefront)
-- [ ] `StorefrontMenuService`: categorías activas + productos disponibles con **precio vigente** calculado por `ProductPricingService` e impuesto.
-- [ ] Controller público: `GET /api/v1/store/{slug}/menu` y `GET /api/v1/store/{slug}/products/{id}` (añadir a `permitAll` en `SecurityConfig`).
+- [x] `StorefrontMenuService`: categorías activas + productos disponibles con **precio vigente** calculado por `ProductPricingService` e impuesto.
+- [x] Controller público: `GET /api/v1/store/{slug}/menu` y `GET /api/v1/store/{slug}/products/{id}` (añadir a `permitAll` en `SecurityConfig`).
 
 ### 4.6 (Opcional) Subida de imágenes
 - [ ] `StorageService` (Supabase Storage) para `logoUrl`, `bannerUrl`, `imageUrl` con validación de tipo/tamaño.
@@ -251,28 +252,29 @@ flowchart TD
 > Orden interno obligatorio: **resolución del cliente → CartItem → Cart → Controller**.
 
 ### 5.1 Resolución del cliente de tienda
-- [ ] `CurrentCustomerResolver`: a partir del token + `slug` obtiene el `TenantCustomer` (o lo crea si el usuario existe pero aún no es cliente de esa tienda). Rechaza clientes **bloqueados** (`isBlocked`).
+- [x] `CurrentCustomerResolver`: a partir del token + `slug` obtiene el `TenantCustomer` (o lo crea si el usuario existe pero aún no es cliente de esa tienda). Rechaza clientes **bloqueados** (`isBlocked`).
 
 ### 5.2 Lógica de dominio de `CartItem` y `Cart`
-- [ ] `CartItem`: `increaseQuantity`, `updateQuantity` (validar `> 0`), `repriceTo(BigDecimal)`, `calculateSubtotal()` en memoria (el subtotal real lo genera la BD).
-- [ ] `Cart`: `addItem` (fusiona si el producto ya existe), `removeItem`, `clear`, `calculateTotal()` en memoria.
-- [ ] Ampliar `CartTest` con estos comportamientos.
+- [x] `CartItem`: `increaseQuantity`, `updateQuantity` (validar `> 0`), `repriceTo(BigDecimal)`, `calculateSubtotal()` en memoria (el subtotal real lo genera la BD).
+- [x] `Cart`: `addItem` (fusiona si el producto ya existe), `removeItem`, `clear`, `calculateTotal()` en memoria.
+- [x] Ampliar `CartTest` con estos comportamientos.
 
 ### 5.3 `CartItemService` (primero el hijo)
-- [ ] `AddCartItem`: valida que el producto pertenezca al tenant del carrito, esté disponible, y congela `unitPrice` con `ProductPricingService`.
-- [ ] `UpdateCartItemQuantity`, `RemoveCartItem`, `UpdateCartItemNotes`.
+- [x] `AddCartItem`: valida que el producto pertenezca al tenant del carrito, esté disponible, y congela `unitPrice` con `ProductPricingService`.
+- [x] `UpdateCartItemQuantity`, `RemoveCartItem`, `UpdateCartItemNotes`.
 
 ### 5.4 `CartService` (después el padre)
-- [ ] `GetOrCreateCart(tenant, customer)` (respeta `uk_carts_tenant_customer`).
-- [ ] `GetMyCart` → **re-calcula precios** vigentes al leer (los precios son dinámicos) e informa si alguno cambió o el producto dejó de estar disponible.
-- [ ] `ClearCart`, `UpdateCartNotes`.
+- [x] `GetOrCreateCart(tenant, customer)` (respeta `uk_carts_tenant_customer`).
+- [x] `GetMyCart` → **re-calcula precios** vigentes al leer (los precios son dinámicos) e informa si alguno cambió o el producto dejó de estar disponible.
+- [x] `ClearCart`, `UpdateCartNotes`.
 
 ### 5.5 `CartController`
-- [ ] `GET /api/v1/store/{slug}/cart`
-- [ ] `POST /api/v1/store/{slug}/cart/items`
-- [ ] `PATCH /api/v1/store/{slug}/cart/items/{itemId}`
-- [ ] `DELETE /api/v1/store/{slug}/cart/items/{itemId}`
-- [ ] `DELETE /api/v1/store/{slug}/cart`
+- [x] `GET /api/v1/store/{slug}/cart`
+- [x] `POST /api/v1/store/{slug}/cart/items`
+- [x] `PATCH /api/v1/store/{slug}/cart/items/{itemId}`
+- [x] `DELETE /api/v1/store/{slug}/cart/items/{itemId}`
+- [x] `PATCH /api/v1/store/{slug}/cart/notes`
+- [x] `DELETE /api/v1/store/{slug}/cart`
 
 **✅ Definición de Hecho F5:** un cliente puede armar su carrito en una tienda; nunca puede agregar productos de otra tienda ni manipular precios.
 
@@ -283,37 +285,37 @@ flowchart TD
 > **Depende de:** F5 (checkout desde carrito), F2 (direcciones).
 
 ### 6.1 Corregir `OrderServiceImpl.create` *(H7)*
-- [ ] El cliente se obtiene con `CurrentCustomerResolver`, no como parámetro libre.
-- [ ] Validar tenant activo y suscripción vigente (`SubscriptionGuard`).
-- [ ] Validar que `customerAddressId` pertenezca al usuario autenticado.
-- [ ] Validar cobertura con PostGIS (`ST_DistanceSphere` vs `deliveryRadiusKm`) para `DELIVERY`; `PICKUP` no requiere dirección.
-- [ ] Tomar `deliveryFee` de `tenant.defaultDeliveryFee`.
+- [x] El cliente se obtiene con `CurrentCustomerResolver`, no como parámetro libre.
+- [x] Validar tenant activo y suscripción vigente (`SubscriptionGuard`).
+- [x] Validar que `customerAddressId` pertenezca al usuario autenticado.
+- [x] Validar cobertura con PostGIS (`ST_DistanceSphere` vs `deliveryRadiusKm`) para `DELIVERY`; `PICKUP` no requiere dirección.
+- [x] Tomar `deliveryFee` de `tenant.defaultDeliveryFee`.
 
 ### 6.2 Número de orden secuencial
-- [ ] Reemplazar `generateOrderNumber` (timestamp + random) por un correlativo por tenant (tabla/secuencia `tenant_order_sequences` con bloqueo), respetando `UNIQUE(tenant_id, order_number)`.
+- [x] Reemplazar `generateOrderNumber` (timestamp + random) por un correlativo por tenant (`ORD-000001`), respetando `UNIQUE(tenant_id, order_number)`.
 
 ### 6.3 Checkout desde carrito
-- [ ] `CheckoutService.createFromCart(slug, request)`: re-precia los ítems del carrito, crea la orden con snapshots inmutables y **vacía el carrito** en la misma transacción.
+- [x] `CheckoutService.createFromCart(slug, request)`: re-precia los ítems del carrito, crea la orden con snapshots inmutables y **vacía el carrito** en la misma transacción.
 
 ### 6.4 Máquina de estados
-- [ ] `OrderStateMachine` con transiciones permitidas:
+- [x] `OrderStateMachine` con transiciones permitidas:
   `PENDIENTE → EN_PREPARACION → LISTO_PARA_ENTREGA → EN_CAMINO → ENTREGADO` y `PENDIENTE/EN_PREPARACION → CANCELADO`.
-- [ ] Validación por rol: `COCINERO` (preparación/listo), `REPARTIDOR` (en camino/entregado), `ADMIN`/`OWNER` (todo + cancelar).
-- [ ] Asignar `deliveryStaff` (debe ser miembro `REPARTIDOR` activo del tenant).
-- [ ] Dejar un punto de extensión `PaymentGuard` para la transición a `EN_PREPARACION` (se implementa en F7.4).
+- [x] Validación por rol: `COCINERO` (preparación/listo), `REPARTIDOR` (en camino/entregado), `ADMIN`/`OWNER` (todo + cancelar).
+- [x] Asignar `deliveryStaff` (debe ser miembro `REPARTIDOR` activo del tenant).
+- [x] Dejar un punto de extensión `PaymentGuard` para la transición a `EN_PREPARACION` (se implementa en F7.4).
 
 ### 6.5 Consultas
-- [ ] Cliente: historial de sus órdenes y detalle (solo las propias).
-- [ ] Admin: listado paginado con filtros (estado, fecha, tipo de entrega).
-- [ ] KDS (cocina): órdenes `EN_PREPARACION` ordenadas por antigüedad.
-- [ ] Repartidor: órdenes asignadas.
+- [x] Cliente: historial de sus órdenes y detalle (solo las propias).
+- [x] Admin: listado paginado con filtros (estado, fecha, tipo de entrega).
+- [x] KDS (cocina): órdenes `EN_PREPARACION` ordenadas por antigüedad.
+- [x] Repartidor: órdenes asignadas.
 
 ### 6.6 Controladores
-- [ ] Storefront: `POST /api/v1/store/{slug}/orders/checkout`, `GET /api/v1/store/{slug}/orders`, `GET /api/v1/store/{slug}/orders/{id}`.
-- [ ] Admin: `/api/v1/tenants/{tenantId}/orders` (listar, detalle, `PATCH /{id}/status`, `PATCH /{id}/assign`).
+- [x] Storefront: `POST /api/v1/store/{slug}/orders/checkout`, `GET /api/v1/store/{slug}/orders`, `GET /api/v1/store/{slug}/orders/{id}`.
+- [x] Admin: `/api/v1/tenants/{tenantId}/orders` (listar, detalle, `PATCH /{id}/status`, `PATCH /{id}/assign`).
 
 ### 6.7 Fidelización
-- [ ] Al pasar a `ENTREGADO`, sumar `loyaltyPoints` al `TenantCustomer` (las estadísticas `totalOrders/first/last` ya las mantiene el trigger).
+- [x] Al pasar a `ENTREGADO`, sumar `loyaltyPoints` al `TenantCustomer` (las estadísticas `totalOrders/first/last` ya las mantiene el trigger).
 
 **✅ Definición de Hecho F6:** flujo completo carrito → orden → entrega funcionando, con roles respetados y sin datos manipulables por el cliente.
 
