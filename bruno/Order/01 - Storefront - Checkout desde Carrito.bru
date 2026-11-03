@@ -1,0 +1,51 @@
+meta {
+  name: 01 - Storefront - Checkout desde Carrito
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders/checkout
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "deliveryType": "DELIVERY",
+    "customerAddressId": "{{addressId}}",
+    "ruc": "20123456789",
+    "notes": "Tocar intercomunicador 302"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("orderId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Crea el pedido con correlativo secuencial, snapshots inmutables y guarda orderId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.orderNumber).to.be.a('string');
+    expect(data.status).to.equal("PENDIENTE");
+    expect(data.items).to.be.an('array').that.is.not.empty;
+  });
+}

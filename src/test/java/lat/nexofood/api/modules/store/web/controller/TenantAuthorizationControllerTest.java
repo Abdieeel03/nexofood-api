@@ -2,16 +2,19 @@ package lat.nexofood.api.modules.store.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lat.nexofood.api.common.exception.GlobalExceptionHandler;
+import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.common.security.TenantAccessService;
+import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
 import lat.nexofood.api.modules.store.application.service.customer.TenantCustomerService;
+import lat.nexofood.api.modules.store.application.service.storefront.StorefrontMenuService;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.request.CustomerBlockRequest;
 import lat.nexofood.api.modules.store.web.dto.request.MemberRoleUpdateRequest;
-import lat.nexofood.api.modules.store.web.dto.request.TenantStatusRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
+import lat.nexofood.api.modules.store.web.dto.response.StorefrontMenuResponse;
+import lat.nexofood.api.modules.store.web.dto.response.StorefrontProductResponse;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
-import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.context.support.StaticApplicationContext;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -28,12 +32,15 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -44,11 +51,13 @@ class TenantAuthorizationControllerTest {
 
     private TenantService tenantService;
     private TenantCustomerService tenantCustomerService;
+    private StorefrontMenuService storefrontMenuService;
     private TenantAccessService tenantAccessService;
 
     private TenantController proxiedTenantController;
     private TenantMemberController proxiedMemberController;
     private TenantCustomerController proxiedCustomerController;
+    private StorefrontCatalogController storefrontCatalogController;
 
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -57,6 +66,7 @@ class TenantAuthorizationControllerTest {
     void setUp() {
         tenantService = mock(TenantService.class);
         tenantCustomerService = mock(TenantCustomerService.class);
+        storefrontMenuService = mock(StorefrontMenuService.class);
         tenantAccessService = mock(TenantAccessService.class);
 
         StaticApplicationContext appContext = new StaticApplicationContext();
@@ -75,12 +85,15 @@ class TenantAuthorizationControllerTest {
         proxiedTenantController = createSecuredProxy(new TenantController(tenantService), interceptor);
         proxiedMemberController = createSecuredProxy(new TenantMemberController(tenantService), interceptor);
         proxiedCustomerController = createSecuredProxy(new TenantCustomerController(tenantCustomerService), interceptor);
+        storefrontCatalogController = new StorefrontCatalogController(storefrontMenuService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(
                         proxiedTenantController,
                         proxiedMemberController,
-                        proxiedCustomerController
+                        proxiedCustomerController,
+                        storefrontCatalogController
                 )
+                .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -172,5 +185,53 @@ class TenantAuthorizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.isBlocked").value(true));
+    }
+
+    @Test
+    @DisplayName("StorefrontCatalogController: expone menú, categorías, productos paginados y detalle para clientes sin token")
+    void storefrontEndpointsArePublic() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        when(storefrontMenuService.getMenuBySlug("burger-bros")).thenReturn(
+                StorefrontMenuResponse.builder()
+                        .tenantName("Burger Bros")
+                        .tenantSlug("burger-bros")
+                        .categories(List.of())
+                        .uncategorizedProducts(List.of())
+                        .build()
+        );
+        when(storefrontMenuService.getActiveCategoriesBySlug("burger-bros")).thenReturn(
+                List.of(CategoryResponse.builder().name("Hamburguesas").sortOrder(1).isActive(true).build())
+        );
+        when(storefrontMenuService.getProductsBySlug(eq("burger-bros"), any(), any(), any())).thenReturn(
+                PageResponse.<StorefrontProductResponse>builder()
+                        .content(List.of(StorefrontProductResponse.builder().id(productId).name("Burger Royal").finalPrice(new BigDecimal("25.00")).build()))
+                        .page(0)
+                        .size(20)
+                        .totalElements(1)
+                        .totalPages(1)
+                        .first(true)
+                        .last(true)
+                        .build()
+        );
+        when(storefrontMenuService.getProductDetailBySlug("burger-bros", productId)).thenReturn(
+                StorefrontProductResponse.builder().id(productId).name("Burger Royal").finalPrice(new BigDecimal("25.00")).build()
+        );
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/menu"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tenantSlug").value("burger-bros"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Hamburguesas"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].name").value("Burger Royal"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/products/" + productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.finalPrice").value(25.00));
     }
 }

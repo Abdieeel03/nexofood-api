@@ -11,11 +11,16 @@ import java.util.UUID;
 public record CartResponse(
         UUID id,
         UUID tenantId,
+        String tenantSlug,
+        String tenantName,
         UUID customerId,
         UUID customerUserId,
         BigDecimal total,
         String notes,
         List<CartItemResponse> items,
+        Boolean hasPriceChanges,
+        Boolean hasUnavailableItems,
+        List<String> warnings,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {}

@@ -1,0 +1,41 @@
+meta {
+  name: 01 - Obtener Mi Carrito en Tienda
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("cartId", data.id);
+    }
+    if (data && Array.isArray(data.items) && data.items.length > 0 && data.items[0].id) {
+      bru.setEnvVar("cartItemId", data.items[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el carrito del cliente autenticado en la tienda con precios recalculados", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.tenantSlug).to.equal(bru.getEnvVar("tenantSlug"));
+    expect(data.items).to.be.an('array');
+    expect(data.warnings).to.be.an('array');
+  });
+}

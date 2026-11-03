@@ -91,6 +91,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenants/slug/**").permitAll()
                         // Store: registro y login contextual de clientes (público)
                         .requestMatchers("/api/v1/store/*/auth/**").permitAll()
+                        // Storefront: menú, categorías y productos públicos para clientes (sin token)
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/store/*/menu",
+                                "/api/v1/store/*/categories",
+                                "/api/v1/store/*/products",
+                                "/api/v1/store/*/products/*"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

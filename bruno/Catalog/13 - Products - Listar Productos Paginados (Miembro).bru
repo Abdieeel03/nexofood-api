@@ -1,0 +1,44 @@
+meta {
+  name: 13 - Products - Listar Productos Paginados (Miembro)
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+  ~categoryId: {{categoryId}}
+  ~isAvailable: true
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && Array.isArray(data.content) && data.content.length > 0 && data.content[0].id) {
+      bru.setEnvVar("productId", data.content[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK (accesible por cualquier miembro del staff)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna estructura PageResponse de productos del restaurante", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.content).to.be.an('array');
+    expect(data.page).to.equal(0);
+  });
+}

@@ -13,7 +13,13 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     List<Category> findAllByTenantId(UUID tenantId);
 
+    List<Category> findAllByTenantIdOrderBySortOrderAsc(UUID tenantId);
+
     List<Category> findAllByTenantIdAndIsActiveTrueOrderBySortOrderAsc(UUID tenantId);
 
     Optional<Category> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    boolean existsByTenantIdAndNameIgnoreCase(UUID tenantId, String name);
+
+    boolean existsByTenantIdAndNameIgnoreCaseAndIdNot(UUID tenantId, String name, UUID id);
 }

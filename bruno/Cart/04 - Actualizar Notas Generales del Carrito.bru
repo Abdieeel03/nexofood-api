@@ -1,0 +1,37 @@
+meta {
+  name: 04 - Actualizar Notas Generales del Carrito
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart/notes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "notes": "No enviar cubiertos de plástico. Tocar intercomunicador 302."
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza las notas generales del carrito", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.notes).to.equal("No enviar cubiertos de plástico. Tocar intercomunicador 302.");
+  });
+}

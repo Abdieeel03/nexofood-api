@@ -1,13 +1,14 @@
 package lat.nexofood.api.modules.cart.domain;
 
-import lat.nexofood.api.modules.identity.domain.User;
-import lat.nexofood.api.modules.catalog.domain.Product;
-import lat.nexofood.api.modules.catalog.domain.ProductPrice;
+import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.modules.cart.web.dto.request.CartItemRequest;
 import lat.nexofood.api.modules.cart.web.dto.response.CartItemResponse;
 import lat.nexofood.api.modules.cart.web.dto.response.CartResponse;
 import lat.nexofood.api.modules.cart.web.mapper.CartItemMapper;
 import lat.nexofood.api.modules.cart.web.mapper.CartMapper;
+import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.catalog.domain.ProductPrice;
+import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lat.nexofood.api.modules.store.domain.TenantCustomerId;
@@ -19,8 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 class CartTest {
 
@@ -78,7 +78,7 @@ class CartTest {
         CartItemMapper itemMapper = new CartItemMapper();
         CartMapper cartMapper = new CartMapper(itemMapper);
 
-        Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Burger Joint").build();
+        Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Burger Joint").slug("burger-joint").build();
         User user = User.builder().id(UUID.randomUUID()).fullName("Jane Doe").build();
         TenantCustomer customer = TenantCustomer.builder()
                 .id(new TenantCustomerId(tenant.getId(), user.getId()))
@@ -103,6 +103,7 @@ class CartTest {
         Product product = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Cheeseburger")
+                .isAvailable(true)
                 .prices(new ArrayList<>(List.of(price)))
                 .build();
 
@@ -122,6 +123,7 @@ class CartTest {
         assertNotNull(response);
         assertEquals(cart.getId(), response.id());
         assertEquals(tenant.getId(), response.tenantId());
+        assertEquals("burger-joint", response.tenantSlug());
         assertEquals(user.getId(), response.customerId());
         assertEquals(user.getId(), response.customerUserId());
         assertEquals("No plastic cutlery", response.notes());
@@ -135,5 +137,74 @@ class CartTest {
         assertEquals(new BigDecimal("10.00"), itemResponse.unitPrice());
         assertEquals(new BigDecimal("20.00"), itemResponse.subtotal());
         assertEquals("Well done", itemResponse.notes());
+        assertTrue(itemResponse.productAvailable());
+    }
+
+    @Test
+    @DisplayName("CartItem domain: increaseQuantity, updateQuantity, repriceTo and calculateSubtotal")
+    void cartItemDomainMethodsWorkCorrectly() {
+        CartItem item = CartItem.builder()
+                .id(UUID.randomUUID())
+                .quantity(2)
+                .unitPrice(new BigDecimal("12.50"))
+                .build();
+
+        assertEquals(new BigDecimal("25.00"), item.calculateSubtotal());
+
+        item.increaseQuantity(3);
+        assertEquals(5, item.getQuantity());
+        assertEquals(new BigDecimal("62.50"), item.getSubtotal());
+
+        item.updateQuantity(4);
+        assertEquals(4, item.getQuantity());
+        assertEquals(new BigDecimal("50.00"), item.getSubtotal());
+
+        item.repriceTo(new BigDecimal("10.00"));
+        assertEquals(new BigDecimal("10.00"), item.getUnitPrice());
+        assertEquals(new BigDecimal("40.00"), item.getSubtotal());
+
+        assertThrows(BadRequestException.class, () -> item.updateQuantity(0));
+        assertThrows(BadRequestException.class, () -> item.increaseQuantity(-1));
+        assertThrows(BadRequestException.class, () -> item.repriceTo(new BigDecimal("-5.00")));
+    }
+
+    @Test
+    @DisplayName("Cart domain: addItem merges duplicate products, removeItem, clear and calculateTotal")
+    void cartDomainMethodsMergeRemoveAndClearItems() {
+        Tenant tenant = Tenant.builder().id(UUID.randomUUID()).name("Pizzeria").build();
+        Cart cart = Cart.builder().id(UUID.randomUUID()).tenant(tenant).build();
+
+        Product pizza = Product.builder().id(UUID.randomUUID()).name("Pepperoni").build();
+        Product drink = Product.builder().id(UUID.randomUUID()).name("Inca Kola").build();
+
+        CartItem first = cart.addItem(pizza, 2, new BigDecimal("25.00"), "Sin aceitunas");
+        first.setId(UUID.randomUUID());
+        assertEquals(1, cart.getItems().size());
+        assertEquals(new BigDecimal("50.00"), cart.getTotal());
+
+        // Agregar el mismo producto fusiona cantidad y actualiza notas/precio
+        CartItem merged = cart.addItem(pizza, 1, new BigDecimal("24.00"), "Bien dorada");
+        assertEquals(1, cart.getItems().size());
+        assertEquals(3, merged.getQuantity());
+        assertEquals(new BigDecimal("24.00"), merged.getUnitPrice());
+        assertEquals(new BigDecimal("72.00"), merged.getSubtotal());
+        assertEquals("Bien dorada", merged.getNotes());
+        assertEquals(new BigDecimal("72.00"), cart.getTotal());
+
+        // Agregar segundo producto distinto
+        CartItem second = cart.addItem(drink, 2, new BigDecimal("6.50"), null);
+        second.setId(UUID.randomUUID());
+        assertEquals(2, cart.getItems().size());
+        assertEquals(new BigDecimal("85.00"), cart.getTotal());
+
+        // Eliminar el primer ítem
+        assertTrue(cart.removeItem(first.getId()));
+        assertEquals(1, cart.getItems().size());
+        assertEquals(new BigDecimal("13.00"), cart.getTotal());
+
+        // Vaciar carrito
+        cart.clear();
+        assertTrue(cart.getItems().isEmpty());
+        assertEquals(new BigDecimal("0.00"), cart.getTotal());
     }
 }

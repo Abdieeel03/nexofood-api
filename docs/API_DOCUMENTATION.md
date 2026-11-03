@@ -1,4 +1,4 @@
-﻿# 📖 NexoFood API — Documentación para Frontend
+# 📖 NexoFood API — Documentación para Frontend
 
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
@@ -141,12 +141,12 @@ Todas las respuestas de error (4xx y 5xx) siguen esta estructura:
 
 | Bounded Context   | Estado                       | Controladores Activos                                       |
 |-------------------|------------------------------|-------------------------------------------------------------|
-| **1. Identity**   | ✅ Activo y testeado         | `AuthController` (`/api/v1/auth/**`)                        |
-| **2. Store / Tenant** | ✅ Activo y testeado     | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController` |
-| **3. Catalog & Tax**  | 🔧 Servicios y DTOs listos | Lógica tributaria, precios y catálogo listos para controllers |
-| **4. Subscription**   | 🔧 Modelos y DTOs listos   | DTOs y persistencia JPA completos                          |
-| **5. Cart**           | 🔧 Modelos y DTOs listos   | DTOs y reglas de negocio multi-tenant completas            |
-| **6. Order**          | 🔧 Servicios y DTOs listos | Cálculo de impuestos, snapshots y cobertura listos          |
+| **1. Identity**   | ✅ Activo y testeado         | `AuthController` (`/api/v1/auth/**`, `/api/v1/users/me/**`, `/api/v1/admin/users/**`) |
+| **2. Store / Tenant** | ✅ Activo y testeado     | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController`, `StorefrontCatalogController` |
+| **3. Catalog & Tax**  | ✅ Activo y testeado     | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController` |
+| **4. Subscription**   | ✅ Activo y testeado     | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController` |
+| **5. Cart**           | ✅ Activo y testeado     | `CartController` (`/api/v1/store/{slug}/cart/**`)           |
+| **6. Order**          | ✅ Activo y testeado     | `StorefrontOrderController`, `OrderController`              |
 | **7. Payment**        | 🔧 Modelos y DTOs listos   | Integración y entidades listas                             |
 | **8. Inventory**      | 🔧 Modelos y DTOs listos   | Gestión de stock y movimientos listos                      |
 
@@ -993,15 +993,69 @@ Retorna la estructura `StoreAuthResponse` con tokens, `user` y `customerProfile`
 
 ---
 
-## 3. Catalog & Tributos — Categorías, Impuestos y Productos
+## 3. Catalog & Tributos — Categorías, Impuestos, Productos y Menú Público
 
-Este módulo gestiona la oferta de productos, listas de precios, horarios de promoción y el esquema fiscal aplicable.
+Este módulo gestiona la oferta de productos, listas de precios dinámicos, horarios de promoción, esquema fiscal aplicable y el menú público del storefront.
+
+> **🏪 Multi-Tenant & Seguridad:**
+> - **Consultas de Backoffice (`GET /api/v1/tenants/{tenantId}/**`):** Protegidas con `@PreAuthorize("@tenantAccess.isMember(#tenantId)")`, permitiendo el acceso a **todo el staff activo** del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) y a `SUPERADMIN`.
+> - **Mutaciones de Backoffice (`POST`, `PUT`, `PATCH`, `DELETE` en `/api/v1/tenants/{tenantId}/**`):** Protegidas con `@PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, OWNER, ADMIN)")` (restringido a `OWNER`, `ADMIN` y `SUPERADMIN`).
+> - **Storefront para Clientes (`/api/v1/store/{slug}/menu`, `/categories`, `/products`, `/products/{id}`):** Endpoints **públicos** (`permitAll` en `SecurityConfig`) sin necesidad de token JWT.
 
 ---
 
-### 🏛️ Estructura Tributaria (`Tax`)
+### 🏛️ Gestión de Impuestos (`TaxController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/taxes`
 
 Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto al Consumo, Exonerado 0%).
+
+#### GET `/api/v1/tenants/{tenantId}/taxes`
+
+> Lista los impuestos configurados en el restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Query Parameters:**
+- `activeOnly` (boolean, default `false`): si es `true`, retorna únicamente los impuestos activos.
+
+#### GET `/api/v1/tenants/{tenantId}/taxes/{taxId}`
+
+> Obtiene el detalle de un impuesto del restaurante por su ID.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+#### POST `/api/v1/tenants/{tenantId}/taxes`
+
+> Crea un nuevo impuesto para el restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PUT `/api/v1/tenants/{tenantId}/taxes/{taxId}`
+
+> Actualiza un impuesto del restaurante. Si el impuesto ya está asignado a productos o ventas históricas, su tasa (`rate`) no puede modificarse (retorna `400 Bad Request`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PATCH `/api/v1/tenants/{tenantId}/taxes/{taxId}/status`
+
+> Activa o desactiva un impuesto mediante `TaxStatusRequest` (`{ "isActive": true }`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### DELETE `/api/v1/tenants/{tenantId}/taxes/{taxId}`
+
+> Elimina un impuesto si no ha sido utilizado en productos ni órdenes históricas (de lo contrario retorna `400 Bad Request` indicando que debe desactivarse).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 
 #### 📥 DTO: TaxRequest
 
@@ -1037,7 +1091,64 @@ Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto a
 
 ---
 
-### 📂 Categorías de Productos
+### 📂 Categorías de Productos (`CategoryController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/categories`
+
+#### GET `/api/v1/tenants/{tenantId}/categories`
+
+> Lista las categorías del restaurante ordenadas ascendentemente por `sortOrder`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Query Parameters:**
+- `activeOnly` (boolean, default `false`): si es `true`, retorna solo las categorías activas.
+
+#### GET `/api/v1/tenants/{tenantId}/categories/{categoryId}`
+
+> Obtiene una categoría del restaurante por su ID.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+#### POST `/api/v1/tenants/{tenantId}/categories`
+
+> Crea una categoría en el restaurante. Valida que el nombre no esté duplicado dentro del mismo tenant (`409 Conflict`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PUT `/api/v1/tenants/{tenantId}/categories/{categoryId}`
+
+> Actualiza el nombre, descripción, orden o estado de una categoría.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PATCH `/api/v1/tenants/{tenantId}/categories/{categoryId}/status`
+
+> Activa o desactiva una categoría enviando `CategoryStatusRequest` (`{ "isActive": false }`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PATCH `/api/v1/tenants/{tenantId}/categories/{categoryId}/sort-order`
+
+> Cambia la posición de visualización (`sortOrder`) de una categoría enviando `CategorySortOrderRequest` (`{ "sortOrder": 2 }`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### DELETE `/api/v1/tenants/{tenantId}/categories/{categoryId}`
+
+> Elimina una categoría del restaurante. Si la categoría tiene productos asociados, bloquea la operación con `400 Bad Request`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 
 #### 📥 DTO: CategoryRequest
 
@@ -1063,9 +1174,150 @@ Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto a
 
 ---
 
-### 🍔 Productos y Precios
+### 🍔 Productos (`ProductController`)
 
-Un producto cuenta con un precio base y puede tener múltiples precios condicionales (`ProductPriceRequest`) para días especiales, horas felices o canales delivery.
+Ruta base: `/api/v1/tenants/{tenantId}/products`
+
+Un producto cuenta con un precio base activo obligatorio y puede tener múltiples precios condicionales (`ProductPriceRequest`) para días especiales o rangos de horario. Al crear un producto se valida el límite `maxProducts` del plan de suscripción vigente del restaurante mediante `SubscriptionGuard`.
+
+#### GET `/api/v1/tenants/{tenantId}/products`
+
+> Lista paginada de productos del restaurante con filtros opcionales por categoría y disponibilidad. Retorna `ApiResponse<PageResponse<ProductResponse>>`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Query Parameters:**
+- `categoryId` (UUID, opcional): filtra por categoría.
+- `availableOnly` (boolean, opcional): si es `true`, retorna solo productos con `isAvailable = true`.
+- `page` (int, default `0`), `size` (int, default `20`), `sort` (string, opcional).
+
+#### GET `/api/v1/tenants/{tenantId}/products/{productId}`
+
+> Obtiene el detalle completo de un producto del restaurante incluyendo todas sus reglas de precio configuradas.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+#### POST `/api/v1/tenants/{tenantId}/products`
+
+> Crea un nuevo producto en el catálogo validando que la suscripción esté activa y no supere el límite `maxProducts` del plan contratado.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PUT `/api/v1/tenants/{tenantId}/products/{productId}`
+
+> Actualiza los datos de un producto y su precio base (si se envía `price`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PATCH `/api/v1/tenants/{tenantId}/products/{productId}/availability`
+
+> Activa o desactiva la disponibilidad de un producto enviando `ProductAvailabilityRequest` (`{ "isAvailable": false }`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### DELETE `/api/v1/tenants/{tenantId}/products/{productId}`
+
+> Deshabilita un producto mediante borrado lógico (`isAvailable = false`) preservando la integridad referencial histórica.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+---
+
+### 🏷️ Reglas de Precio y Promociones (`ProductPriceController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/prices`
+
+Gestiona las reglas de precios de un producto garantizando:
+1. Exactamente **un precio base activo** (`isBase = true`, `isActive = true`) por producto.
+2. Coherencia en rangos de fechas (`startDate <= endDate`), horas (`startTime != endTime`, soportando horarios nocturnos que cruzan la medianoche), días ISO (`1=Lunes ... 7=Domingo`) y porcentaje de descuento (`0..100`).
+3. Prohibición de **solapamientos ambiguos** entre dos reglas promocionales activas con la **misma prioridad** (`409 Conflict`).
+
+#### GET `/api/v1/tenants/{tenantId}/products/{productId}/prices`
+
+> Lista todas las reglas de precio de un producto.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+#### GET `/api/v1/tenants/{tenantId}/products/{productId}/prices/{priceId}`
+
+> Obtiene el detalle de una regla de precio específica del producto.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+#### POST `/api/v1/tenants/{tenantId}/products/{productId}/prices`
+
+> Agrega una nueva regla de precio o promoción al producto.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### PUT `/api/v1/tenants/{tenantId}/products/{productId}/prices/{priceId}`
+
+> Actualiza una regla de precio existente del producto.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+#### DELETE `/api/v1/tenants/{tenantId}/products/{productId}/prices/{priceId}`
+
+> Elimina una regla de precio promocional. No permite eliminar el precio base activo del producto (`400 Bad Request`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+
+---
+
+### 🌐 Menú Público del Storefront (`StorefrontCatalogController`)
+
+Ruta base: `/api/v1/store/{slug}`
+
+Endpoints públicos para que los comensales consulten la carta digital del restaurante con los precios dinámicos vigentes en tiempo real y el desglose tributario ya calculado.
+
+#### GET `/api/v1/store/{slug}/menu`
+
+> Retorna el menú público del restaurante activo identificado por su `slug`: categorías activas (ordenadas por `sortOrder`) junto con sus productos disponibles, precio vigente evaluado en el instante de la consulta e impuestos calculados.
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+
+#### GET `/api/v1/store/{slug}/categories`
+
+> Lista las categorías activas del restaurante ordenadas ascendentemente por `sortOrder` para filtros de navegación en la tienda del cliente.
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+
+#### GET `/api/v1/store/{slug}/products`
+
+> Lista paginada de los productos disponibles del restaurante para el cliente (`PageResponse<StorefrontProductResponse>`), con soporte de filtrado por categoría activa y búsqueda por nombre.
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+**Query Parameters:**
+- `categoryId` (UUID, opcional): filtra productos de una categoría activa.
+- `search` (string, opcional): filtra productos por coincidencia parcial en el nombre (case-insensitive).
+- `page` (int, default `0`), `size` (int, default `20`), `sort` (string, opcional).
+
+#### GET `/api/v1/store/{slug}/products/{id}`
+
+> Retorna el detalle público de un producto disponible en la tienda junto con su precio vigente, promoción activa (si aplica) y desglose de impuesto (`baseUnitPrice`, `taxAmount`, `finalPrice`).
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+
+---
 
 #### 📥 DTO: ProductRequest
 
@@ -1088,7 +1340,7 @@ Un producto cuenta con un precio base y puede tener múltiples precios condicion
 | `name`               | string     | Sí        | Máx. 100 caracteres | Nombre (ej. "Happy Hour Jueves", "Fin de Semana")|
 | `price`              | BigDecimal | Sí        | ≥ 0.00              | Precio aplicable                                |
 | `isBase`             | boolean    | No        | —                   | Si actúa como precio base                       |
-| `discountPercentage` | BigDecimal | No        | ≥ 0.00              | Descuento opcional en %                         |
+| `discountPercentage` | BigDecimal | No        | 0.00 a 100.00       | Descuento opcional en %                         |
 | `startDate`          | string     | No        | Formato `YYYY-MM-DD`| Fecha inicio de vigencia                        |
 | `endDate`            | string     | No        | Formato `YYYY-MM-DD`| Fecha fin de vigencia                           |
 | `startTime`          | string     | No        | Formato `HH:mm:ss`  | Hora de inicio                                  |
@@ -1119,11 +1371,52 @@ Un producto cuenta con un precio base y puede tener múltiples precios condicion
 | `createdAt`    | string                     | No       | ISO 8601                                             |
 | `updatedAt`    | string                     | No       | ISO 8601                                             |
 
+#### 📤 DTO: StorefrontProductResponse
+
+| Campo                 | Tipo       | Nullable | Descripción                                                  |
+|-----------------------|------------|----------|--------------------------------------------------------------|
+| `id`                  | UUID       | No       | Identificador del producto                                   |
+| `tenantId`            | UUID       | No       | Restaurante                                                  |
+| `categoryId`          | UUID       | Sí       | Categoría                                                    |
+| `categoryName`        | string     | Sí       | Nombre de la categoría                                       |
+| `name`                | string     | No       | Nombre del producto                                          |
+| `description`         | string     | Sí       | Descripción                                                  |
+| `imageUrl`            | string     | Sí       | Imagen del producto                                          |
+| `price`               | BigDecimal | No       | Precio de lista vigente calculado por `ProductPricingService`|
+| `basePrice`           | BigDecimal | No       | Precio base regular del producto                             |
+| `activePromotionName` | string     | Sí       | Nombre de la promoción vigente (null si aplica precio base)  |
+| `discountPercentage`  | BigDecimal | Sí       | Porcentaje de descuento de la promoción vigente              |
+| `taxId`               | UUID       | Sí       | ID del impuesto activo                                       |
+| `taxName`             | string     | Sí       | Nombre del impuesto                                          |
+| `taxRate`             | BigDecimal | No       | Tasa porcentual aplicada (0.00 si exento)                    |
+| `taxInclusive`        | boolean    | Sí       | Si el precio ya incluye el impuesto                          |
+| `baseUnitPrice`       | BigDecimal | No       | Valor unitario neto sin impuesto                             |
+| `taxAmount`           | BigDecimal | No       | Monto unitario del impuesto                                  |
+| `finalPrice`          | BigDecimal | No       | Precio final al comensal (`baseUnitPrice + taxAmount`)       |
+| `isAvailable`         | boolean    | No       | Disponibilidad del producto                                  |
+
 ---
 
-## 4. Cart — Carrito de Compras
+## 4. Cart — Carrito de Compras (`CartController`)
 
-Cada cliente cuenta con un único carrito persistente por restaurante (`tenantId, customerId`).
+Cada cliente cuenta con un **único carrito persistente por restaurante** (`uk_carts_tenant_customer`: `tenantId, customerId`).
+El cliente se resuelve automáticamente desde el token JWT y el `{slug}` de la tienda mediante `CurrentCustomerResolver` (creando el perfil `TenantCustomer` si aún no existe en la tienda, y rechazando con `403 Forbidden` si el cliente está bloqueado).
+
+Ruta base: `/api/v1/store/{slug}/cart`  
+**Autenticación:** Requerida (`Bearer <token>`)
+
+---
+
+### Endpoints de Carrito
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/v1/store/{slug}/cart` | Obtiene el carrito del cliente en la tienda (recalcula precios dinámicos vigentes y verifica disponibilidad de cada producto) |
+| `POST` | `/api/v1/store/{slug}/cart/items` | Agrega un producto al carrito (si el producto ya existe en el carrito, fusiona la cantidad y actualiza precio/notas) |
+| `PATCH` | `/api/v1/store/{slug}/cart/items/{itemId}` | Actualiza la cantidad (`quantity`) y/o las notas (`notes`) de un ítem del carrito |
+| `DELETE` | `/api/v1/store/{slug}/cart/items/{itemId}` | Elimina un ítem específico del carrito |
+| `PATCH` | `/api/v1/store/{slug}/cart/notes` | Actualiza las notas generales del carrito |
+| `DELETE` | `/api/v1/store/{slug}/cart` | Vacía todos los ítems del carrito del cliente en la tienda |
 
 ---
 
@@ -1131,41 +1424,118 @@ Cada cliente cuenta con un único carrito persistente por restaurante (`tenantId
 
 | Campo       | Tipo   | Requerido | Validación   | Descripción                  |
 |-------------|--------|-----------|--------------|------------------------------|
-| `productId` | UUID   | Sí        | UUID válido  | Producto a agregar           |
+| `productId` | UUID   | Sí        | UUID válido  | Producto a agregar (debe pertenecer a la tienda `{slug}` y estar disponible) |
 | `quantity`  | number | Sí        | ≥ 1          | Cantidad                     |
 | `notes`     | string | No        | —            | Observaciones / preferencias |
 
+### 📥 DTO: CartItemUpdateRequest
+
+| Campo      | Tipo   | Requerido | Validación       | Descripción                        |
+|------------|--------|-----------|------------------|------------------------------------|
+| `quantity` | number | No        | ≥ 1              | Nueva cantidad del ítem            |
+| `notes`    | string | No        | Máx. 500 chars   | Nuevas observaciones de preparación|
+
+### 📥 DTO: CartNotesRequest
+
+| Campo   | Tipo   | Requerido | Validación       | Descripción                        |
+|---------|--------|-----------|------------------|------------------------------------|
+| `notes` | string | No        | Máx. 1000 chars  | Notas generales del carrito        |
+
 ### 📤 DTO: CartResponse
 
-| Campo            | Tipo                   | Nullable | Descripción                                   |
-|------------------|------------------------|----------|-----------------------------------------------|
-| `id`             | UUID                   | No       | Identificador del carrito                     |
-| `tenantId`       | UUID                   | No       | Restaurante                                   |
-| `customerId`     | UUID                   | No       | Perfil de cliente en la tienda                |
-| `customerUserId` | UUID                   | No       | Usuario global del cliente                    |
-| `total`          | BigDecimal             | No       | Total acumulado de los ítems                  |
-| `notes`          | string                 | Sí       | Notas generales                               |
-| `items`          | List<CartItemResponse> | No       | Lista de productos agregados                  |
-| `createdAt`      | string                 | No       | ISO 8601                                      |
-| `updatedAt`      | string                 | No       | ISO 8601                                      |
+| Campo                  | Tipo                   | Nullable | Descripción                                                       |
+|------------------------|------------------------|----------|-------------------------------------------------------------------|
+| `id`                   | UUID                   | No       | Identificador del carrito                                         |
+| `tenantId`             | UUID                   | No       | ID del restaurante                                                |
+| `tenantSlug`           | string                 | Sí       | Slug del restaurante                                              |
+| `tenantName`           | string                 | Sí       | Nombre del restaurante                                            |
+| `customerId`           | UUID                   | No       | ID del cliente en la tienda                                       |
+| `customerUserId`       | UUID                   | No       | Usuario global del cliente                                        |
+| `total`                | BigDecimal             | No       | Total acumulado de los ítems                                      |
+| `notes`                | string                 | Sí       | Notas generales del carrito                                       |
+| `items`                | List<CartItemResponse> | No       | Lista de productos agregados                                      |
+| `hasPriceChanges`      | boolean                | No       | Indica si algún ítem cambió de precio respecto al guardado previo |
+| `hasUnavailableItems`  | boolean                | No       | Indica si algún producto del carrito dejó de estar disponible     |
+| `warnings`             | List<String>           | No       | Mensajes informativos sobre cambios de precio o disponibilidad    |
+| `createdAt`            | string                 | No       | ISO 8601                                                          |
+| `updatedAt`            | string                 | No       | ISO 8601                                                          |
 
 ### 📤 DTO: CartItemResponse
 
-| Campo         | Tipo       | Nullable | Descripción                              |
-|---------------|------------|----------|------------------------------------------|
-| `id`          | UUID       | No       | Identificador del ítem en carrito        |
-| `productId`   | UUID       | No       | Producto                                 |
-| `productName` | string     | No       | Nombre del producto                      |
-| `unitPrice`   | BigDecimal | No       | Precio unitario al momento de agregar    |
-| `quantity`    | number     | No       | Cantidad seleccionada                    |
-| `subtotal`    | BigDecimal | No       | Subtotal (quantity × unitPrice)          |
-| `notes`       | string     | Sí       | Notas de preparación                     |
+| Campo               | Tipo       | Nullable | Descripción                                                  |
+|---------------------|------------|----------|--------------------------------------------------------------|
+| `id`                | UUID       | No       | Identificador del ítem en carrito                            |
+| `productId`         | UUID       | No       | Producto                                                     |
+| `productName`       | string     | No       | Nombre del producto                                          |
+| `productImageUrl`   | string     | Sí       | Imagen del producto                                          |
+| `unitPrice`         | BigDecimal | No       | Precio unitario vigente                                      |
+| `previousUnitPrice` | BigDecimal | Sí       | Precio unitario anterior (presente solo si hubo cambio)      |
+| `priceChanged`      | boolean    | No       | Indica si el precio cambió al consultar el carrito           |
+| `productAvailable`  | boolean    | No       | Indica si el producto sigue disponible y en categoría activa |
+| `quantity`          | number     | No       | Cantidad seleccionada                                        |
+| `subtotal`          | BigDecimal | No       | Subtotal (`quantity × unitPrice`)                            |
+| `notes`             | string     | Sí       | Notas de preparación                                         |
+| `createdAt`         | string     | Sí       | ISO 8601                                                     |
+| `updatedAt`         | string     | Sí       | ISO 8601                                                     |
 
 ---
 
-## 5. Order — Pedidos y Facturación
+## 5. Order — Pedidos y Facturación (`StorefrontOrderController` y `OrderController`)
 
-Módulo de órdenes de compra con control de estados, cobertura PostGIS y registro fiscal.
+Módulo de órdenes de compra con checkout desde carrito, numeración secuencial por tienda (`ORD-000001`), control de estados y roles (`OrderStateMachine`), guardia de pagos (`PaymentGuard`), cobertura geográfica (`GeoUtils` + `deliveryRadiusKm`), registro fiscal inmutable y acumulación de puntos de fidelidad (`loyaltyPoints`).
+
+---
+
+### 🌐 Endpoints Storefront para Clientes (`StorefrontOrderController`)
+
+Ruta base: `/api/v1/store/{slug}/orders`  
+**Autenticación:** Requerida (`Bearer <token>`)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/v1/store/{slug}/orders/checkout` | Crea una orden desde el carrito activo del cliente en la tienda `{slug}` (recalcula precios, valida cobertura `DELIVERY`, congela snapshots y vacía el carrito en la misma transacción) |
+| `GET` | `/api/v1/store/{slug}/orders` | Lista paginada del historial de pedidos del cliente autenticado en la tienda `{slug}` |
+| `GET` | `/api/v1/store/{slug}/orders/{id}` | Obtiene el detalle de un pedido propio del cliente autenticado en la tienda `{slug}` |
+
+### 🛡️ Endpoints Backoffice, KDS y Reparto (`OrderController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/orders`  
+**Autenticación:** Requerida (`Bearer <token>`)
+
+| Método | Ruta | Rol Requerido | Descripción |
+|--------|------|---------------|-------------|
+| `GET` | `/api/v1/tenants/{tenantId}/orders` | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Listado paginado de órdenes del restaurante con filtros opcionales (`status`, `deliveryType`, `fromDate`, `toDate`) |
+| `GET` | `/api/v1/tenants/{tenantId}/orders/kds` | `OWNER`, `ADMIN`, `COCINERO`, `SUPERADMIN` | Cola KDS (Kitchen Display System): órdenes en `EN_PREPARACION` ordenadas por antigüedad (`createdAt ASC`) |
+| `GET` | `/api/v1/tenants/{tenantId}/orders/my-deliveries` | `OWNER`, `ADMIN`, `REPARTIDOR`, `SUPERADMIN` | Órdenes asignadas al repartidor autenticado (filtrable por `status`) |
+| `GET` | `/api/v1/tenants/{tenantId}/orders/{id}` | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Obtiene el detalle completo de una orden del restaurante |
+| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/status` | Miembro (validado por `OrderStateMachine` según rol) | Actualiza el estado del pedido (`COCINERO`: preparación/listo; `REPARTIDOR`: en camino/entregado; `OWNER`/`ADMIN`: todos + cancelar) |
+| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/assign` | `OWNER`, `ADMIN`, `SUPERADMIN` | Asigna un miembro activo con rol `REPARTIDOR` a un pedido `DELIVERY` |
+
+---
+
+### 📥 DTO: OrderCheckoutRequest
+
+| Campo               | Tipo   | Requerido | Validación                        | Descripción                                        |
+|---------------------|--------|-----------|-----------------------------------|----------------------------------------------------|
+| `deliveryType`      | string | Sí        | `DELIVERY`, `TAKEAWAY`, `DINE_IN` | Modalidad de entrega                               |
+| `customerAddressId` | UUID   | No        | UUID válido (propiedad del user)  | Dirección guardada seleccionada                    |
+| `deliveryAddress`   | string | No        | —                                 | Dirección de entrega en texto                      |
+| `deliveryLatitude`  | number | No        | Double (WGS84)                    | Latitud de entrega                                 |
+| `deliveryLongitude` | number | No        | Double (WGS84)                    | Longitud de entrega                                |
+| `ruc`               | string | No        | Máx. 20 chars                     | RUC opcional para facturación                      |
+| `notes`             | string | No        | Máx. 1000 chars                   | Notas del pedido (si se omite, toma las del carrito)|
+
+### 📥 DTO: OrderStatusUpdateRequest
+
+| Campo    | Tipo   | Requerido | Validación    | Descripción                 |
+|----------|--------|-----------|---------------|-----------------------------|
+| `status` | string | Sí        | `OrderStatus` | Nuevo estado de la orden    |
+
+### 📥 DTO: OrderAssignStaffRequest
+
+| Campo             | Tipo | Requerido | Validación  | Descripción                                          |
+|-------------------|------|-----------|-------------|------------------------------------------------------|
+| `deliveryStaffId` | UUID | Sí        | UUID válido | `userId` del miembro activo con rol `REPARTIDOR`     |
 
 ---
 

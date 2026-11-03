@@ -16,4 +16,6 @@ public interface ProductPriceRepository extends JpaRepository<ProductPrice, UUID
     List<ProductPrice> findAllByProductIdAndIsActiveTrue(UUID productId);
 
     Optional<ProductPrice> findByProductIdAndIsBaseTrue(UUID productId);
+
+    Optional<ProductPrice> findByIdAndProductId(UUID id, UUID productId);
 }

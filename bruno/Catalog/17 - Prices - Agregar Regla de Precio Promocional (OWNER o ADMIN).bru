@@ -1,0 +1,55 @@
+meta {
+  name: 17 - Prices - Agregar Regla de Precio Promocional (OWNER o ADMIN)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/prices
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Happy Hour Viernes y Sábado",
+    "price": 21.90,
+    "isBase": false,
+    "discountPercentage": 24.22,
+    "startTime": "18:00:00",
+    "endTime": "21:00:00",
+    "daysOfWeek": [5, 6],
+    "priority": 10,
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("priceId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Crea la regla promocional de precio y guarda priceId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Happy Hour Viernes y Sábado");
+    expect(data.isBase).to.be.false;
+  });
+}

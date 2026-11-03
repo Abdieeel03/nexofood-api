@@ -1,0 +1,37 @@
+meta {
+  name: 08 - Backoffice - Asignar Repartidor a Orden (OWNER o ADMIN)
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/orders/{{orderId}}/assign
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "deliveryStaffId": "{{deliveryStaffId}}"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Asigna el repartidor activo al pedido DELIVERY", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.deliveryStaffId).to.equal(bru.getEnvVar("deliveryStaffId"));
+  });
+}

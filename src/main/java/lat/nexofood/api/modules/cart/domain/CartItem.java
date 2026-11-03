@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.store.domain.Tenant;
@@ -21,6 +22,7 @@ import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Entity
@@ -68,4 +70,40 @@ public class CartItem extends BaseEntity {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    public void increaseQuantity(int delta) {
+        if (delta <= 0) {
+            throw new BadRequestException("El incremento de cantidad debe ser mayor a 0");
+        }
+        int current = this.quantity != null ? this.quantity : 0;
+        this.quantity = current + delta;
+        calculateSubtotal();
+    }
+
+    public void updateQuantity(int newQuantity) {
+        if (newQuantity <= 0) {
+            throw new BadRequestException("La cantidad del ítem debe ser mayor a 0");
+        }
+        this.quantity = newQuantity;
+        calculateSubtotal();
+    }
+
+    public void repriceTo(BigDecimal newUnitPrice) {
+        if (newUnitPrice == null || newUnitPrice.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("El precio unitario no puede ser nulo ni negativo");
+        }
+        this.unitPrice = newUnitPrice.setScale(2, RoundingMode.HALF_UP);
+        calculateSubtotal();
+    }
+
+    public BigDecimal calculateSubtotal() {
+        if (this.unitPrice == null || this.quantity == null || this.quantity <= 0) {
+            this.subtotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return this.subtotal;
+        }
+        this.subtotal = this.unitPrice
+                .multiply(BigDecimal.valueOf(this.quantity))
+                .setScale(2, RoundingMode.HALF_UP);
+        return this.subtotal;
+    }
 }
