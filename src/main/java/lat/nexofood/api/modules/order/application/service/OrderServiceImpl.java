@@ -15,6 +15,7 @@ import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddressRepository;
+import lat.nexofood.api.modules.inventory.application.service.ProductIngredientService;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderItem;
@@ -69,6 +70,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentGuard paymentGuard;
     private final TenantAccessService tenantAccessService;
     private final CurrentUserProvider currentUserProvider;
+    private final ProductIngredientService productIngredientService;
 
     @Autowired
     public OrderServiceImpl(
@@ -87,7 +89,8 @@ public class OrderServiceImpl implements OrderService {
             OrderStateMachine orderStateMachine,
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
-            CurrentUserProvider currentUserProvider
+            CurrentUserProvider currentUserProvider,
+            ProductIngredientService productIngredientService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -105,6 +108,46 @@ public class OrderServiceImpl implements OrderService {
         this.paymentGuard = paymentGuard;
         this.tenantAccessService = tenantAccessService;
         this.currentUserProvider = currentUserProvider;
+        this.productIngredientService = productIngredientService;
+    }
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            TenantCustomerRepository tenantCustomerRepository,
+            TenantMemberRepository tenantMemberRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ProductPricingService pricingService,
+            TaxCalculationService taxCalculationService,
+            OrderMapper orderMapper,
+            OrderItemMapper orderItemMapper,
+            CurrentCustomerResolver currentCustomerResolver,
+            SubscriptionGuard subscriptionGuard,
+            OrderStateMachine orderStateMachine,
+            PaymentGuard paymentGuard,
+            TenantAccessService tenantAccessService,
+            CurrentUserProvider currentUserProvider
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                tenantRepository,
+                tenantCustomerRepository,
+                tenantMemberRepository,
+                customerAddressRepository,
+                pricingService,
+                taxCalculationService,
+                orderMapper,
+                orderItemMapper,
+                currentCustomerResolver,
+                subscriptionGuard,
+                orderStateMachine,
+                paymentGuard,
+                tenantAccessService,
+                currentUserProvider,
+                null
+        );
     }
 
     public OrderServiceImpl(
@@ -132,6 +175,7 @@ public class OrderServiceImpl implements OrderService {
                 null,
                 null,
                 new OrderStateMachine(),
+                null,
                 null,
                 null,
                 null
@@ -457,10 +501,19 @@ public class OrderServiceImpl implements OrderService {
             isSuperAdmin = true;
         }
 
+        OrderStatus previousStatus = order.getStatus();
         orderStateMachine.validateTransition(order, newStatus, staffRole, isSuperAdmin, actorUserId);
 
         if (newStatus == OrderStatus.EN_PREPARACION && paymentGuard != null) {
             paymentGuard.assertCanMoveToPreparation(order);
+        }
+
+        if (newStatus == OrderStatus.EN_PREPARACION && productIngredientService != null) {
+            productIngredientService.consumeStockForOrder(order);
+        } else if (newStatus == OrderStatus.CANCELADO
+                && previousStatus == OrderStatus.EN_PREPARACION
+                && productIngredientService != null) {
+            productIngredientService.restoreStockForCanceledOrder(order);
         }
 
         order.setStatus(newStatus);

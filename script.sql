@@ -706,3 +706,29 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON inventory_movements
     USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+
+
+-- Table: product_ingredients (Recetas de productos y descuento automático de inventario)
+CREATE TABLE IF NOT EXISTS product_ingredients (
+    id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    product_id        UUID           NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    inventory_item_id UUID           NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+    quantity          NUMERIC(12, 3) NOT NULL
+        CONSTRAINT chk_product_ingredients_quantity_positive CHECK (quantity > 0),
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_product_ingredients_product_item UNIQUE (product_id, inventory_item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_ingredients_tenant_id  ON product_ingredients(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_product_ingredients_product_id ON product_ingredients(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_ingredients_item_id    ON product_ingredients(inventory_item_id);
+
+CREATE TRIGGER trg_product_ingredients_updated_at
+BEFORE UPDATE ON product_ingredients
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE product_ingredients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON product_ingredients
+    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
