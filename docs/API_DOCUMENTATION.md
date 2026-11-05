@@ -1,4 +1,4 @@
-# 📖 NexoFood API — Documentación para Frontend
+﻿# 📖 NexoFood API — Documentación para Frontend
 
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
@@ -148,7 +148,7 @@ Todas las respuestas de error (4xx y 5xx) siguen esta estructura:
 | **5. Cart**           | ✅ Activo y testeado     | `CartController` (`/api/v1/store/{slug}/cart/**`)           |
 | **6. Order**          | ✅ Activo y testeado     | `StorefrontOrderController`, `OrderController`              |
 | **7. Payment**        | 🔧 Modelos y DTOs listos   | Integración y entidades listas                             |
-| **8. Inventory**      | 🔧 Modelos y DTOs listos   | Gestión de stock y movimientos listos                      |
+| **8. Inventory**      | ✅ Activo y testeado     | InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController |
 
 ---
 
@@ -1994,43 +1994,300 @@ ame             | string     | No       | Nombre del plan                    |
 
 ---
 
-## 8. Inventory — Control de Almacén y Stock
+## 8. Inventory — Control de Almacén, Kardex y Recetas
+
+> **🏪 Multi-Tenant:** Todos los endpoints de inventario operan en el contexto de un restaurante (`tenantId`) y requieren membresía activa en el equipo del restaurante. El saldo físico (`quantity`) **solo** se modifica mediante movimientos auditables (`InventoryMovement`), nunca directamente en el CRUD de existencias.
 
 ---
 
-### 📦 Modelos de Datos
+### 📦 8.1 Insumos (`InventoryItemController`)
 
-#### `InventoryItem` (Insumos o Mercaderías)
-- `id` (UUID): Identificador único.
-- `tenantId` (UUID): Restaurante.
-- `name` (string): Nombre del insumo o artículo (máx. 150).
-- `sku` (string, opcional): Código de referencia de inventario.
-- `unit` (string): Unidad de medida (`UNIT`, `KG`).
-- `costPrice` (BigDecimal): Costo unitario promedio.
-- `isActive` (boolean): Estado del insumo.
+Ruta base: `/api/v1/tenants/{tenantId}/inventory/items`
 
-#### `InventoryStock` (Existencias en Almacén)
-- `id` (UUID): Identificador único del registro de stock.
-- `tenantId` (UUID): Restaurante.
-- `itemId` (UUID): Insumo relacionado.
-- `quantity` (BigDecimal): Existencia física actual.
-- `reservedQuantity` (BigDecimal): Cantidad comprometida en pedidos en cocina.
-- `minimumStock` (BigDecimal): Punto de reorden o alerta de stock crítico.
-- `location` (string, opcional): Ubicación física dentro del almacén.
+#### GET `/api/v1/tenants/{tenantId}/inventory/items`
 
-#### `InventoryMovement` (Kardex / Movimientos)
-- `id` (UUID): Identificador del movimiento.
-- `tenantId` (UUID): Restaurante.
-- `movementType` (string): `ENTRY`, `EXIT`, `ADJUSTMENT`.
-- `reason` (string): Motivo estandarizado:
-  - **Entradas:** `PURCHASE`, `INITIAL_STOCK`, `CUSTOMER_RETURN`, `TRANSFER_IN`
-  - **Salidas:** `KITCHEN_CONSUMPTION_OR_WASTE`, `EXPIRED_OR_SPOILAGE`, `DAMAGED_OR_LOSS`, `SALE`, `INTERNAL_CONSUMPTION`, `SUPPLIER_RETURN`, `TRANSFER_OUT`
-  - **Ajustes:** `PHYSICAL_COUNT`, `CORRECTION`, `OTHER`
-- `quantity` (BigDecimal): Cantidad movida.
-- `previousQuantity` (BigDecimal): Saldo previo.
-- `newQuantity` (BigDecimal): Saldo resultante.
-- `performedBy` (UUID): Usuario que registró la operación.
-- `reasonDetails` (string): Justificación textual obligatoria.
+> Lista los insumos del almacén del restaurante de forma paginada con filtros opcionales.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`  
+
+**Query Parameters:**
+
+| Parámetro    | Tipo    | Requerido | Descripción                                      |
+|--------------|---------|-----------|--------------------------------------------------|
+| `activeOnly` | boolean | No        | Si es `true`, retorna solo insumos activos       |
+| `category`   | string  | No        | Filtra por categoría (insensible a mayúsculas)   |
+| `unit`       | string  | No        | Filtra por unidad de medida (`UNIT` o `KG`)      |
+| `page`       | number  | No        | Página (0-indexed, default: 0)                   |
+| `size`       | number  | No        | Tamaño de página (default: 20)                   |
+
+##### 📤 Response (200 OK)
+Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
+
+> Obtiene el detalle de un insumo del restaurante por su ID.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+#### POST `/api/v1/tenants/{tenantId}/inventory/items`
+
+> Registra un nuevo insumo en el inventario validando unicidad de nombre y SKU por restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request (`InventoryItemRequest`)
+
+```json
+{
+  "name": "Harina de Trigo 00",
+  "sku": "INS-HAR-01",
+  "description": "Saco de harina italiana para masa madre",
+  "category": "Secos",
+  "unit": "KG",
+  "costPrice": 4.50,
+  "isActive": true
+}
+```
+
+##### 📤 Response (201 Created)
+
+```json
+{
+  "success": true,
+  "message": "Insumo de inventario creado exitosamente",
+  "data": {
+    "id": "50000000-0000-0000-0000-000000000001",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "name": "Harina de Trigo 00",
+    "sku": "INS-HAR-01",
+    "description": "Saco de harina italiana para masa madre",
+    "category": "Secos",
+    "unit": "KG",
+    "costPrice": 4.50,
+    "isActive": true,
+    "createdAt": "2026-11-05T17:00:00Z",
+    "updatedAt": "2026-11-05T17:00:00Z"
+  }
+}
+```
+
+---
+
+#### PUT `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
+
+> Actualiza los datos de un insumo existente.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+
+---
+
+#### PATCH `/api/v1/tenants/{tenantId}/inventory/items/{itemId}/status`
+
+> Activa o desactiva un insumo (`InventoryItemStatusRequest`: `{ "isActive": false }`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+
+---
+
+#### DELETE `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
+
+> Elimina un insumo siempre que no tenga un registro de stock ni forme parte de una receta de producto.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+
+---
+
+### 📊 8.2 Existencias de Almacén (`InventoryStockController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/stocks`
+
+> Lista los registros de existencias del restaurante de forma paginada.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/low-stock`
+
+> Obtiene la lista de insumos en alerta de stock crítico (`quantity <= minimumStock`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}` y `/item/{itemId}`
+
+> Obtiene el detalle de existencias por `stockId` o por `itemId`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+#### POST `/api/v1/tenants/{tenantId}/inventory/stocks`
+
+> Inicializa el registro de existencias (`quantity = 0.000`) para un insumo activo del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request (`InventoryStockRequest`)
+
+```json
+{
+  "itemId": "50000000-0000-0000-0000-000000000001",
+  "minimumStock": 10.000,
+  "maximumStock": 100.000,
+  "location": "Almacén Secos - Estante A1",
+  "isActive": true
+}
+```
+
+##### 📤 Response (201 Created)
+
+```json
+{
+  "success": true,
+  "message": "Registro de existencias creado exitosamente",
+  "data": {
+    "id": "51000000-0000-0000-0000-000000000001",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "itemId": "50000000-0000-0000-0000-000000000001",
+    "itemName": "Harina de Trigo 00",
+    "itemSku": "INS-HAR-01",
+    "unit": "KG",
+    "quantity": 0.000,
+    "reservedQuantity": 0.000,
+    "availableQuantity": 0.000,
+    "minimumStock": 10.000,
+    "maximumStock": 100.000,
+    "lowStock": true,
+    "location": "Almacén Secos - Estante A1",
+    "isActive": true,
+    "createdAt": "2026-11-05T17:00:00Z",
+    "updatedAt": "2026-11-05T17:00:00Z"
+  }
+}
+```
+
+---
+
+#### PUT `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}`
+
+> Actualiza umbrales (`minimumStock`, `maximumStock`), ubicación física (`location`) o estado (`isActive`) sin alterar `quantity`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN`  
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}/kardex`
+
+> Consulta el Kardex (historial paginado de movimientos ordenado del más reciente al más antiguo) de un registro de stock.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+### 📑 8.3 Movimientos / Kardex (`InventoryMovementController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
+
+#### POST `/api/v1/tenants/{tenantId}/inventory/movements`
+
+> Registra un movimiento de inventario (`ENTRY`, `EXIT`, `ADJUSTMENT`) aplicando bloqueo pesimista (`SELECT ... FOR UPDATE`), validando coherencia `movementType` ↔ `reason`, tomando `performedBy` desde el token JWT e impidiendo saldos negativos.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` o `COCINERO`  
+**Content-Type:** `application/json`
+
+##### 📥 Request (`InventoryMovementRequest`)
+
+| Campo           | Tipo                    | Requerido | Validación                              | Descripción                                      |
+|-----------------|-------------------------|-----------|-----------------------------------------|--------------------------------------------------|
+| `stockId`       | UUID                    | Sí        | UUID válido                             | Registro de stock afectado                       |
+| `movementType`  | `InventoryMovementType` | Sí        | `ENTRY`, `EXIT`, `ADJUSTMENT`           | Tipo de operación                                |
+| `reason`        | `InventoryMovementReason`| Sí       | Coherente con `movementType`            | Motivo estandarizado del movimiento              |
+| `quantity`      | BigDecimal              | Sí        | `> 0` en ENTRY/EXIT; `!= 0` en ADJUSTMENT | Cantidad del movimiento                        |
+| `reasonDetails` | string                  | Sí        | No en blanco                            | Justificación obligatoria de auditoría           |
+| `referenceId`   | UUID                    | No        | UUID válido                             | ID de referencia opcional (ej. ID de la orden)   |
+| `referenceType` | string                  | No        | Máx. 50 caracteres                      | Tipo de referencia opcional (ej. `"ORDER"`)      |
+
+```json
+{
+  "stockId": "51000000-0000-0000-0000-000000000001",
+  "movementType": "ENTRY",
+  "reason": "PURCHASE",
+  "quantity": 50.000,
+  "reasonDetails": "Factura proveedor F001-443"
+}
+```
+
+##### 📤 Response (201 Created)
+
+```json
+{
+  "success": true,
+  "message": "Movimiento de inventario registrado exitosamente",
+  "data": {
+    "id": "52000000-0000-0000-0000-000000000001",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "stockId": "51000000-0000-0000-0000-000000000001",
+    "itemId": "50000000-0000-0000-0000-000000000001",
+    "itemName": "Harina de Trigo 00",
+    "itemSku": "INS-HAR-01",
+    "unit": "KG",
+    "movementType": "ENTRY",
+    "reason": "PURCHASE",
+    "quantity": 50.000,
+    "previousQuantity": 0.000,
+    "newQuantity": 50.000,
+    "performedById": "00000000-0000-0000-0000-000000000002",
+    "performedByName": "Mario Rossi",
+    "reasonDetails": "Factura proveedor F001-443",
+    "referenceId": null,
+    "referenceType": null,
+    "createdAt": "2026-11-05T17:05:00Z"
+  }
+}
+```
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/inventory/movements`
+
+> Lista paginada de movimientos de inventario del restaurante, filtrable por `movementType` y `reason`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante  
+
+---
+
+### 🍕 8.4 Recetas de Productos (`ProductIngredientController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
+
+- **`GET /api/v1/tenants/{tenantId}/products/{productId}/ingredients`**: Lista los insumos y cantidades requeridas por unidad del producto.
+- **`POST /api/v1/tenants/{tenantId}/products/{productId}/ingredients`**: Agrega o actualiza un ingrediente en la receta (`{ "inventoryItemId": "...", "quantity": 0.250 }`). Solo `OWNER` o `ADMIN`.
+- **`DELETE /api/v1/tenants/{tenantId}/products/{productId}/ingredients/{ingredientId}`**: Retira un ingrediente de la receta. Solo `OWNER` o `ADMIN`.
+- **Descuento automático:** Cuando una orden avanza a `EN_PREPARACION`, se registran movimientos `EXIT / SALE` por cada ingrediente de los productos con receta; si la orden se cancela desde `EN_PREPARACION`, se revierte el stock con `ENTRY / CUSTOMER_RETURN`.
 
 ---
 
