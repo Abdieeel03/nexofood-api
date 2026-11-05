@@ -9,7 +9,9 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InventoryStockTest {
 
@@ -34,6 +36,7 @@ class InventoryStockTest {
                 .quantity(new BigDecimal("50.000"))
                 .reservedQuantity(new BigDecimal("5.000"))
                 .minimumStock(new BigDecimal("10.000"))
+                .maximumStock(new BigDecimal("100.000"))
                 .location("Cámara Fría 1")
                 .build();
 
@@ -41,10 +44,16 @@ class InventoryStockTest {
         assertEquals(item, stock.getItem());
         assertEquals(new BigDecimal("50.000"), stock.getQuantity());
         assertEquals(new BigDecimal("5.000"), stock.getReservedQuantity());
+        assertEquals(new BigDecimal("45.000"), stock.getAvailableQuantity());
         assertEquals(new BigDecimal("10.000"), stock.getMinimumStock());
+        assertEquals(new BigDecimal("100.000"), stock.getMaximumStock());
+        assertFalse(stock.isLowStock());
         assertEquals("Cámara Fría 1", stock.getLocation());
         // Verify delegated unit from item
         assertEquals(InventoryUnit.KG, stock.getUnit());
+
+        stock.setQuantity(new BigDecimal("8.000"));
+        assertTrue(stock.isLowStock());
     }
 
     @Test
@@ -88,5 +97,18 @@ class InventoryStockTest {
         assertEquals(tenant, movement.getTenant());
         assertEquals(InventoryMovementType.EXIT, movement.getMovementType());
         assertEquals(new BigDecimal("90.000"), movement.getNewQuantity());
+    }
+
+    @Test
+    @DisplayName("Should validate coherence between InventoryMovementReason and InventoryMovementType")
+    void shouldValidateReasonAndMovementTypeCoherence() {
+        assertTrue(InventoryMovementReason.PURCHASE.isCompatibleWith(InventoryMovementType.ENTRY));
+        assertFalse(InventoryMovementReason.PURCHASE.isCompatibleWith(InventoryMovementType.EXIT));
+
+        assertTrue(InventoryMovementReason.SALE.isCompatibleWith(InventoryMovementType.EXIT));
+        assertFalse(InventoryMovementReason.SALE.isCompatibleWith(InventoryMovementType.ENTRY));
+
+        assertTrue(InventoryMovementReason.PHYSICAL_COUNT.isCompatibleWith(InventoryMovementType.ADJUSTMENT));
+        assertFalse(InventoryMovementReason.PHYSICAL_COUNT.isCompatibleWith(InventoryMovementType.ENTRY));
     }
 }
