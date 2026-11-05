@@ -6,6 +6,7 @@ import lat.nexofood.api.modules.inventory.domain.InventoryMovementType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,7 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, UUID> {
+public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, UUID>, JpaSpecificationExecutor<InventoryMovement> {
 
     Optional<InventoryMovement> findByIdAndTenantId(UUID id, UUID tenantId);
 
@@ -24,9 +25,13 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
 
     Page<InventoryMovement> findAllByTenantId(UUID tenantId, Pageable pageable);
 
+    Page<InventoryMovement> findAllByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
+
     List<InventoryMovement> findAllByTenantIdAndStockId(UUID tenantId, UUID stockId);
 
     Page<InventoryMovement> findAllByTenantIdAndStockId(UUID tenantId, UUID stockId, Pageable pageable);
+
+    Page<InventoryMovement> findAllByTenantIdAndStockIdOrderByCreatedAtDesc(UUID tenantId, UUID stockId, Pageable pageable);
 
     List<InventoryMovement> findAllByTenantIdAndItemId(UUID tenantId, UUID itemId);
 
@@ -47,6 +52,13 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
     List<InventoryMovement> findAllByTenantIdAndCreatedAtBetween(UUID tenantId, OffsetDateTime startDate, OffsetDateTime endDate);
 
     Page<InventoryMovement> findAllByTenantIdAndCreatedAtBetween(UUID tenantId, OffsetDateTime startDate, OffsetDateTime endDate, Pageable pageable);
+
+    boolean existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
+            UUID tenantId,
+            UUID referenceId,
+            String referenceType,
+            InventoryMovementType movementType
+    );
 
     @Query("SELECT m FROM InventoryMovement m WHERE m.tenant.id = :tenantId AND m.movementType = :movementType ORDER BY m.createdAt DESC")
     List<InventoryMovement> findByTenantIdAndMovementTypeOrderByCreatedAtDesc(
