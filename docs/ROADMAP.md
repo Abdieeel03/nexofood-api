@@ -1,4 +1,4 @@
-# 🗺️ NexoFood API — Roadmap Incremental de Implementación
+﻿# 🗺️ NexoFood API — Roadmap Incremental de Implementación
 
 > **Objetivo:** listar todo lo que falta implementar en la API (servicios, controladores, seguridad, integraciones y calidad) en un **orden estrictamente incremental**, de forma que **ninguna tarea dependa de algo que aún no exista**.
 >
@@ -44,7 +44,7 @@ flowchart LR
 | **cart** (Cart + CartItem) | ✅ | ✅ | ✅ | ✅ `CartServiceImpl`, `CartItemServiceImpl` | ✅ `CartController` | ✅ |
 | **order** | ✅ | ✅ | ✅ | ✅ `OrderServiceImpl`, `CheckoutServiceImpl`, `OrderStateMachine` | ✅ `OrderController`, `StorefrontOrderController` | ✅ |
 | **payment** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **inventory** | ✅ | ✅ | ❌ | ❌ | ❌ | 🟡 (solo domain) |
+| **inventory** | ✅ | ✅ | ✅ | ✅ InventoryItemServiceImpl, InventoryStockServiceImpl, InventoryMovementServiceImpl, ProductIngredientServiceImpl | ✅ InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController | ✅ |
 
 ### 1.2 Hallazgos críticos detectados
 
@@ -357,24 +357,24 @@ flowchart TD
 > Orden interno: **Item → Stock → Movement**, porque el stock referencia al item y el movimiento referencia al stock.
 
 ### 8.1 DTOs y mappers
-- [ ] Crear `InventoryItemRequest/Response`, `InventoryStockRequest/Response`, `InventoryMovementRequest/Response` + mappers (el módulo no tiene capa `web`).
+- [x] Crear `InventoryItemRequest/Response`, `InventoryStockRequest/Response`, `InventoryMovementRequest/Response` + mappers (el módulo no tiene capa `web`).
 
 ### 8.2 Insumos (`InventoryItem`)
-- [ ] `InventoryItemService`: CRUD, SKU único por tenant, activar/desactivar.
-- [ ] Controller: `/api/v1/tenants/{tenantId}/inventory/items`.
+- [x] `InventoryItemService`: CRUD, SKU único por tenant, activar/desactivar.
+- [x] Controller: `/api/v1/tenants/{tenantId}/inventory/items`.
 
 ### 8.3 Existencias (`InventoryStock`)
-- [ ] `InventoryStockService`: crear stock por item/ubicación, actualizar `minimumStock`, alertas de stock bajo.
-- [ ] Controller: `/api/v1/tenants/{tenantId}/inventory/stocks`.
+- [x] `InventoryStockService`: crear stock por item/ubicación, actualizar `minimumStock`, alertas de stock bajo.
+- [x] Controller: `/api/v1/tenants/{tenantId}/inventory/stocks`.
 
 ### 8.4 Movimientos / Kardex (`InventoryMovement`)
-- [ ] `InventoryMovementService.register(...)`: **única vía** para modificar `quantity`. Bloqueo pesimista (`SELECT … FOR UPDATE`), calcula `previousQuantity`/`newQuantity`, `performedBy` desde el token, valida stock no negativo.
-- [ ] Validar coherencia `movementType` ↔ `reason` (ej. `PURCHASE` solo `ENTRY`).
-- [ ] Controller: `POST /inventory/movements`, `GET /inventory/stocks/{id}/kardex` (paginado).
+- [x] `InventoryMovementService.register(...)`: **única vía** para modificar `quantity`. Bloqueo pesimista (`SELECT … FOR UPDATE`), calcula `previousQuantity`/`newQuantity`, `performedBy` desde el token, valida stock no negativo.
+- [x] Validar coherencia `movementType` ↔ `reason` (ej. `PURCHASE` solo `ENTRY`).
+- [x] Controller: `POST /inventory/movements`, `GET /inventory/stocks/{id}/kardex` (paginado).
 
 ### 8.5 (Opcional) Recetas y descuento automático
-- [ ] Nueva tabla `product_ingredients (product_id, inventory_item_id, quantity)` + entidad.
-- [ ] Al pasar la orden a `EN_PREPARACION`, registrar movimientos `EXIT / SALE` por cada ingrediente; al cancelar, `ENTRY / CUSTOMER_RETURN`.
+- [x] Nueva tabla `product_ingredients (product_id, inventory_item_id, quantity)` + entidad.
+- [x] Al pasar la orden a `EN_PREPARACION`, registrar movimientos `EXIT / SALE` por cada ingrediente; al cancelar, `ENTRY / CUSTOMER_RETURN`.
 
 **✅ Definición de Hecho F8:** el stock solo cambia mediante movimientos auditables y nunca queda negativo bajo concurrencia.
 

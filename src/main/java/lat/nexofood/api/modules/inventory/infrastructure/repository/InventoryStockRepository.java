@@ -1,10 +1,12 @@
 package lat.nexofood.api.modules.inventory.infrastructure.repository;
 
+import jakarta.persistence.LockModeType;
 import lat.nexofood.api.modules.inventory.domain.InventoryStock;
 import lat.nexofood.api.modules.inventory.domain.InventoryUnit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,7 +20,21 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
 
     Optional<InventoryStock> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM InventoryStock s WHERE s.id = :id AND s.tenant.id = :tenantId")
+    Optional<InventoryStock> findByIdAndTenantIdForUpdate(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId
+    );
+
     Optional<InventoryStock> findByTenantIdAndItemId(UUID tenantId, UUID itemId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM InventoryStock s WHERE s.tenant.id = :tenantId AND s.item.id = :itemId")
+    Optional<InventoryStock> findByTenantIdAndItemIdForUpdate(
+            @Param("tenantId") UUID tenantId,
+            @Param("itemId") UUID itemId
+    );
 
     boolean existsByTenantIdAndItemId(UUID tenantId, UUID itemId);
 

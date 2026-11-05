@@ -73,6 +73,9 @@ public class InventoryStock extends BaseEntity {
     @Builder.Default
     private BigDecimal minimumStock = BigDecimal.ZERO;
 
+    @Column(name = "maximum_stock", precision = 12, scale = 3)
+    private BigDecimal maximumStock;
+
     @Column(name = "location", length = 150)
     private String location;
 
@@ -87,5 +90,18 @@ public class InventoryStock extends BaseEntity {
 
     public InventoryUnit getUnit() {
         return item != null ? item.getUnit() : null;
+    }
+
+    public BigDecimal getAvailableQuantity() {
+        BigDecimal currentQty = quantity != null ? quantity : BigDecimal.ZERO;
+        BigDecimal currentReserved = reservedQuantity != null ? reservedQuantity : BigDecimal.ZERO;
+        return currentQty.subtract(currentReserved);
+    }
+
+    public boolean isLowStock() {
+        if (!Boolean.TRUE.equals(isActive) || quantity == null || minimumStock == null) {
+            return false;
+        }
+        return quantity.compareTo(minimumStock) <= 0;
     }
 }
