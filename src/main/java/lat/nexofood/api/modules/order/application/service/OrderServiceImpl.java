@@ -1,6 +1,8 @@
 package lat.nexofood.api.modules.order.application.service;
 
 import jakarta.persistence.criteria.Predicate;
+import lat.nexofood.api.common.audit.AuditAction;
+import lat.nexofood.api.common.audit.SecurityAuditLogger;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ForbiddenException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
@@ -518,6 +520,15 @@ public class OrderServiceImpl implements OrderService {
 
         order.setStatus(newStatus);
         Order savedOrder = orderRepository.save(order);
+
+        if (newStatus == OrderStatus.CANCELADO) {
+            new SecurityAuditLogger().logEvent(
+                    AuditAction.ORDER_CANCELLATION,
+                    tenantId,
+                    orderId.toString(),
+                    "Pedido " + order.getOrderNumber() + " cancelado desde estado " + previousStatus
+            );
+        }
 
         if (newStatus == OrderStatus.ENTREGADO) {
             awardLoyaltyPoints(savedOrder);
