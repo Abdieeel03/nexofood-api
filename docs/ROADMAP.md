@@ -1,4 +1,4 @@
-﻿# 🗺️ NexoFood API — Roadmap Incremental de Implementación
+# 🗺️ NexoFood API — Roadmap Incremental de Implementación
 
 > **Objetivo:** listar todo lo que falta implementar en la API (servicios, controladores, seguridad, integraciones y calidad) en un **orden estrictamente incremental**, de forma que **ninguna tarea dependa de algo que aún no exista**.
 >
@@ -385,31 +385,31 @@ flowchart TD
 > **Depende de:** todas las fases funcionales (F1–F8). Se hace al final porque activar RLS exige que **todos** los flujos establezcan el contexto de tenant.
 
 ### 9.1 Activar Row Level Security *(H5)*
-- [ ] `TenantContext` (ThreadLocal) poblado por un interceptor a partir del `tenantId`/`slug` del path.
-- [ ] Aspecto/`TransactionSynchronization` que invoque `TenantConnectionPreparer` al inicio de cada transacción.
-- [ ] Cambiar la concatenación de `SET LOCAL` por `SELECT set_config('app.current_tenant_id', :id, true)` parametrizado.
-- [ ] Crear rol de BD `nexofood_app` **sin** `SUPERUSER` ni `BYPASSRLS`; usar `FORCE ROW LEVEL SECURITY`.
-- [ ] Tests de integración que intenten leer datos de otro tenant.
+- [x] `TenantContext` (ThreadLocal) poblado por un interceptor a partir del `tenantId`/`slug` del path.
+- [x] Aspecto/`TransactionSynchronization` que invoque `TenantConnectionPreparer` al inicio de cada transacción.
+- [x] Cambiar la concatenación de `SET LOCAL` por `SELECT set_config('app.current_tenant_id', :id, true)` parametrizado.
+- [x] Crear rol de BD `nexofood_app` **sin** `SUPERUSER` ni `BYPASSRLS`; usar `FORCE ROW LEVEL SECURITY`.
+- [x] Tests de integración que intenten leer datos de otro tenant.
 
 ### 9.2 Protección de autenticación
-- [ ] Rate limiting (Bucket4j) en `login`, `register`, `refresh` y `store/*/auth/*`.
-- [ ] Bloqueo temporal de cuenta tras N intentos fallidos.
-- [ ] Política de contraseñas y normalización de email (`lowercase/trim`).
+- [x] Rate limiting (Bucket4j) en `login`, `register`, `refresh` y `store/*/auth/*`.
+- [x] Bloqueo temporal de cuenta tras N intentos fallidos.
+- [x] Política de contraseñas y normalización de email (`lowercase/trim`).
 
 ### 9.3 JWT
-- [ ] Claims `iss`/`aud` y validación del tipo de token (access vs refresh).
-- [ ] `tokenVersion` en el usuario para invalidar access tokens al cambiar contraseña.
-- [ ] Job de limpieza de refresh tokens expirados/revocados.
+- [x] Claims `iss`/`aud` y validación del tipo de token (access vs refresh).
+- [x] `tokenVersion` en el usuario para invalidar access tokens al cambiar contraseña.
+- [x] Job de limpieza de refresh tokens expirados/revocados.
 
 ### 9.4 Respuestas y cabeceras
-- [ ] No exponer mensajes internos en 401/403/500. *(H12)*
-- [ ] Cabeceras de seguridad (HSTS, `X-Content-Type-Options`, `Referrer-Policy`).
-- [ ] Swagger deshabilitado en `prod`; CORS por perfil.
+- [x] No exponer mensajes internos en 401/403/500. *(H12)*
+- [x] Cabeceras de seguridad (HSTS, `X-Content-Type-Options`, `Referrer-Policy`).
+- [x] Swagger deshabilitado en `prod`; CORS por perfil.
 
 ### 9.5 Auditoría y observabilidad
-- [ ] `spring-boot-starter-actuator` con endpoints protegidos.
-- [ ] Log de auditoría para acciones sensibles (cambios de rol, bloqueos, cambios de precio, cancelaciones, conexión MP).
-- [ ] Escaneo de dependencias (OWASP Dependency-Check).
+- [x] `spring-boot-starter-actuator` con endpoints protegidos.
+- [x] Log de auditoría para acciones sensibles (cambios de rol, bloqueos, cambios de precio, cancelaciones, conexión MP).
+- [x] Escaneo de dependencias (OWASP Dependency-Check).
 
 **✅ Definición de Hecho F9:** aun con un bug en un servicio, la BD impide fugas entre tenants; los endpoints de auth resisten fuerza bruta.
 
