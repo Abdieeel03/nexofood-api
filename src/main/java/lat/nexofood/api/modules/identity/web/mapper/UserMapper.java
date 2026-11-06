@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.identity.web.mapper;
 
+import lat.nexofood.api.common.security.PasswordPolicyValidator;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.UserResponse;
@@ -29,7 +30,7 @@ public class UserMapper {
             return null;
         }
         return User.builder()
-                .email(request.email())
+                .email(PasswordPolicyValidator.normalizeEmail(request.email()))
                 .passwordHash(passwordHash)
                 .fullName(request.fullName())
                 .phone(request.phone())

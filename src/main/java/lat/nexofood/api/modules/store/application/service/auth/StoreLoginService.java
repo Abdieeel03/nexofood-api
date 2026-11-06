@@ -1,22 +1,26 @@
 package lat.nexofood.api.modules.store.application.service.auth;
 
+import lat.nexofood.api.common.audit.AuditAction;
+import lat.nexofood.api.common.audit.SecurityAuditLogger;
 import lat.nexofood.api.common.constants.ErrorMessages;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.common.exception.UnauthorizedException;
+import lat.nexofood.api.common.security.PasswordPolicyValidator;
+import lat.nexofood.api.common.security.TokenHashUtil;
+import lat.nexofood.api.modules.identity.application.service.LoginService;
 import lat.nexofood.api.modules.identity.domain.RefreshToken;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.infrastructure.repository.RefreshTokenRepository;
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
 import lat.nexofood.api.modules.store.application.usecase.auth.StoreLoginUseCase;
-import lat.nexofood.api.modules.store.domain.TenantCustomerId;
-import lat.nexofood.api.modules.store.web.dto.request.StoreLoginRequest;
-import lat.nexofood.api.modules.store.web.dto.response.StoreAuthResponse;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
+import lat.nexofood.api.modules.store.domain.TenantCustomerId;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
-import lat.nexofood.api.common.security.TokenHashUtil;
+import lat.nexofood.api.modules.store.web.dto.request.StoreLoginRequest;
+import lat.nexofood.api.modules.store.web.dto.response.StoreAuthResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantCustomerMapper;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -43,18 +47,45 @@ public class StoreLoginService implements StoreLoginUseCase {
     private final TenantCustomerMapper tenantCustomerMapper;
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = UnauthorizedException.class)
     public StoreAuthResponse execute(String tenantSlug, StoreLoginRequest request) {
+        String normalizedEmail = PasswordPolicyValidator.normalizeEmail(request.email());
+
         // 1. Validar credenciales contra User global
-        User user = userRepository.findByEmail(request.email())
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UnauthorizedException(ErrorMessages.INVALID_CREDENTIALS));
 
+        if (user.getDeletedAt() != null) {
+            throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
+        }
+
+        if (user.isAccountLocked()) {
+            throw new UnauthorizedException(ErrorMessages.ACCOUNT_LOCKED);
+        }
+
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            boolean lockedNow = user.recordFailedLogin(LoginService.MAX_FAILED_ATTEMPTS, LoginService.LOCK_DURATION_MINUTES);
+            userRepository.save(user);
+            if (lockedNow) {
+                new SecurityAuditLogger().logEventWithActor(
+                        AuditAction.ACCOUNT_LOCKOUT,
+                        normalizedEmail,
+                        null,
+                        user.getId() != null ? user.getId().toString() : normalizedEmail,
+                        "Cuenta bloqueada temporalmente en tienda '" + tenantSlug + "' tras " + user.getFailedLoginAttempts() + " intentos fallidos"
+                );
+            }
             throw new UnauthorizedException(ErrorMessages.INVALID_CREDENTIALS);
         }
 
-        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new UnauthorizedException(ErrorMessages.USER_INACTIVE);
+        }
+
+        if ((user.getFailedLoginAttempts() != null && user.getFailedLoginAttempts() > 0)
+                || user.getLockedUntil() != null) {
+            user.resetFailedLoginAttempts();
+            userRepository.save(user);
         }
 
         // 2. Validar que el tenant exista

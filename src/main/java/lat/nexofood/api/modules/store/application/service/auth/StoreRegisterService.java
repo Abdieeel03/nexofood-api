@@ -2,21 +2,21 @@ package lat.nexofood.api.modules.store.application.service.auth;
 
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
+import lat.nexofood.api.common.security.PasswordPolicyValidator;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.modules.identity.domain.RefreshToken;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.infrastructure.repository.RefreshTokenRepository;
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
-import lat.nexofood.api.modules.identity.web.dto.response.UserResponse;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
 import lat.nexofood.api.modules.store.application.usecase.auth.StoreRegisterUseCase;
-import lat.nexofood.api.modules.store.web.dto.request.StoreRegisterRequest;
-import lat.nexofood.api.modules.store.web.dto.response.StoreAuthResponse;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
+import lat.nexofood.api.modules.store.web.dto.request.StoreRegisterRequest;
+import lat.nexofood.api.modules.store.web.dto.response.StoreAuthResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantCustomerMapper;
-import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +44,9 @@ public class StoreRegisterService implements StoreRegisterUseCase {
     @Override
     @Transactional
     public StoreAuthResponse execute(String tenantSlug, StoreRegisterRequest request) {
+        String normalizedEmail = PasswordPolicyValidator.normalizeEmail(request.email());
+        PasswordPolicyValidator.validatePassword(request.password());
+
         // 1. Validar que el restaurante exista y esté activo
         Tenant tenant = tenantRepository.findBySlug(tenantSlug)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado: " + tenantSlug));
@@ -53,14 +56,14 @@ public class StoreRegisterService implements StoreRegisterUseCase {
         }
 
         // 2. Si el email YA existe → el cliente debe hacer login
-        if (userRepository.existsByEmail(request.email())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResourceConflictException(
                     "Ya existe una cuenta con este email. Por favor, inicia sesión en la tienda.");
         }
 
         // 3. Crear el User global
         User user = User.builder()
-                .email(request.email())
+                .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName(request.fullName())
                 .phone(request.phone())
