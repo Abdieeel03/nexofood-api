@@ -1,5 +1,7 @@
 package lat.nexofood.api.modules.catalog.application.service;
 
+import lat.nexofood.api.common.audit.AuditAction;
+import lat.nexofood.api.common.audit.SecurityAuditLogger;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
@@ -10,7 +12,7 @@ import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductReposit
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductPriceMapper;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +26,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ProductPriceServiceImpl implements ProductPriceService {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
@@ -32,6 +33,28 @@ public class ProductPriceServiceImpl implements ProductPriceService {
     private final ProductPriceRepository productPriceRepository;
     private final ProductRepository productRepository;
     private final ProductPriceMapper productPriceMapper;
+    private final SecurityAuditLogger securityAuditLogger;
+
+    public ProductPriceServiceImpl(
+            ProductPriceRepository productPriceRepository,
+            ProductRepository productRepository,
+            ProductPriceMapper productPriceMapper
+    ) {
+        this(productPriceRepository, productRepository, productPriceMapper, new SecurityAuditLogger());
+    }
+
+    @Autowired
+    public ProductPriceServiceImpl(
+            ProductPriceRepository productPriceRepository,
+            ProductRepository productRepository,
+            ProductPriceMapper productPriceMapper,
+            SecurityAuditLogger securityAuditLogger
+    ) {
+        this.productPriceRepository = productPriceRepository;
+        this.productRepository = productRepository;
+        this.productPriceMapper = productPriceMapper;
+        this.securityAuditLogger = securityAuditLogger != null ? securityAuditLogger : new SecurityAuditLogger();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -87,6 +110,12 @@ public class ProductPriceServiceImpl implements ProductPriceService {
         if (product.getPrices() != null && !product.getPrices().contains(saved)) {
             product.getPrices().add(saved);
         }
+        securityAuditLogger.logEvent(
+                AuditAction.PRICE_CHANGE,
+                tenantId,
+                productId.toString(),
+                "Creación de regla de precio '" + saved.getName() + "' con monto=" + saved.getPrice()
+        );
         return productPriceMapper.toResponse(saved);
     }
 
@@ -117,6 +146,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
             );
         }
 
+        BigDecimal previousAmount = existingPrice.getPrice();
         existingPrice.setName(request.name());
         existingPrice.setPrice(request.price());
         existingPrice.setIsBase(newIsBase);
@@ -134,6 +164,12 @@ public class ProductPriceServiceImpl implements ProductPriceService {
         }
 
         ProductPrice updated = productPriceRepository.save(existingPrice);
+        securityAuditLogger.logEvent(
+                AuditAction.PRICE_CHANGE,
+                tenantId,
+                priceId.toString(),
+                "Actualización de precio en producto " + productId + " de " + previousAmount + " a " + updated.getPrice()
+        );
         return productPriceMapper.toResponse(updated);
     }
 
@@ -153,6 +189,12 @@ public class ProductPriceServiceImpl implements ProductPriceService {
             product.getPrices().remove(price);
         }
         productPriceRepository.delete(price);
+        securityAuditLogger.logEvent(
+                AuditAction.PRICE_CHANGE,
+                tenantId,
+                priceId.toString(),
+                "Eliminación de regla de precio '" + price.getName() + "' en producto " + productId
+        );
     }
 
     @Override

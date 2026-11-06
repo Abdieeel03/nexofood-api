@@ -60,7 +60,41 @@ public class User extends BaseEntity {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 0;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
     /** Soft delete: fecha en que el usuario fue dado de baja lógicamente. */
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
+
+    public boolean isAccountLocked() {
+        return lockedUntil != null && lockedUntil.isAfter(OffsetDateTime.now());
+    }
+
+    public boolean recordFailedLogin(int maxAttempts, long lockMinutes) {
+        int attempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
+        this.failedLoginAttempts = attempts;
+        if (attempts >= maxAttempts) {
+            this.lockedUntil = OffsetDateTime.now().plusMinutes(lockMinutes);
+            return true;
+        }
+        return false;
+    }
+
+    public void resetFailedLoginAttempts() {
+        this.failedLoginAttempts = 0;
+        this.lockedUntil = null;
+    }
+
+    public void incrementTokenVersion() {
+        this.tokenVersion = (this.tokenVersion == null ? 0 : this.tokenVersion) + 1;
+    }
 }

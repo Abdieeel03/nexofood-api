@@ -1,6 +1,7 @@
 package lat.nexofood.api.security.custom;
 
 import lat.nexofood.api.common.constants.ErrorMessages;
+import lat.nexofood.api.common.security.PasswordPolicyValidator;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +18,10 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        String normalizedEmail = PasswordPolicyValidator.normalizeEmail(email);
 
         User user = userRepository
-                .findByEmail(email)
+                .findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UsernameNotFoundException(
                         ErrorMessages.USER_NOT_FOUND));
 
@@ -27,13 +29,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException(ErrorMessages.USER_NOT_FOUND);
         }
 
-        return org.springframework.security.core.userdetails.User
-                .builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash())
-                .roles(user.getSystemRole().name())
-                .disabled(!Boolean.TRUE.equals(user.getIsActive()))
-                .build();
+        return new CustomUserDetails(user);
     }
 
     public UserDetails findByEmail(String email) throws UsernameNotFoundException {

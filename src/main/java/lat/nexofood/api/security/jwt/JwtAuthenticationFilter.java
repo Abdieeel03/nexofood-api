@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lat.nexofood.api.common.constants.SecurityConstants;
 import lat.nexofood.api.security.custom.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import lat.nexofood.api.common.constants.SecurityConstants;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                if (jwtService.isTokenValid(token, userDetails) && userDetails.isEnabled()) {
+                if (jwtService.isTokenValid(token, userDetails) && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
@@ -50,8 +50,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     authToken.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                     log.debug("Usuario autenticado correctamente: {}", username);
-                } else if (!userDetails.isEnabled()) {
-                    log.warn("Intento de acceso con usuario inactivo o deshabilitado: {}", username);
+                } else if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
+                    log.warn("Intento de acceso con usuario inactivo, deshabilitado o bloqueado: {}", username);
                 }
             }
         } catch (Exception e) {

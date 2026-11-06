@@ -141,7 +141,6 @@ public class GlobalExceptionHandler {
                 .error(HttpStatus.INTERNAL_SERVER_ERROR.name())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .timestamp(LocalDateTime.now())
-                .ex(ex.getMessage())
                 .path(req.getRequestURI())
                 .method(req.getMethod())
                 .build();
