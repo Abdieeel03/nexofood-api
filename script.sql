@@ -15,6 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "postgis";
 -- ------------------------------------------------------------------------------
 -- 2. DROP EXISTING TABLES & FUNCTIONS (Reverse Dependency Order)
 -- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS product_ingredients CASCADE;
 DROP TABLE IF EXISTS inventory_movements CASCADE;
 DROP TABLE IF EXISTS inventory_stocks CASCADE;
 DROP TABLE IF EXISTS inventory_items CASCADE;
@@ -64,7 +65,10 @@ CREATE TABLE users (
     phone         VARCHAR(20),
     system_role   VARCHAR(50)  NOT NULL DEFAULT 'USER'
         CONSTRAINT chk_users_system_role CHECK (system_role IN ('SUPERADMIN', 'USER')),
-    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    is_active             BOOLEAN      NOT NULL DEFAULT TRUE,
+    token_version         INTEGER      NOT NULL DEFAULT 0,
+    failed_login_attempts INTEGER      NOT NULL DEFAULT 0,
+    locked_until          TIMESTAMPTZ,
     -- Soft delete: preserva la identidad e integridad contable sin borrado físico
     deleted_at    TIMESTAMPTZ,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -732,3 +736,39 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ALTER TABLE product_ingredients ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON product_ingredients
     USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+
+
+-- ==============================================================================
+-- 12. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
+-- ==============================================================================
+
+-- Forzar Row Level Security incluso para el propietario de las tablas
+ALTER TABLE tenant_members      FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_customers    FORCE ROW LEVEL SECURITY;
+ALTER TABLE categories          FORCE ROW LEVEL SECURITY;
+ALTER TABLE taxes               FORCE ROW LEVEL SECURITY;
+ALTER TABLE products            FORCE ROW LEVEL SECURITY;
+ALTER TABLE carts               FORCE ROW LEVEL SECURITY;
+ALTER TABLE cart_items          FORCE ROW LEVEL SECURITY;
+ALTER TABLE orders              FORCE ROW LEVEL SECURITY;
+ALTER TABLE order_items         FORCE ROW LEVEL SECURITY;
+ALTER TABLE payments            FORCE ROW LEVEL SECURITY;
+ALTER TABLE inventory_items     FORCE ROW LEVEL SECURITY;
+ALTER TABLE inventory_stocks    FORCE ROW LEVEL SECURITY;
+ALTER TABLE inventory_movements FORCE ROW LEVEL SECURITY;
+ALTER TABLE product_ingredients FORCE ROW LEVEL SECURITY;
+
+-- Rol de aplicación sin privilegios de superusuario ni evasión de RLS (NOBYPASSRLS)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nexofood_app') THEN
+        CREATE ROLE nexofood_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    ELSE
+        ALTER ROLE nexofood_app NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    END IF;
+END
+$$;
+
+GRANT USAGE ON SCHEMA public TO nexofood_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nexofood_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nexofood_app;

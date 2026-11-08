@@ -2,6 +2,8 @@ package lat.nexofood.api.modules.identity.application.service;
 
 import lat.nexofood.api.common.constants.ErrorMessages;
 import lat.nexofood.api.common.exception.ResourceConflictException;
+import lat.nexofood.api.common.security.PasswordPolicyValidator;
+import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.modules.identity.application.usecase.RegisterUseCase;
 import lat.nexofood.api.modules.identity.domain.RefreshToken;
 import lat.nexofood.api.modules.identity.domain.User;
@@ -10,7 +12,6 @@ import lat.nexofood.api.modules.identity.infrastructure.repository.UserRepositor
 import lat.nexofood.api.modules.identity.web.dto.request.UserRegisterRequest;
 import lat.nexofood.api.modules.identity.web.dto.response.AuthResponse;
 import lat.nexofood.api.modules.identity.web.mapper.UserMapper;
-import lat.nexofood.api.common.security.TokenHashUtil;
 import lat.nexofood.api.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,14 +36,18 @@ public class RegisterService implements RegisterUseCase {
     @Override
     @Transactional
     public AuthResponse execute(UserRegisterRequest request) {
-        log.info("Iniciando registro para el usuario con email: {}", request.email());
+        String normalizedEmail = PasswordPolicyValidator.normalizeEmail(request.email());
+        PasswordPolicyValidator.validatePassword(request.password());
 
-        if (userRepository.existsByEmail(request.email())) {
+        log.info("Iniciando registro para el usuario con email: {}", normalizedEmail);
+
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResourceConflictException(ErrorMessages.EMAIL_ALREADY_EXISTS);
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
         User user = userMapper.toEntity(request, encodedPassword);
+        user.setEmail(normalizedEmail);
         User savedUser = userRepository.save(user);
 
         String accessToken = jwtService.generateToken(savedUser);
