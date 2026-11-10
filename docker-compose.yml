@@ -1,4 +1,17 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexofood-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+
+  # Base de datos local (opcional, solo si no se usa Supabase)
+  # Para iniciarla junto a la API: docker compose --profile local-db up -d
   postgres:
     image: postgis/postgis:16-3.4
     container_name: nexofood-postgres
@@ -13,6 +26,8 @@ services:
       - nexofood_postgres_data:/var/lib/postgresql/data
       - ./script.sql:/docker-entrypoint-initdb.d/01-script.sql:ro
       - ./seed_un_usuario_pagos.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    profiles:
+      - local-db
 
 volumes:
   nexofood_postgres_data:
