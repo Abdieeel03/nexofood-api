@@ -21,7 +21,6 @@ headers {
 body:json {
   {
     "minimumStock": 8.000,
-    "maximumStock": 60.000,
     "location": "Cámara Fría B-2",
     "isActive": true
   }
@@ -32,7 +31,7 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("Actualiza umbrales mínimo/máximo y ubicación del stock", function() {
+  test("Actualiza umbral mínimo y ubicación del stock", function() {
     expect(res.getBody().success).to.be.true;
   });
 }

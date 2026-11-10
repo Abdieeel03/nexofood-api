@@ -29,7 +29,6 @@ public class InventoryStockMapper {
                 .reservedQuantity(stock.getReservedQuantity())
                 .availableQuantity(stock.getAvailableQuantity())
                 .minimumStock(stock.getMinimumStock())
-                .maximumStock(stock.getMaximumStock())
                 .lowStock(stock.isLowStock())
                 .location(stock.getLocation())
                 .isActive(stock.getIsActive())
@@ -46,9 +45,6 @@ public class InventoryStockMapper {
         BigDecimal minimumStock = request.minimumStock() != null
                 ? request.minimumStock().setScale(3, RoundingMode.HALF_UP)
                 : zero;
-        BigDecimal maximumStock = request.maximumStock() != null
-                ? request.maximumStock().setScale(3, RoundingMode.HALF_UP)
-                : null;
 
         return InventoryStock.builder()
                 .tenant(tenant)
@@ -56,7 +52,6 @@ public class InventoryStockMapper {
                 .quantity(zero)
                 .reservedQuantity(zero)
                 .minimumStock(minimumStock)
-                .maximumStock(maximumStock)
                 .location(request.location() != null && !request.location().isBlank() ? request.location().trim() : null)
                 .isActive(request.isActive() != null ? request.isActive() : true)
                 .build();

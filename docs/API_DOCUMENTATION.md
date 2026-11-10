@@ -908,7 +908,7 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 #### GET `/api/v1/tenants/me`
 
-> Obtiene el restaurante asociado al usuario autenticado actual como propietario. Si el usuario aún no ha creado un restaurante, la API responde con `200 OK` y `data: null` (no genera error 404), facilitando la detección en el frontend para dirigir al onboarding.
+> Obtiene el restaurante asociado al usuario autenticado actual como propietario o miembro de staff. Si el usuario aún no tiene un restaurante asociado, la API responde con `404 Not Found` en lugar de devolver un objeto `data: null`, permitiendo al frontend capturar la excepción y dirigir al usuario al onboarding o flujo de creación de tienda.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Cualquier usuario autenticado
@@ -947,13 +947,16 @@ Módulo central para la administración de restaurantes, asignación de colabora
 }
 ```
 
-**Caso 2: Sin restaurante vinculado (200 OK):**
+**Caso 2: Sin restaurante vinculado (404 Not Found):**
 
 ```json
 {
-  "success": true,
   "message": "No tienes ninguna tienda asociada",
-  "data": null
+  "error": "Not Found",
+  "status": 404,
+  "timestamp": "2026-11-10T15:00:00",
+  "path": "/api/v1/tenants/me",
+  "method": "GET"
 }
 ```
 
@@ -3026,7 +3029,6 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 {
   "itemId": "50000000-0000-0000-0000-000000000001",
   "minimumStock": 10.0,
-  "maximumStock": 100.0,
   "location": "Almacén Secos - Estante A1",
   "isActive": true
 }
@@ -3049,7 +3051,6 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
     "reservedQuantity": 0.0,
     "availableQuantity": 0.0,
     "minimumStock": 10.0,
-    "maximumStock": 100.0,
     "lowStock": true,
     "location": "Almacén Secos - Estante A1",
     "isActive": true,
@@ -3063,7 +3064,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 
 #### PUT `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}`
 
-> Actualiza umbrales (`minimumStock`, `maximumStock`), ubicación física (`location`) o estado (`isActive`) sin alterar `quantity`.
+> Actualiza umbral (`minimumStock`), ubicación física (`location`) o estado (`isActive`) sin alterar `quantity`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN`
@@ -3100,8 +3101,6 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
 | `reason`        | `InventoryMovementReason` | Sí        | Coherente con `movementType`              | Motivo estandarizado del movimiento            |
 | `quantity`      | BigDecimal                | Sí        | `> 0` en ENTRY/EXIT; `!= 0` en ADJUSTMENT | Cantidad del movimiento                        |
 | `reasonDetails` | string                    | Sí        | No en blanco                              | Justificación obligatoria de auditoría         |
-| `referenceId`   | UUID                      | No        | UUID válido                               | ID de referencia opcional (ej. ID de la orden) |
-| `referenceType` | string                    | No        | Máx. 50 caracteres                        | Tipo de referencia opcional (ej. `"ORDER"`)    |
 
 ```json
 {
@@ -3135,8 +3134,6 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
     "performedById": "00000000-0000-0000-0000-000000000002",
     "performedByName": "Mario Rossi",
     "reasonDetails": "Factura proveedor F001-443",
-    "referenceId": null,
-    "referenceType": null,
     "createdAt": "2026-11-05T17:05:00Z"
   }
 }

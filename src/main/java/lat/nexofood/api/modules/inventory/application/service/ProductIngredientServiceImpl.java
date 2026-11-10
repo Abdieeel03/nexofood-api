@@ -33,8 +33,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProductIngredientServiceImpl implements ProductIngredientService {
 
-    private static final String ORDER_REFERENCE_TYPE = "ORDER";
-
     private final ProductIngredientRepository productIngredientRepository;
     private final ProductRepository productRepository;
     private final InventoryItemRepository inventoryItemRepository;
@@ -118,9 +116,10 @@ public class ProductIngredientServiceImpl implements ProductIngredientService {
             return;
         }
         UUID tenantId = order.getTenant().getId();
+        String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : (order.getId() != null ? order.getId().toString() : null);
 
-        if (order.getId() != null && inventoryMovementRepository.existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
-                tenantId, order.getId(), ORDER_REFERENCE_TYPE, InventoryMovementType.EXIT
+        if (orderRef != null && inventoryMovementRepository.existsByTenantIdAndReasonDetailsStartingWithAndMovementType(
+                tenantId, "Descuento automático por orden " + orderRef, InventoryMovementType.EXIT
         )) {
             return;
         }
@@ -156,10 +155,8 @@ public class ProductIngredientServiceImpl implements ProductIngredientService {
                                 .movementType(InventoryMovementType.EXIT)
                                 .reason(InventoryMovementReason.SALE)
                                 .quantity(requiredQty)
-                                .reasonDetails("Descuento automático por orden " + order.getOrderNumber()
+                                .reasonDetails("Descuento automático por orden " + (orderRef != null ? orderRef : "")
                                         + " (" + orderItem.getProductName() + " x" + orderItem.getQuantity() + ")")
-                                .referenceId(order.getId())
-                                .referenceType(ORDER_REFERENCE_TYPE)
                                 .build()
                 );
             }
@@ -173,9 +170,10 @@ public class ProductIngredientServiceImpl implements ProductIngredientService {
             return;
         }
         UUID tenantId = order.getTenant().getId();
+        String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : (order.getId() != null ? order.getId().toString() : null);
 
-        if (order.getId() != null && inventoryMovementRepository.existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
-                tenantId, order.getId(), ORDER_REFERENCE_TYPE, InventoryMovementType.ENTRY
+        if (orderRef != null && inventoryMovementRepository.existsByTenantIdAndReasonDetailsStartingWithAndMovementType(
+                tenantId, "Reverso automático por cancelación de orden " + orderRef, InventoryMovementType.ENTRY
         )) {
             return;
         }
@@ -209,10 +207,8 @@ public class ProductIngredientServiceImpl implements ProductIngredientService {
                                 .movementType(InventoryMovementType.ENTRY)
                                 .reason(InventoryMovementReason.CUSTOMER_RETURN)
                                 .quantity(restoredQty)
-                                .reasonDetails("Reverso automático por cancelación de orden " + order.getOrderNumber()
+                                .reasonDetails("Reverso automático por cancelación de orden " + (orderRef != null ? orderRef : "")
                                         + " (" + orderItem.getProductName() + " x" + orderItem.getQuantity() + ")")
-                                .referenceId(order.getId())
-                                .referenceType(ORDER_REFERENCE_TYPE)
                                 .build()
                 );
             }

@@ -101,7 +101,7 @@ public class InventoryStockServiceImpl implements InventoryStockService {
             );
         }
 
-        validateThresholds(request.minimumStock(), request.maximumStock());
+        validateMinimumStock(request.minimumStock());
 
         InventoryStock stock = inventoryStockMapper.toEntity(request, tenant, item);
         InventoryStock saved = inventoryStockRepository.save(stock);
@@ -116,17 +116,11 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         BigDecimal minStock = request.minimumStock() != null
                 ? request.minimumStock().setScale(3, RoundingMode.HALF_UP)
                 : stock.getMinimumStock();
-        BigDecimal maxStock = request.maximumStock() != null
-                ? request.maximumStock().setScale(3, RoundingMode.HALF_UP)
-                : stock.getMaximumStock();
 
-        validateThresholds(minStock, maxStock);
+        validateMinimumStock(minStock);
 
         if (request.minimumStock() != null) {
             stock.setMinimumStock(minStock);
-        }
-        if (request.maximumStock() != null) {
-            stock.setMaximumStock(maxStock);
         }
         if (request.location() != null) {
             stock.setLocation(request.location().isBlank() ? null : request.location().trim());
@@ -139,15 +133,9 @@ public class InventoryStockServiceImpl implements InventoryStockService {
         return inventoryStockMapper.toResponse(updated);
     }
 
-    private void validateThresholds(BigDecimal minimumStock, BigDecimal maximumStock) {
+    private void validateMinimumStock(BigDecimal minimumStock) {
         if (minimumStock != null && minimumStock.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("El stock mínimo no puede ser negativo.");
-        }
-        if (maximumStock != null && maximumStock.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("El stock máximo no puede ser negativo.");
-        }
-        if (minimumStock != null && maximumStock != null && maximumStock.compareTo(minimumStock) < 0) {
-            throw new BadRequestException("El stock máximo no puede ser menor que el stock mínimo.");
         }
     }
 

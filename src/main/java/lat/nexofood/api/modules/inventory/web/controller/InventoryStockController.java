@@ -129,7 +129,7 @@ public class InventoryStockController {
 
     @PutMapping("/{stockId}")
     @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
-    @Operation(summary = "Actualizar parámetros de un registro de stock (minimumStock, maximumStock, ubicación, estado) (solo OWNER o ADMIN)")
+    @Operation(summary = "Actualizar parámetros de un registro de stock (minimumStock, ubicación, estado) (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<InventoryStockResponse>> updateStock(
             @PathVariable UUID tenantId,
             @PathVariable UUID stockId,

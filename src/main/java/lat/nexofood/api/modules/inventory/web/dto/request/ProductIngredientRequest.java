@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.inventory.web.dto.request;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
@@ -14,6 +15,7 @@ public record ProductIngredientRequest(
 
         @NotNull(message = "La cantidad requerida del insumo es obligatoria")
         @DecimalMin(value = "0.001", message = "La cantidad del ingrediente debe ser mayor a cero")
+        @DecimalMax(value = "999999.999", message = "La cantidad del ingrediente no puede superar 999,999.999")
         BigDecimal quantity
 ) {
 }

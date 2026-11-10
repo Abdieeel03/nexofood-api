@@ -36,7 +36,6 @@ class InventoryStockTest {
                 .quantity(new BigDecimal("50.000"))
                 .reservedQuantity(new BigDecimal("5.000"))
                 .minimumStock(new BigDecimal("10.000"))
-                .maximumStock(new BigDecimal("100.000"))
                 .location("Cámara Fría 1")
                 .build();
 
@@ -46,7 +45,6 @@ class InventoryStockTest {
         assertEquals(new BigDecimal("5.000"), stock.getReservedQuantity());
         assertEquals(new BigDecimal("45.000"), stock.getAvailableQuantity());
         assertEquals(new BigDecimal("10.000"), stock.getMinimumStock());
-        assertEquals(new BigDecimal("100.000"), stock.getMaximumStock());
         assertFalse(stock.isLowStock());
         assertEquals("Cámara Fría 1", stock.getLocation());
         // Verify delegated unit from item

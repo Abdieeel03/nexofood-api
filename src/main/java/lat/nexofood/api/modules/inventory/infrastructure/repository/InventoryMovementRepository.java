@@ -53,10 +53,9 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
 
     Page<InventoryMovement> findAllByTenantIdAndCreatedAtBetween(UUID tenantId, OffsetDateTime startDate, OffsetDateTime endDate, Pageable pageable);
 
-    boolean existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
+    boolean existsByTenantIdAndReasonDetailsStartingWithAndMovementType(
             UUID tenantId,
-            UUID referenceId,
-            String referenceType,
+            String prefix,
             InventoryMovementType movementType
     );
 

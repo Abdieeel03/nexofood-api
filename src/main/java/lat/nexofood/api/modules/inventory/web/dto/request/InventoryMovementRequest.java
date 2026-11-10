@@ -1,5 +1,7 @@
 package lat.nexofood.api.modules.inventory.web.dto.request;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -22,14 +24,12 @@ public record InventoryMovementRequest(
         InventoryMovementReason reason,
 
         @NotNull(message = "La cantidad del movimiento es obligatoria")
+        @DecimalMin(value = "0.001", message = "La cantidad del movimiento debe ser mayor a cero")
+        @DecimalMax(value = "999999.999", message = "La cantidad del movimiento no puede superar 999,999.999")
         BigDecimal quantity,
 
         @NotBlank(message = "La justificación del movimiento (reasonDetails) es obligatoria")
-        String reasonDetails,
-
-        UUID referenceId,
-
-        @Size(max = 50, message = "El tipo de referencia no puede exceder los 50 caracteres")
-        String referenceType
+        @Size(max = 1000, message = "Los detalles del motivo no pueden superar los 1000 caracteres")
+        String reasonDetails
 ) {
 }
