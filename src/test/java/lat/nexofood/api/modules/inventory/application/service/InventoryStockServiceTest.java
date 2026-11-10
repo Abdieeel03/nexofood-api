@@ -72,7 +72,6 @@ class InventoryStockServiceTest {
         InventoryStockRequest request = InventoryStockRequest.builder()
                 .itemId(item.getId())
                 .minimumStock(new BigDecimal("5.000"))
-                .maximumStock(new BigDecimal("40.000"))
                 .location("Cámara Fría 1")
                 .build();
 
@@ -90,13 +89,12 @@ class InventoryStockServiceTest {
         assertEquals(new BigDecimal("0.000"), response.quantity());
         assertEquals(new BigDecimal("0.000"), response.reservedQuantity());
         assertEquals(new BigDecimal("5.000"), response.minimumStock());
-        assertEquals(new BigDecimal("40.000"), response.maximumStock());
         assertTrue(response.lowStock());
         assertEquals("Cámara Fría 1", response.location());
     }
 
     @Test
-    @DisplayName("create: rechaza duplicar registro de stock para el mismo insumo o si maximumStock < minimumStock")
+    @DisplayName("create: rechaza duplicar registro de stock para el mismo insumo o si minimumStock < 0")
     void createStockRejectsDuplicateOrInvalidThresholds() {
         InventoryStockRequest duplicateReq = InventoryStockRequest.builder()
                 .itemId(item.getId())
@@ -112,8 +110,7 @@ class InventoryStockServiceTest {
         when(inventoryStockRepository.existsByTenantIdAndItemId(tenantId, item.getId())).thenReturn(false);
         InventoryStockRequest badThresholdsReq = InventoryStockRequest.builder()
                 .itemId(item.getId())
-                .minimumStock(new BigDecimal("20.000"))
-                .maximumStock(new BigDecimal("10.000"))
+                .minimumStock(new BigDecimal("-1.000"))
                 .build();
 
         assertThrows(BadRequestException.class, () -> inventoryStockService.create(tenantId, badThresholdsReq));

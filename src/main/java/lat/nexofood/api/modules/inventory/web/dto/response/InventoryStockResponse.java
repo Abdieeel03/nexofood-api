@@ -19,7 +19,6 @@ public record InventoryStockResponse(
         BigDecimal reservedQuantity,
         BigDecimal availableQuantity,
         BigDecimal minimumStock,
-        BigDecimal maximumStock,
         Boolean lowStock,
         String location,
         Boolean isActive,

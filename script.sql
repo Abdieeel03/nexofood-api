@@ -692,7 +692,6 @@ CREATE TABLE inventory_stocks (
     reserved_quantity NUMERIC(12, 3) NOT NULL DEFAULT 0.000
         CONSTRAINT chk_inventory_stocks_reserved_non_negative CHECK (reserved_quantity >= 0),
     minimum_stock     NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
-    maximum_stock     NUMERIC(12, 3),
     location          VARCHAR(150),
     is_active         BOOLEAN        NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -734,8 +733,6 @@ CREATE TABLE inventory_movements (
     performed_by_id     UUID           NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     performed_by_name   VARCHAR(150),
     reason_details      TEXT           NOT NULL,
-    reference_id        UUID,
-    reference_type      VARCHAR(50),
     created_at          TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_inventory_movements_quantity_consistency
@@ -751,7 +748,6 @@ CREATE INDEX idx_inventory_movements_stock_id     ON inventory_movements(invento
 CREATE INDEX idx_inventory_movements_item_id      ON inventory_movements(inventory_item_id);
 CREATE INDEX idx_inventory_movements_performed_by ON inventory_movements(performed_by_id);
 CREATE INDEX idx_inventory_movements_created_at   ON inventory_movements(tenant_id, created_at DESC);
-CREATE INDEX idx_inventory_movements_reference    ON inventory_movements(reference_id, reference_type);
 
 CREATE TRIGGER trg_inventory_movements_updated_at
 BEFORE UPDATE ON inventory_movements

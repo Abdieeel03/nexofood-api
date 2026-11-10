@@ -250,8 +250,8 @@ class TenantAuthorizationControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/tenants/me retorna 200 con mensaje indicando que no tiene tienda cuando data es null")
-    void getMyTenantReturns200WithEmptyStoreMessageWhenUserHasNoTenant() throws Exception {
+    @DisplayName("GET /api/v1/tenants/me retorna 404 Not Found cuando el usuario no tiene ninguna tienda asociada")
+    void getMyTenantReturns404WhenUserHasNoTenant() throws Exception {
         UserDetails userDetails = User.builder()
                 .username("cliente@nexofood.lat")
                 .password("password")
@@ -264,10 +264,9 @@ class TenantAuthorizationControllerTest {
         when(tenantService.getMyTenant("cliente@nexofood.lat")).thenReturn(null);
 
         mockMvc.perform(get("/api/v1/tenants/me").principal(auth))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("No tienes ninguna tienda asociada"))
-                .andExpect(jsonPath("$.data").doesNotExist());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("No tienes ninguna tienda asociada"));
     }
 
     @Test

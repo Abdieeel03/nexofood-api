@@ -26,8 +26,6 @@ public record InventoryMovementResponse(
         UUID performedById,
         String performedByName,
         String reasonDetails,
-        UUID referenceId,
-        String referenceType,
         OffsetDateTime createdAt
 ) {
 }

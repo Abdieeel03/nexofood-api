@@ -13,8 +13,10 @@ public record CustomerAddressRequest(
         String title,
 
         @NotBlank(message = "La dirección es obligatoria")
+        @Size(max = 255, message = "La dirección no puede exceder 255 caracteres")
         String addressLine,
 
+        @Size(max = 500, message = "La referencia no puede exceder 500 caracteres")
         String reference,
 
         @NotNull(message = "La latitud es obligatoria")

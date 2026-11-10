@@ -7,6 +7,7 @@ import lombok.Builder;
 @Builder
 public record ChangePasswordRequest(
         @NotBlank(message = "La contraseña actual es obligatoria")
+        @Size(max = 100)
         String currentPassword,
 
         @NotBlank(message = "La nueva contraseña es obligatoria")

@@ -29,8 +29,6 @@ public class InventoryMovementMapper {
                 .performedById(movement.getPerformedBy() != null ? movement.getPerformedBy().getId() : null)
                 .performedByName(movement.getPerformedByName())
                 .reasonDetails(movement.getReasonDetails())
-                .referenceId(movement.getReferenceId())
-                .referenceType(movement.getReferenceType())
                 .createdAt(movement.getCreatedAt())
                 .build();
     }

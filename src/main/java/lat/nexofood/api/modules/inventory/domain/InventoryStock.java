@@ -73,9 +73,6 @@ public class InventoryStock extends BaseEntity {
     @Builder.Default
     private BigDecimal minimumStock = BigDecimal.ZERO;
 
-    @Column(name = "maximum_stock", precision = 12, scale = 3)
-    private BigDecimal maximumStock;
-
     @Column(name = "location", length = 150)
     private String location;
 

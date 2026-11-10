@@ -129,10 +129,6 @@ public class InventoryMovementServiceImpl implements InventoryMovementService {
                 .performedBy(operator)
                 .performedByName(operator != null ? operator.getFullName() : null)
                 .reasonDetails(request.reasonDetails().trim())
-                .referenceId(request.referenceId())
-                .referenceType(request.referenceType() != null && !request.referenceType().isBlank()
-                        ? request.referenceType().trim()
-                        : null)
                 .build();
 
         InventoryMovement savedMovement = inventoryMovementRepository.save(movement);

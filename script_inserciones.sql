@@ -153,10 +153,10 @@ INSERT INTO inventory_items (id, tenant_id, name, sku, category, unit, cost_pric
 ('50000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '[TEST] Carne Molida Angus', 'INS-CAR-01', 'Cárnicos', 'KG', 32.00, true);
 
 -- Stock (quantity >= 0 garantizado por CHECK)
-INSERT INTO inventory_stocks (id, tenant_id, inventory_item_id, quantity, reserved_quantity, minimum_stock, maximum_stock, location, is_active) VALUES
-('51000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000001', 50.000, 5.000, 10.000, 100.000, '[TEST] Almacén Secos - Estante A1', true),
-('51000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000002', 20.000, 2.000, 5.000,  40.000,  '[TEST] Cámara Fría 1', true),
-('51000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '50000000-0000-0000-0000-000000000003', 15.000, 0.000, 4.000,  30.000,  '[TEST] Congelador Carnes B', true);
+INSERT INTO inventory_stocks (id, tenant_id, inventory_item_id, quantity, reserved_quantity, minimum_stock, location, is_active) VALUES
+('51000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000001', 50.000, 5.000, 10.000, '[TEST] Almacén Secos - Estante A1', true),
+('51000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000002', 20.000, 2.000, 5.000,  '[TEST] Cámara Fría 1', true),
+('51000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '50000000-0000-0000-0000-000000000003', 15.000, 0.000, 4.000,  '[TEST] Congelador Carnes B', true);
 
 -- Movimientos de inventario (cumpliendo CHECK de consistencia aritmética: new_quantity = previous_quantity + quantity)
 INSERT INTO inventory_movements (id, tenant_id, inventory_stock_id, inventory_item_id, movement_type, reason, quantity, previous_quantity, new_quantity, performed_by_id, performed_by_name, reason_details) VALUES

@@ -90,7 +90,26 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest req
     ) {
+        if (ex.getCause() instanceof com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException upe) {
+            String propName = upe.getPropertyName();
+            return buildErrorResponse(
+                    HttpStatus.BAD_REQUEST,
+                    String.format("El campo '%s' no es válido o no está permitido en esta solicitud", propName),
+                    req
+            );
+        }
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Cuerpo de la petición inválido o mal formado", req);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolationException(
+            jakarta.validation.ConstraintViolationException ex,
+            HttpServletRequest req
+    ) {
+        String details = ex.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .collect(Collectors.joining(", "));
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Parámetros inválidos: " + details, req);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

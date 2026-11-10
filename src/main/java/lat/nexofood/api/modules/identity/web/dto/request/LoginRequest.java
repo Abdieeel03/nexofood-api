@@ -13,5 +13,6 @@ public record LoginRequest(
         String email,
 
         @NotBlank(message = "La contraseña es obligatoria")
+        @Size(max = 100)
         String password
 ) {}

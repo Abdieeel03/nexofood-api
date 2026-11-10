@@ -118,8 +118,8 @@ class ProductIngredientServiceTest {
                 .items(List.of(orderItem))
                 .build();
 
-        when(inventoryMovementRepository.existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
-                tenantId, order.getId(), "ORDER", InventoryMovementType.EXIT
+        when(inventoryMovementRepository.existsByTenantIdAndReasonDetailsStartingWithAndMovementType(
+                tenantId, "Descuento automático por orden ORD-000001", InventoryMovementType.EXIT
         )).thenReturn(false);
         when(productIngredientRepository.findAllByTenantIdAndProductId(tenantId, pizzaProduct.getId()))
                 .thenReturn(List.of(recipeItem));
@@ -136,11 +136,10 @@ class ProductIngredientServiceTest {
         assertEquals(InventoryMovementType.EXIT, capturedExit.movementType());
         assertEquals(InventoryMovementReason.SALE, capturedExit.reason());
         assertEquals(new BigDecimal("0.500"), capturedExit.quantity()); // 0.250 * 2 pizzas
-        assertEquals(order.getId(), capturedExit.referenceId());
 
         // Ahora probamos el reverso al cancelar la orden
-        when(inventoryMovementRepository.existsByTenantIdAndReferenceIdAndReferenceTypeAndMovementType(
-                tenantId, order.getId(), "ORDER", InventoryMovementType.ENTRY
+        when(inventoryMovementRepository.existsByTenantIdAndReasonDetailsStartingWithAndMovementType(
+                tenantId, "Reverso automático por cancelación de orden ORD-000001", InventoryMovementType.ENTRY
         )).thenReturn(false);
 
         productIngredientService.restoreStockForCanceledOrder(order);

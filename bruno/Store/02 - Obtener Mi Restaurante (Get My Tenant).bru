@@ -27,17 +27,18 @@ script:post-response {
 }
 
 tests {
-  test("Código de estado es 200 OK", function() {
-    expect(res.getStatus()).to.equal(200);
+  test("Código de estado es 200 OK o 404 Not Found", function() {
+    expect([200, 404]).to.include(res.getStatus());
   });
 
-  test("Retorna datos del restaurante o mensaje de sin tiendas", function() {
+  test("Retorna datos del restaurante o 404 cuando no tiene tienda", function() {
     const body = res.getBody();
-    expect(body.success).to.be.true;
-    if (body.data) {
+    if (res.getStatus() === 200) {
+      expect(body.success).to.be.true;
       expect(body.data.id).to.be.a('string');
       expect(body.data.name).to.be.a('string');
     } else {
+      expect(res.getStatus()).to.equal(404);
       expect(body.message).to.equal("No tienes ninguna tienda asociada");
     }
   });

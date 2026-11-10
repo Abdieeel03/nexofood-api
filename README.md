@@ -24,6 +24,11 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
   - Validación de radio de cobertura (`deliveryRadiusKm`) y estimación pública de tarifa/ETA previa al checkout (`/api/v1/store/{slug}/delivery-estimate`).
   - Cálculo automático de ETA al asignar repartidor y recálculo dinámico en vivo con cada ping GPS del motorizado.
   - Endpoints optimizados para polling REST (cada 15 s) con *throttling*, detección de saltos GPS anómalos, historial de ruta y limpieza programada.
+- **Pagos 100% Mercado Pago y Conciliación Automática:**
+  - **Orders API v1 + Checkout Pro:** Cobro en línea con tarjetas, Yape y PagoEfectivo; creación diferida de pedidos tras confirmación por webhook.
+  - **OAuth 2.0 Multi-Tenant:** Vinculación directa de la cuenta del restaurante con credenciales cifradas con AES-256-GCM; 100% de los ingresos van al restaurante.
+  - **Suscripciones Recurrentes Preaprobadas (`/preapproval`):** Cobro automatizado de planes SaaS con cancelación efectiva al término del ciclo de facturación.
+  - **Seguridad en Webhooks:** Validación criptográfica de firmas HMAC-SHA256 (`x-signature`) y reembolsos automáticos para cancelaciones en estado `PENDIENTE`.
 
 ---
 
@@ -33,7 +38,7 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
 - **Base de Datos y Geoespacial:** PostgreSQL 16 + PostGIS · Hibernate Spatial · JTS Core 1.20.0 (`SRID 4326`)
 - **Seguridad y Calidad:** JJWT 0.12.7 · BCrypt · Bucket4j 8.14.0 · OWASP Dependency-Check 12.1.0
 - **Productividad y Pruebas:** Project Lombok · JUnit 5 · Mockito · MockMvc
-- **Documentación y Testing API:** Springdoc OpenAPI 2.8.5 (Swagger UI) · Colección Bruno (`110` requests)
+- **Documentación y Testing API:** Springdoc OpenAPI 2.8.5 (Swagger UI) · Colección Bruno (`123` requests)
 
 ---
 
@@ -41,7 +46,7 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
 
 ```text
 nexofood-api/
-├── bruno/                           # Colección Bruno (110 requests en 8 módulos + entornos)
+├── bruno/                           # Colección Bruno (123 requests en 9 módulos + entornos)
 ├── docs/                            # Documentación técnica, API, guía de estilo y roadmap
 ├── script.sql                       # Esquema SQL completo (PostgreSQL + PostGIS + triggers + RLS)
 ├── script_inserciones.sql           # Datos de prueba multi-tenant
@@ -51,14 +56,14 @@ nexofood-api/
     ├── security/                    # JWT filter/service, SecurityConfig, CORS y rate limiting
     └── modules/
         ├── identity/                # Usuarios, autenticación, direcciones GPS y admin global
-        ├── subscription/            # Planes SaaS, suscripciones y expiración automática
+        ├── subscription/            # Planes SaaS, suscripciones preaprobadas y expiración automática
         ├── store/                   # Tenants (restaurantes), staff, clientes y storefront público
         ├── catalog/                 # Impuestos, categorías, productos y reglas de precios
         ├── inventory/               # Insumos, stocks, Kardex/movimientos y recetas
         ├── cart/                    # Carrito de compras por tienda
         ├── order/                   # Órdenes, checkout, KDS y máquina de estados
         ├── tracking/                # Rastreo GPS del repartidor, ETA configurable y PostGIS/RLS
-        └── payment/                 # Modelos, repositorio y DTOs base de pagos (Fase 7 en progreso)
+        └── payment/                 # Pasarela Mercado Pago Orders API, Checkout Pro, OAuth y webhooks
 ```
 
 ---
@@ -153,7 +158,7 @@ Una vez iniciada la aplicación en `http://localhost:8080`:
 - **Arquitectura del sistema:** [`docs/architecture.md`](docs/architecture.md)
 - **Roadmap de implementación:** [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - **Guía de pruebas en PostgreSQL / pgAdmin:** [`GUIA_PRUEBAS_BD.md`](GUIA_PRUEBAS_BD.md)
-- **Colección Bruno:** [`bruno/README.md`](bruno/README.md) con **110 requests** listos para ejecutar (`Identity`, `Subscription`, `Store`, `Catalog`, `Inventory`, `Cart`, `Order` y `Tracking`) y entornos `Local` / `Production`.
+- **Colección Bruno:** [`bruno/README.md`](bruno/README.md) con **123 requests** listos para ejecutar (`Identity`, `Subscription`, `Store`, `Catalog`, `Inventory`, `Cart`, `Order`, `Payment` y `Tracking`) y entornos `Local` / `Production`.
 
 ---
 
