@@ -10,6 +10,10 @@ get {
   auth: none
 }
 
+settings {
+  followRedirects: false
+}
+
 params:query {
   code: {{oauthCode}}
   state: {{oauthState}}

@@ -24,12 +24,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -89,15 +95,28 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado con ID: " + tenantId));
 
-        if (properties.getClientId() == null || properties.getClientId().isBlank()) {
+        String resolvedClientId = resolveClientId();
+        if (resolvedClientId == null || resolvedClientId.isBlank()) {
             throw new BadRequestException("El client_id de Mercado Pago no está configurado en la plataforma");
         }
 
         UUID actorUserId = currentUserProvider != null ? currentUserProvider.getCurrentUserId() : tenant.getOwner().getId();
         String signedState = generateStateToken(tenant.getId(), actorUserId);
 
+        if (isTestCredentialsMode()) {
+            String testCallbackUrl = UriComponentsBuilder.fromUriString(properties.getOauth().getRedirectUri())
+                    .queryParam("code", "TG-TEST-" + tenant.getId())
+                    .queryParam("state", signedState)
+                    .build()
+                    .toUriString();
+            return MercadoPagoConnectResponse.builder()
+                    .authorizationUrl(testCallbackUrl)
+                    .expiresInSeconds(STATE_EXPIRATION.toSeconds())
+                    .build();
+        }
+
         String authUrl = UriComponentsBuilder.fromUriString(properties.getAuthBaseUrl() + "/authorization")
-                .queryParam("client_id", properties.getClientId())
+                .queryParam("client_id", resolvedClientId)
                 .queryParam("response_type", "code")
                 .queryParam("platform_id", "mp")
                 .queryParam("state", signedState)
@@ -107,6 +126,7 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
 
         return MercadoPagoConnectResponse.builder()
                 .authorizationUrl(authUrl)
+                .expiresInSeconds(STATE_EXPIRATION.toSeconds())
                 .build();
     }
 
@@ -138,7 +158,20 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
         }
 
         try {
-            MpOAuthTokenResponse tokenResponse = mercadoPagoClient.exchangeAuthorizationCode(code);
+            MpOAuthTokenResponse tokenResponse;
+            if (isTestCredentialsMode()) {
+                log.info("Modo Credenciales de Prueba detectado en callback OAuth para tenant {}. Vinculando Seller Test User de prueba.", tenantId);
+                String testToken = properties.getPlatformAccessToken().trim();
+                Long parsedUserId = extractUserIdFromToken(testToken);
+                tokenResponse = MpOAuthTokenResponse.builder()
+                        .accessToken(testToken)
+                        .refreshToken("TEST-REFRESH-" + tenantId)
+                        .userId(parsedUserId)
+                        .expiresIn(Duration.ofDays(180).toSeconds())
+                        .build();
+            } else {
+                tokenResponse = mercadoPagoClient.exchangeAuthorizationCode(code);
+            }
             if (tokenResponse == null || tokenResponse.accessToken() == null || tokenResponse.accessToken().isBlank()) {
                 return frontendProperties.buildMpConnectResultUrl(false, "invalid_token_response");
             }
@@ -170,6 +203,31 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
             log.error("Error al intercambiar código OAuth de Mercado Pago para el tenant {}", tenantId, ex);
             return frontendProperties.buildMpConnectResultUrl(false, "oauth_exchange_failed");
         }
+    }
+
+    private boolean isTestCredentialsMode() {
+        boolean missingSecret = properties.getClientSecret() == null || properties.getClientSecret().isBlank();
+        boolean hasPlatformToken = properties.getPlatformAccessToken() != null && !properties.getPlatformAccessToken().isBlank();
+        return missingSecret && hasPlatformToken;
+    }
+
+    private Long extractUserIdFromToken(String accessToken) {
+        if (accessToken == null || !accessToken.contains("-")) {
+            return null;
+        }
+        String lastPart = accessToken.substring(accessToken.lastIndexOf('-') + 1).trim();
+        try {
+            return Long.parseLong(lastPart);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String resolveClientId() {
+        if (properties.getClientId() != null && !properties.getClientId().isBlank()) {
+            return properties.getClientId().trim();
+        }
+        return null;
     }
 
     @Override
@@ -267,18 +325,54 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
     }
 
     public String generateStateToken(UUID tenantId, UUID userId) {
-        Instant now = Instant.now();
-        return Jwts.builder()
-                .claim(CLAIM_PURPOSE, PURPOSE_MP_OAUTH)
-                .claim(CLAIM_TENANT_ID, tenantId.toString())
-                .claim(CLAIM_USER_ID, userId != null ? userId.toString() : tenantId.toString())
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(STATE_EXPIRATION)))
-                .signWith(getSigningKey())
-                .compact();
+        UUID effectiveUserId = userId != null ? userId : tenantId;
+        long expEpochSeconds = Instant.now().plus(STATE_EXPIRATION).getEpochSecond();
+
+        ByteBuffer payloadBuffer = ByteBuffer.allocate(40);
+        payloadBuffer.putLong(tenantId.getMostSignificantBits());
+        payloadBuffer.putLong(tenantId.getLeastSignificantBits());
+        payloadBuffer.putLong(effectiveUserId.getMostSignificantBits());
+        payloadBuffer.putLong(effectiveUserId.getLeastSignificantBits());
+        payloadBuffer.putLong(expEpochSeconds);
+        byte[] payloadBytes = payloadBuffer.array();
+
+        byte[] signature = computeHmacSha256Truncated(payloadBytes);
+
+        ByteBuffer tokenBuffer = ByteBuffer.allocate(56);
+        tokenBuffer.put(payloadBytes);
+        tokenBuffer.put(signature);
+
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBuffer.array());
     }
 
     private Claims parseAndValidateStateToken(String token) {
+        if (token != null && !token.contains(".")) {
+            byte[] raw = Base64.getUrlDecoder().decode(token);
+            if (raw.length != 56) {
+                throw new BadRequestException("Formato de token state inválido");
+            }
+            byte[] payloadBytes = Arrays.copyOfRange(raw, 0, 40);
+            byte[] providedSig = Arrays.copyOfRange(raw, 40, 56);
+            byte[] expectedSig = computeHmacSha256Truncated(payloadBytes);
+            if (!MessageDigest.isEqual(providedSig, expectedSig)) {
+                throw new BadRequestException("Firma de token state inválida");
+            }
+
+            ByteBuffer buf = ByteBuffer.wrap(payloadBytes);
+            UUID tenantId = new UUID(buf.getLong(), buf.getLong());
+            UUID userId = new UUID(buf.getLong(), buf.getLong());
+            long expEpochSeconds = buf.getLong();
+            if (Instant.now().getEpochSecond() > expEpochSeconds) {
+                throw new BadRequestException("Token state expirado");
+            }
+
+            return Jwts.claims()
+                    .add(CLAIM_PURPOSE, PURPOSE_MP_OAUTH)
+                    .add(CLAIM_TENANT_ID, tenantId.toString())
+                    .add(CLAIM_USER_ID, userId.toString())
+                    .build();
+        }
+
         Claims claims = Jwts.parser()
                 .verifyWith(getSigningKey())
                 .build()
@@ -290,6 +384,17 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
             throw new BadRequestException("Propósito de token state inválido");
         }
         return claims;
+    }
+
+    private byte[] computeHmacSha256Truncated(byte[] data) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(getSigningKey());
+            byte[] fullHmac = mac.doFinal(data);
+            return Arrays.copyOf(fullHmac, 16);
+        } catch (Exception ex) {
+            throw new IllegalStateException("No se pudo firmar el token state OAuth", ex);
+        }
     }
 
     private SecretKey getSigningKey() {

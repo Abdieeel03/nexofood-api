@@ -174,10 +174,18 @@ class PaymentAuthorizationControllerTest {
                 .thenReturn("http://localhost:5173/dashboard/settings/payments?mp=connected");
 
         mockMvc.perform(get("/api/v1/mercadopago/oauth/callback")
+                        .header("Accept", "text/html")
                         .queryParam("code", "code-1")
                         .queryParam("state", "state-1"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "http://localhost:5173/dashboard/settings/payments?mp=connected"));
+
+        mockMvc.perform(get("/api/v1/mercadopago/oauth/callback")
+                        .header("Accept", "application/json")
+                        .queryParam("code", "code-1")
+                        .queryParam("state", "state-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.connected").value(true));
 
         UUID paymentId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();

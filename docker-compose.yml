@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: nexofood-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: nexofood_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - nexofood_postgres_data:/var/lib/postgresql/data
+      - ./script.sql:/docker-entrypoint-initdb.d/01-script.sql:ro
+      - ./seed_un_usuario_pagos.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+
+volumes:
+  nexofood_postgres_data:

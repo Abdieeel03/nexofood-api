@@ -22,14 +22,18 @@ public record MpOrderRequest(
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MpPayer(
-            @JsonProperty("email") String email
+            @JsonProperty("email") String email,
+            @JsonProperty("first_name") String firstName,
+            @JsonProperty("last_name") String lastName
     ) {}
 
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MpItem(
+            @JsonProperty("external_code") String externalCode,
             @JsonProperty("title") String title,
             @JsonProperty("description") String description,
+            @JsonProperty("category_id") String categoryId,
             @JsonProperty("unit_price") String unitPrice,
             @JsonProperty("quantity") Integer quantity
     ) {}
@@ -37,21 +41,16 @@ public record MpOrderRequest(
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MpConfig(
+            @JsonProperty("statement_descriptor") String statementDescriptor,
             @JsonProperty("online") MpOnlineConfig online
     ) {}
 
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MpOnlineConfig(
-            @JsonProperty("back_urls") MpBackUrls backUrls,
+            @JsonProperty("success_url") String successUrl,
+            @JsonProperty("pending_url") String pendingUrl,
+            @JsonProperty("failure_url") String failureUrl,
             @JsonProperty("auto_return") String autoReturn
-    ) {}
-
-    @Builder
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record MpBackUrls(
-            @JsonProperty("success") String success,
-            @JsonProperty("pending") String pending,
-            @JsonProperty("failure") String failure
     ) {}
 }

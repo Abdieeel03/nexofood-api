@@ -29,6 +29,8 @@ public class MercadoPagoProperties {
 
     private String platformAccessToken;
 
+    private String testPayerEmail;
+
     private String webhookSecret;
 
     @Builder.Default

@@ -22,7 +22,6 @@ import lat.nexofood.api.modules.payment.infrastructure.mercadopago.FrontendPrope
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.MercadoPagoClient;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.MercadoPagoProperties;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.dto.MpOrderRequest;
-import lat.nexofood.api.modules.payment.infrastructure.mercadopago.dto.MpOrderRequest.MpBackUrls;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.dto.MpOrderRequest.MpConfig;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.dto.MpOrderRequest.MpItem;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.dto.MpOrderRequest.MpOnlineConfig;
@@ -136,13 +135,16 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
 
         Payment savedPayment = paymentRepository.save(payment);
 
-        String customerEmail = customer.getUser() != null && customer.getUser().getEmail() != null
+        String customerEmail = (properties.getTestPayerEmail() != null && !properties.getTestPayerEmail().isBlank())
+                ? properties.getTestPayerEmail().trim()
+                : (customer.getUser() != null && customer.getUser().getEmail() != null
                 ? customer.getUser().getEmail()
-                : "cliente@nexofood.lat";
+                : "cliente@nexofood.lat");
 
         MpOrderRequest mpOrderRequest = buildMpOrderRequest(
                 savedPayment.getId(),
-                tenant.getSlug(),
+                tenant,
+                customer,
                 customerEmail,
                 draft
         );
@@ -335,19 +337,27 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
 
     private MpOrderRequest buildMpOrderRequest(
             UUID paymentId,
-            String slug,
+            Tenant tenant,
+            TenantCustomer customer,
             String customerEmail,
             OrderDraft draft
     ) {
+        String slug = tenant.getSlug();
         List<MpItem> mpItems = new ArrayList<>();
         if (draft.items() != null) {
             for (OrderDraftItem item : draft.items()) {
                 BigDecimal lineTotal = item.lineTotalWithTax().setScale(2, RoundingMode.HALF_UP);
                 String title = item.quantity() + "x " + item.productName();
+                String description = (item.notes() != null && !item.notes().isBlank())
+                        ? item.notes()
+                        : item.productName();
+                String externalCode = formatExternalCode(item.productId());
                 mpItems.add(
                         MpItem.builder()
+                                .externalCode(externalCode)
                                 .title(title)
-                                .description(item.notes())
+                                .description(description)
+                                .categoryId("food")
                                 .unitPrice(lineTotal.toPlainString())
                                 .quantity(1)
                                 .build()
@@ -358,7 +368,10 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         if (draft.deliveryFee() != null && draft.deliveryFee().compareTo(BigDecimal.ZERO) > 0) {
             mpItems.add(
                     MpItem.builder()
+                            .externalCode("DELIVERY_FEE")
                             .title("Costo de envío")
+                            .description("Servicio de entrega a domicilio")
+                            .categoryId("services")
                             .unitPrice(draft.deliveryFee().setScale(2, RoundingMode.HALF_UP).toPlainString())
                             .quantity(1)
                             .build()
@@ -366,11 +379,7 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         }
 
         String paymentIdStr = paymentId.toString();
-        MpBackUrls backUrls = MpBackUrls.builder()
-                .success(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "success"))
-                .pending(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "pending"))
-                .failure(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "failure"))
-                .build();
+        String[] names = splitCustomerName(customer);
 
         return MpOrderRequest.builder()
                 .type("online")
@@ -378,15 +387,58 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
                 .totalAmount(draft.total().setScale(2, RoundingMode.HALF_UP).toPlainString())
                 .externalReference(paymentIdStr)
                 .expirationTime(properties.getOrderExpiration() != null ? properties.getOrderExpiration() : "PT30M")
-                .payer(MpPayer.builder().email(customerEmail).build())
+                .payer(MpPayer.builder()
+                        .email(customerEmail)
+                        .firstName(names[0])
+                        .lastName(names[1])
+                        .build())
                 .items(mpItems)
                 .config(MpConfig.builder()
+                        .statementDescriptor(buildStatementDescriptor(tenant.getName()))
                         .online(MpOnlineConfig.builder()
-                                .backUrls(backUrls)
+                                .successUrl(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "success"))
+                                .pendingUrl(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "pending"))
+                                .failureUrl(frontendProperties.buildOrderResultUrl(slug, paymentIdStr, "failure"))
                                 .autoReturn("approved")
                                 .build())
                         .build())
                 .build();
+    }
+
+    private String formatExternalCode(UUID productId) {
+        if (productId == null) {
+            return "ITEM";
+        }
+        String raw = productId.toString().replace("-", "");
+        return raw.length() > 30 ? raw.substring(0, 30) : raw;
+    }
+
+    private String[] splitCustomerName(TenantCustomer customer) {
+        if (customer != null && customer.getUser() != null
+                && customer.getUser().getFullName() != null
+                && !customer.getUser().getFullName().isBlank()) {
+            String[] parts = customer.getUser().getFullName().trim().split("\\s+", 2);
+            String first = parts[0];
+            String last = parts.length > 1 ? parts[1] : "Cliente";
+            return new String[]{first, last};
+        }
+        return new String[]{"Cliente", "NexoFood"};
+    }
+
+    private String buildStatementDescriptor(String tenantName) {
+        if (tenantName == null || tenantName.isBlank()) {
+            return "NEXOFOOD";
+        }
+        String normalized = java.text.Normalizer.normalize(tenantName, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replaceAll("[^A-Za-z0-9 ]", "")
+                .trim()
+                .replaceAll("\\s+", " ")
+                .toUpperCase();
+        if (normalized.isBlank()) {
+            return "NEXOFOOD";
+        }
+        return normalized.length() > 13 ? normalized.substring(0, 13).trim() : normalized;
     }
 
     private void cancelPreviousPendingAttempts(Tenant tenant, UUID customerUserId, String accessToken) {

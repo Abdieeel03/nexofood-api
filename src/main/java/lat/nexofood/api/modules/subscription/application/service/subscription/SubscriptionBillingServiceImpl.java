@@ -105,10 +105,14 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
                 ? properties.getCurrency()
                 : "PEN";
 
+        String payerEmail = (properties.getTestPayerEmail() != null && !properties.getTestPayerEmail().isBlank())
+                ? properties.getTestPayerEmail().trim()
+                : user.getEmail();
+
         MpPreapprovalRequest mpRequest = MpPreapprovalRequest.builder()
                 .reason("NexoFood - " + plan.getName())
                 .externalReference(subscription.getId().toString())
-                .payerEmail(user.getEmail())
+                .payerEmail(payerEmail)
                 .backUrl(frontendProperties.buildSubscriptionResultUrl(subscription.getId().toString()))
                 .status("pending")
                 .autoRecurring(MpAutoRecurring.builder()
@@ -145,7 +149,16 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
             return;
         }
 
-        MpPreapprovalResponse mpPreapproval = mercadoPagoClient.getPreapproval(preapprovalId);
+        MpPreapprovalResponse mpPreapproval;
+        try {
+            mpPreapproval = mercadoPagoClient.getPreapproval(preapprovalId);
+        } catch (PaymentGatewayException ex) {
+            if (ex.getGatewayStatus() == 404) {
+                log.info("Notificación de preapproval ignorada (ID {} no existe en Mercado Pago, ej. simulación de panel)", preapprovalId);
+                return;
+            }
+            throw ex;
+        }
         if (mpPreapproval == null) {
             return;
         }
@@ -213,7 +226,16 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
             return;
         }
 
-        MpAuthorizedPaymentResponse mpAuthPayment = mercadoPagoClient.getAuthorizedPayment(authorizedPaymentId);
+        MpAuthorizedPaymentResponse mpAuthPayment;
+        try {
+            mpAuthPayment = mercadoPagoClient.getAuthorizedPayment(authorizedPaymentId);
+        } catch (PaymentGatewayException ex) {
+            if (ex.getGatewayStatus() == 404) {
+                log.info("Notificación de cobro recurrente ignorada (ID {} no existe en Mercado Pago, ej. simulación de panel)", authorizedPaymentId);
+                return;
+            }
+            throw ex;
+        }
         if (mpAuthPayment == null) {
             return;
         }

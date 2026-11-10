@@ -307,8 +307,13 @@ public class RestClientMercadoPagoClient implements MercadoPagoClient {
             }
             if (root.has("errors") && root.get("errors").isArray() && !root.get("errors").isEmpty()) {
                 JsonNode firstError = root.get("errors").get(0);
-                if (firstError.hasNonNull("message")) {
-                    return firstError.get("message").asText();
+                String baseMessage = firstError.hasNonNull("message") ? firstError.get("message").asText() : null;
+                if (firstError.has("details") && firstError.get("details").isArray() && !firstError.get("details").isEmpty()) {
+                    String detail = firstError.get("details").get(0).asText();
+                    return baseMessage != null ? baseMessage + " (" + detail + ")" : detail;
+                }
+                if (baseMessage != null) {
+                    return baseMessage;
                 }
             }
         } catch (Exception ignored) {

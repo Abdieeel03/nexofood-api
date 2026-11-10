@@ -4,5 +4,6 @@ import lombok.Builder;
 
 @Builder
 public record MercadoPagoConnectResponse(
-        String authorizationUrl
+        String authorizationUrl,
+        Long expiresInSeconds
 ) {}
