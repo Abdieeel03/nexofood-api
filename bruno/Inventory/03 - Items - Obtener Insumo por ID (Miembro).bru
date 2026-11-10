@@ -1,0 +1,28 @@
+meta {
+  name: 03 - Items - Obtener Insumo por ID (Miembro)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el detalle del insumo", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.equal(bru.getEnvVar("inventoryItemId"));
+  });
+}
+

@@ -1,0 +1,36 @@
+meta {
+  name: 11 - Stocks - Obtener Stock por ID de Insumo (Miembro)
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/stocks/item/{{inventoryItemId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("stockId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el stock asociado al insumo", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data.id).to.be.a('string');
+  });
+}
+

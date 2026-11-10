@@ -1,0 +1,33 @@
+meta {
+  name: 13 - Stocks - Consultar Kardex del Stock (Miembro)
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/stocks/{{stockId}}/kardex?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna historial paginado de movimientos (Kardex)", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.content).to.be.an('array');
+  });
+}
+

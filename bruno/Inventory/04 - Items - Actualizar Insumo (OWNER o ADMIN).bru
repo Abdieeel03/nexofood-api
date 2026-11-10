@@ -1,0 +1,44 @@
+meta {
+  name: 04 - Items - Actualizar Insumo (OWNER o ADMIN)
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Carne Molida Angus",
+    "sku": "INS-CARNE-001",
+    "description": "Corte Angus 80/20 certificado",
+    "category": "Carnes",
+    "unit": "KG",
+    "costPrice": 32.00,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza los datos del insumo", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Carne Molida Angus");
+  });
+}
+

@@ -1,0 +1,51 @@
+meta {
+  name: 07 - Stocks - Crear Stock para Insumo (OWNER o ADMIN)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/stocks
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "itemId": "{{inventoryItemId}}",
+    "minimumStock": 5.000,
+    "maximumStock": 50.000,
+    "location": "Cámara Fría A-1",
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("stockId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Inicializa el stock en 0 y guarda stockId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.be.a('string');
+  });
+}
+

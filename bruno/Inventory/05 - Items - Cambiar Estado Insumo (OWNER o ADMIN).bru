@@ -1,0 +1,37 @@
+meta {
+  name: 05 - Items - Cambiar Estado Insumo (OWNER o ADMIN)
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza el estado activo del insumo", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data.isActive).to.be.true;
+  });
+}
+

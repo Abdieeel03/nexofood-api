@@ -1,0 +1,54 @@
+meta {
+  name: 01 - Items - Crear Insumo (OWNER o ADMIN)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Carne Molida Premium",
+    "sku": "INS-CARNE-001",
+    "description": "Carne de res 80/20 para hamburguesas artesanales",
+    "category": "Carnes",
+    "unit": "KG",
+    "costPrice": 28.50,
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("inventoryItemId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Crea el insumo y guarda inventoryItemId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.be.a('string');
+    expect(data.sku).to.equal("INS-CARNE-001");
+  });
+}
+

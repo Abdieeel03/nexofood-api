@@ -1,0 +1,26 @@
+meta {
+  name: 22 - Taxes - Eliminar Impuesto (OWNER o ADMIN)
+  type: http
+  seq: 22
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes/{{taxId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Elimina o deshabilita el impuesto exitosamente", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}
+
