@@ -93,7 +93,29 @@ bruno/
 │   ├── 18 - Prices - Listar Reglas de Precio del Producto (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices (200 OK)
 │   ├── 19 - Prices - Actualizar Regla de Precio (OWNER o ADMIN).bru # PUT /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}} (200 OK)
 │   ├── 20 - Prices - Eliminar Regla de Precio Promocional (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}} (200 OK)
-│   └── 21 - Products - Deshabilitar Producto Soft Delete (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}} (200 OK)
+│   ├── 21 - Products - Deshabilitar Producto Soft Delete (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}} (200 OK)
+│   ├── 22 - Taxes - Eliminar Impuesto (OWNER o ADMIN).bru    # DELETE /api/v1/tenants/{{tenantId}}/taxes/{{taxId}} (200 OK)
+│   ├── 23 - Categories - Eliminar Categoria (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/categories/{{categoryId}} (200 OK)
+│   └── 24 - Prices - Obtener Regla de Precio por ID (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}} (200 OK)
+├── Inventory/
+│   ├── 01 - Items - Crear Insumo (OWNER o ADMIN).bru         # POST   /api/v1/tenants/{{tenantId}}/inventory/items (201 Created)
+│   ├── 02 - Items - Listar Insumos Paginados (Miembro).bru   # GET    /api/v1/tenants/{{tenantId}}/inventory/items (200 OK)
+│   ├── 03 - Items - Obtener Insumo por ID (Miembro).bru      # GET    /api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}} (200 OK)
+│   ├── 04 - Items - Actualizar Insumo (OWNER o ADMIN).bru    # PUT    /api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}} (200 OK)
+│   ├── 05 - Items - Cambiar Estado Insumo (OWNER o ADMIN).bru # PATCH /api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}}/status (200 OK)
+│   ├── 06 - Items - Eliminar Insumo (OWNER o ADMIN).bru      # DELETE /api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}} (200 OK)
+│   ├── 07 - Stocks - Crear Stock para Insumo (OWNER o ADMIN).bru # POST /api/v1/tenants/{{tenantId}}/inventory/stocks (201 Created)
+│   ├── 08 - Stocks - Listar Existencias Paginadas (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/inventory/stocks (200 OK)
+│   ├── 09 - Stocks - Listar Alertas de Stock Bajo (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/inventory/stocks/low-stock (200 OK)
+│   ├── 10 - Stocks - Obtener Stock por ID (Miembro).bru      # GET    /api/v1/tenants/{{tenantId}}/inventory/stocks/{{stockId}} (200 OK)
+│   ├── 11 - Stocks - Obtener Stock por ID de Insumo (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/inventory/stocks/item/{{inventoryItemId}} (200 OK)
+│   ├── 12 - Stocks - Actualizar Umbrales de Stock (OWNER o ADMIN).bru # PUT /api/v1/tenants/{{tenantId}}/inventory/stocks/{{stockId}} (200 OK)
+│   ├── 13 - Stocks - Consultar Kardex del Stock (Miembro).bru # GET   /api/v1/tenants/{{tenantId}}/inventory/stocks/{{stockId}}/kardex (200 OK)
+│   ├── 14 - Movements - Registrar Movimiento Entrada o Salida (OWNER, ADMIN o COCINERO).bru # POST /api/v1/tenants/{{tenantId}}/inventory/movements (201 Created)
+│   ├── 15 - Movements - Listar Movimientos de Inventario (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/inventory/movements (200 OK)
+│   ├── 16 - Recipes - Listar Ingredientes del Producto (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients (200 OK)
+│   ├── 17 - Recipes - Agregar o Actualizar Ingrediente en Receta (OWNER o ADMIN).bru # POST /api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients (201 Created)
+│   └── 18 - Recipes - Eliminar Ingrediente de Receta (OWNER o ADMIN).bru # DELETE /api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients/{{ingredientId}} (200 OK)
 ├── Cart/
 │   ├── 01 - Obtener Mi Carrito en Tienda.bru                   # GET    /api/v1/store/{{tenantSlug}}/cart (200 OK)
 │   ├── 02 - Agregar Producto al Carrito.bru                    # POST   /api/v1/store/{{tenantSlug}}/cart/items (200 OK)
@@ -111,6 +133,12 @@ bruno/
     ├── 07 - Backoffice - Obtener Detalle de Pedido.bru         # GET    /api/v1/tenants/{{tenantId}}/orders/{{orderId}} (200 OK - Staff)
     ├── 08 - Backoffice - Cambiar Estado del Pedido.bru         # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/status (200 OK - Staff)
     └── 09 - Backoffice - Asignar Repartidor al Pedido.bru      # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/assign (200 OK - OWNER, ADMIN, CASHIER)
+└── Tracking/
+    ├── 01 - Publico - Estimar Cobertura, Tarifa y Tiempo de Entrega (ETA).bru # GET /api/v1/store/{{tenantSlug}}/delivery-estimate (200 OK - público)
+    ├── 02 - Repartidor - Enviar Ping de Ubicacion GPS (EN_CAMINO).bru       # PUT /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/tracking/location (200 OK)
+    ├── 03 - Storefront Cliente - Consultar Seguimiento de Mi Pedido (Polling cada 15s).bru # GET /api/v1/store/{{tenantSlug}}/orders/{{orderId}}/tracking (200 OK)
+    ├── 04 - Backoffice - Obtener Tracking y Recorrido de Orden (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/tracking (200 OK)
+    └── 05 - Backoffice - Mapa de Repartidores Activos en Ruta (OWNER o ADMIN).bru # GET /api/v1/tenants/{{tenantId}}/tracking/active (200 OK)
 ```
 
 ---
@@ -125,4 +153,5 @@ bruno/
 * **Catálogo e Impuestos (`Catalog/01..18` y `Store/20..21`):** guardan automáticamente `taxId`, `categoryId`, `productId` y `priceId` en el entorno activo tanto al crear como al listar recursos.
 * **Carrito de Compras (`Cart/01..02`):** guardan automáticamente `cartId` y `cartItemId` al consultar el carrito o agregar un producto.
 * **Pedidos y Cocina (`Order/01..04`):** guardan automáticamente `orderId` al ejecutar el checkout o al listar pedidos.
+* **Inventario y Recetas (`Inventory/01..17`):** guardan automáticamente `inventoryItemId`, `stockId` e `ingredientId` en el entorno activo.
 * Cada petición incluye aserciones automáticas en la pestaña **Tests**.
