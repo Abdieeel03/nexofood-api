@@ -112,6 +112,14 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
 
     private String extractClientIp(HttpServletRequest request) {
+        String cfConnectingIp = request.getHeader("CF-Connecting-IP");
+        if (cfConnectingIp != null && !cfConnectingIp.isBlank()) {
+            return cfConnectingIp.trim();
+        }
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
         String remoteAddr = request.getRemoteAddr();
         return (remoteAddr != null && !remoteAddr.isBlank()) ? remoteAddr : "unknown";
     }

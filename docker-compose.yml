@@ -9,6 +9,10 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
 
   # Base de datos local (opcional, solo si no se usa Supabase)
   # Para iniciarla junto a la API: docker compose --profile local-db up -d

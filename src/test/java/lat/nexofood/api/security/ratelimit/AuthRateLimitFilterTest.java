@@ -62,4 +62,29 @@ class AuthRateLimitFilterTest {
         filter.doFilter(req2, res2, filterChain);
         assertThat(res2.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
     }
+
+    @Test
+    @DisplayName("Debe priorizar el header CF-Connecting-IP sobre remoteAddr para usuarios detrás de Cloudflare")
+    void shouldPrioritizeCloudflareConnectingIpHeader() throws Exception {
+        AuthRateLimitService rateLimitService = new AuthRateLimitService(1, 60);
+        AuthRateLimitFilter filter = new AuthRateLimitFilter(rateLimitService, true);
+        FilterChain filterChain = mock(FilterChain.class);
+
+        // Cliente 1 detrás del proxy Cloudflare (remoteAddr 127.0.0.1, pero CF-Connecting-IP distinta)
+        MockHttpServletRequest req1 = new MockHttpServletRequest("POST", "/api/v1/auth/login");
+        req1.setRemoteAddr("127.0.0.1");
+        req1.addHeader("CF-Connecting-IP", "200.48.12.34");
+        MockHttpServletResponse res1 = new MockHttpServletResponse();
+        filter.doFilter(req1, res1, filterChain);
+        assertThat(res1.getStatus()).isEqualTo(HttpStatus.OK.value());
+
+        // Cliente 2 también llega desde el mismo túnel (remoteAddr 127.0.0.1) pero IP pública distinta
+        MockHttpServletRequest req2 = new MockHttpServletRequest("POST", "/api/v1/auth/login");
+        req2.setRemoteAddr("127.0.0.1");
+        req2.addHeader("CF-Connecting-IP", "181.65.40.90");
+        MockHttpServletResponse res2 = new MockHttpServletResponse();
+        filter.doFilter(req2, res2, filterChain);
+        // Debe ser permitida porque no comparte el bucket con la IP 200.48.12.34
+        assertThat(res2.getStatus()).isEqualTo(HttpStatus.OK.value());
+    }
 }
