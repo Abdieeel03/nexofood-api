@@ -39,9 +39,15 @@ public class SubscriptionExpirationScheduler {
 
         for (Subscription subscription : expiredSubscriptions) {
             SubscriptionStatus previousStatus = subscription.getStatus();
-            SubscriptionStatus nextStatus = previousStatus == SubscriptionStatus.TRIAL
-                    ? SubscriptionStatus.EXPIRED
-                    : SubscriptionStatus.PAST_DUE;
+            SubscriptionStatus nextStatus;
+            if (Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())) {
+                nextStatus = SubscriptionStatus.CANCELED;
+                subscription.setCancelAtPeriodEnd(false);
+            } else if (previousStatus == SubscriptionStatus.TRIAL) {
+                nextStatus = SubscriptionStatus.EXPIRED;
+            } else {
+                nextStatus = SubscriptionStatus.PAST_DUE;
+            }
 
             subscription.setStatus(nextStatus);
             subscriptionRepository.save(subscription);

@@ -71,7 +71,8 @@ bruno/
 │   ├── 19 - Storefront - Obtener Menu Publico por Slug (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/menu (200 OK)
 │   ├── 20 - Storefront - Listar Categorias Activas de Tienda (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/categories (200 OK)
 │   ├── 21 - Storefront - Listar Productos Disponibles Paginados (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products (200 OK)
-│   └── 22 - Storefront - Obtener Detalle Publico de Producto (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products/{{productId}} (200 OK)
+│   ├── 22 - Storefront - Obtener Detalle Publico de Producto (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products/{{productId}} (200 OK)
+│   └── 23 - Error Crear Restaurante Sin Suscripcion (400).bru # POST /api/v1/tenants (400 Bad Request)
 ├── Catalog/
 │   ├── 01 - Taxes - Crear Impuesto (OWNER o ADMIN).bru         # POST   /api/v1/tenants/{{tenantId}}/taxes (201 Created)
 │   ├── 02 - Taxes - Listar Impuestos (Miembro).bru             # GET    /api/v1/tenants/{{tenantId}}/taxes (200 OK)

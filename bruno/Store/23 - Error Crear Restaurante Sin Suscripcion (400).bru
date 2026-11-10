@@ -1,0 +1,37 @@
+meta {
+  name: 23 - Error Crear Restaurante Sin Suscripcion (400)
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "subscriptionId": "00000000-0000-0000-0000-000000000099",
+    "name": "Restaurante Inválido",
+    "slug": "restaurante-invalido"
+  }
+}
+
+tests {
+  test("Código de estado es 400 Bad Request", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("Respuesta indica status 400", function() {
+    expect(res.getBody().status).to.equal(400);
+  });
+}

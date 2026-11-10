@@ -28,18 +28,27 @@ public class SubscriptionMapper {
                 .startDate(subscription.getStartDate())
                 .endDate(subscription.getEndDate())
                 .mpPreapprovalId(subscription.getMpPreapprovalId())
+                .mpPreapprovalStatus(subscription.getMpPreapprovalStatus())
+                .cancelAtPeriodEnd(Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd()))
                 .createdAt(subscription.getCreatedAt())
                 .updatedAt(subscription.getUpdatedAt())
                 .build();
     }
 
-    public Subscription toEntity(SubscriptionPlan plan, User user, SubscriptionStatus status, OffsetDateTime startDate, OffsetDateTime endDate) {
+    public Subscription toEntity(
+            SubscriptionPlan plan,
+            User user,
+            SubscriptionStatus status,
+            OffsetDateTime startDate,
+            OffsetDateTime endDate
+    ) {
         return Subscription.builder()
                 .plan(plan)
                 .user(user)
                 .status(status != null ? status : SubscriptionStatus.TRIAL)
                 .startDate(startDate)
                 .endDate(endDate)
+                .cancelAtPeriodEnd(false)
                 .build();
     }
 }

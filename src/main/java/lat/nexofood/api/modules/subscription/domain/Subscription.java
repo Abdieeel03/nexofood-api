@@ -65,4 +65,11 @@ public class Subscription extends BaseEntity {
 
     @Column(name = "mp_preapproval_id", length = 100)
     private String mpPreapprovalId;
+
+    @Column(name = "mp_preapproval_status", length = 50)
+    private String mpPreapprovalStatus;
+
+    @Column(name = "cancel_at_period_end", nullable = false)
+    @Builder.Default
+    private Boolean cancelAtPeriodEnd = false;
 }

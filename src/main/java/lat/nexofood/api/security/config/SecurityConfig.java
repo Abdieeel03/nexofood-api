@@ -150,6 +150,9 @@ public class SecurityConfig {
                                 "/api/v1/store/*/products/*",
                                 "/api/v1/store/*/delivery-estimate"
                         ).permitAll()
+                        // Mercado Pago: webhook verificado con x-signature y callback OAuth con state firmado
+                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/mercadopago").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/mercadopago/oauth/callback").permitAll()
                         .anyRequest().authenticated()
                 );
 

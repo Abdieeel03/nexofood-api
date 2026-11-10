@@ -43,6 +43,15 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(PaymentGatewayException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentGatewayException(
+            PaymentGatewayException ex,
+            HttpServletRequest req
+    ) {
+        log.error("Payment gateway error (status={}): {}", ex.getGatewayStatus(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), req);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(
             DataIntegrityViolationException ex,

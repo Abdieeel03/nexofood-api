@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.web.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lat.nexofood.api.common.exception.UnauthorizedException;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
@@ -103,7 +104,19 @@ public class TenantController {
     @Operation(summary = "Obtener el restaurante del usuario autenticado")
     public ResponseEntity<ApiResponse<TenantResponse>> getMyTenant(
             @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new UnauthorizedException("Usuario no autenticado");
+        }
         TenantResponse response = tenantService.getMyTenant(userDetails.getUsername());
+        if (response == null) {
+            return ResponseEntity.ok(
+                    ApiResponse.<TenantResponse>builder()
+                            .success(true)
+                            .message("No tienes ninguna tienda asociada")
+                            .data(null)
+                            .build()
+            );
+        }
         return ResponseEntity.ok(
                 ApiResponse.<TenantResponse>builder()
                         .success(true)

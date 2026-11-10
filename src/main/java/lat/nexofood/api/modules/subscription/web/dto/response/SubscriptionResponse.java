@@ -15,6 +15,8 @@ public record SubscriptionResponse(
         OffsetDateTime startDate,
         OffsetDateTime endDate,
         String mpPreapprovalId,
+        String mpPreapprovalStatus,
+        Boolean cancelAtPeriodEnd,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {}

@@ -9,8 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-
 @Component
 @RequiredArgsConstructor
 public class DefaultPaymentGuard implements PaymentGuard {
@@ -23,15 +21,16 @@ public class DefaultPaymentGuard implements PaymentGuard {
         if (order == null || order.getId() == null) {
             return;
         }
-        Optional<Payment> paymentOpt = paymentRepository.findByOrderId(order.getId());
-        if (paymentOpt.isPresent()) {
-            Payment payment = paymentOpt.get();
-            if (payment.getStatus() != PaymentStatus.APPROVED) {
-                throw new ResourceConflictException(
-                        "El pedido no puede pasar a preparación porque el pago asociado no está aprobado (estado actual: "
-                                + payment.getStatus() + ")"
-                );
-            }
+        Payment payment = paymentRepository.findByOrderId(order.getId())
+                .orElseThrow(() -> new ResourceConflictException(
+                        "El pedido no puede pasar a preparación porque no tiene un pago registrado y aprobado"
+                ));
+
+        if (payment.getStatus() != PaymentStatus.APPROVED) {
+            throw new ResourceConflictException(
+                    "El pedido no puede pasar a preparación porque el pago asociado no está aprobado (estado actual: "
+                            + payment.getStatus() + ")"
+            );
         }
     }
 }

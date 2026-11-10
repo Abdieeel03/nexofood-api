@@ -10,8 +10,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lat.nexofood.api.common.model.BaseEntity;
+import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
@@ -21,9 +24,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -45,7 +51,7 @@ public class Payment extends BaseEntity {
     private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", unique = true, nullable = false)
+    @JoinColumn(name = "order_id", unique = true)
     @ToString.Exclude
     private Order order;
 
@@ -54,11 +60,17 @@ public class Payment extends BaseEntity {
     @ToString.Exclude
     private Tenant tenant;
 
+    @Column(name = "customer_id", nullable = false)
+    private UUID customerId;
+
+    @Column(name = "mp_order_id", length = 100, unique = true)
+    private String mpOrderId;
+
     @Column(name = "mp_payment_id", length = 100)
     private String mpPaymentId;
 
-    @Column(name = "mp_preference_id", length = 100)
-    private String mpPreferenceId;
+    @Column(name = "checkout_url", columnDefinition = "TEXT")
+    private String checkoutUrl;
 
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;
@@ -68,10 +80,55 @@ public class Payment extends BaseEntity {
     @Builder.Default
     private PaymentStatus status = PaymentStatus.PENDING;
 
+    @Column(name = "status_detail", length = 100)
+    private String statusDetail;
+
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
+    @Column(name = "currency", length = 3, nullable = false)
+    @Builder.Default
+    private String currency = "PEN";
+
     @ToString.Exclude
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "checkout_snapshot", columnDefinition = "jsonb")
+    private OrderDraft checkoutSnapshot;
+
+    @ToString.Exclude
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_response", columnDefinition = "jsonb")
     private String rawResponse;
+
+    @Column(name = "expires_at")
+    private OffsetDateTime expiresAt;
+
+    @Column(name = "approved_at")
+    private OffsetDateTime approvedAt;
+
+    @Column(name = "refunded_at")
+    private OffsetDateTime refundedAt;
+
+    @Column(name = "refund_reason", columnDefinition = "TEXT")
+    private String refundReason;
+
+    @PrePersist
+    @PreUpdate
+    private void syncCustomerId() {
+        if (this.customerId == null) {
+            if (this.checkoutSnapshot != null && this.checkoutSnapshot.customerUserId() != null) {
+                this.customerId = this.checkoutSnapshot.customerUserId();
+            } else if (this.order != null && this.order.getCustomerId() != null) {
+                this.customerId = this.order.getCustomerId();
+            }
+        }
+    }
+
+    public boolean canBeRefunded() {
+        return status == PaymentStatus.APPROVED;
+    }
+
+    public boolean isAlreadyRefundedOrPendingRefund() {
+        return status == PaymentStatus.REFUNDED || status == PaymentStatus.REFUND_PENDING;
+    }
 }

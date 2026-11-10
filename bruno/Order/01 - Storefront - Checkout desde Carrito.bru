@@ -1,5 +1,5 @@
 meta {
-  name: 01 - Storefront - Checkout desde Carrito
+  name: 01 - Storefront - Checkout desde Carrito (Mercado Pago Orders API)
   type: http
   seq: 1
 }
@@ -30,8 +30,11 @@ body:json {
 script:post-response {
   if (res.getStatus() === 201) {
     const data = res.getBody().data;
-    if (data && data.id) {
-      bru.setEnvVar("orderId", data.id);
+    if (data && data.paymentId) {
+      bru.setEnvVar("paymentId", data.paymentId);
+    }
+    if (data && data.mpOrderId) {
+      bru.setEnvVar("mpOrderId", data.mpOrderId);
     }
   }
 }
@@ -41,11 +44,12 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("Crea el pedido con correlativo secuencial, snapshots inmutables y guarda orderId", function() {
+  test("Crea el pago pendiente con snapshot en Mercado Pago Orders API y retorna checkoutUrl", function() {
     const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
-    expect(data.orderNumber).to.be.a('string');
-    expect(data.status).to.equal("PENDIENTE");
-    expect(data.items).to.be.an('array').that.is.not.empty;
+    expect(data.paymentId).to.be.a('string');
+    expect(data.mpOrderId).to.be.a('string');
+    expect(data.checkoutUrl).to.be.a('string');
+    expect(data.status).to.equal("PENDING");
   });
 }

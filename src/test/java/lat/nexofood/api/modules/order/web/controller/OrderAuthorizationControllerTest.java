@@ -9,9 +9,12 @@ import lat.nexofood.api.modules.order.application.service.OrderService;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
 import lat.nexofood.api.modules.order.web.dto.request.OrderAssignStaffRequest;
+import lat.nexofood.api.modules.order.web.dto.request.OrderCancelRequest;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCheckoutRequest;
 import lat.nexofood.api.modules.order.web.dto.request.OrderStatusUpdateRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
+import lat.nexofood.api.modules.payment.domain.PaymentStatus;
+import lat.nexofood.api.modules.payment.web.dto.response.CheckoutPaymentResponse;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -96,9 +99,20 @@ class OrderAuthorizationControllerTest {
     }
 
     @Test
-    @DisplayName("StorefrontOrderController: permite checkout desde carrito (201), listar mis pedidos y ver detalle")
+    @DisplayName("StorefrontOrderController: permite checkout desde carrito (201 CheckoutPaymentResponse), cancelar en PENDIENTE, listar mis pedidos y ver detalle")
     void storefrontOrderEndpointsWorkCorrectly() throws Exception {
         UUID orderId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+
+        CheckoutPaymentResponse checkoutPaymentResponse = CheckoutPaymentResponse.builder()
+                .paymentId(paymentId)
+                .mpOrderId("ORD-MP-001")
+                .checkoutUrl("https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=001")
+                .status(PaymentStatus.PENDING)
+                .amount(new BigDecimal("59.00"))
+                .currency("PEN")
+                .build();
+
         OrderResponse orderResponse = OrderResponse.builder()
                 .id(orderId)
                 .tenantSlug("burger-bros")
@@ -109,7 +123,18 @@ class OrderAuthorizationControllerTest {
                 .items(List.of())
                 .build();
 
-        when(checkoutService.createFromCart(eq("burger-bros"), any())).thenReturn(orderResponse);
+        OrderResponse canceledOrderResponse = OrderResponse.builder()
+                .id(orderId)
+                .tenantSlug("burger-bros")
+                .orderNumber("ORD-000001")
+                .deliveryType(DeliveryType.TAKEAWAY)
+                .status(OrderStatus.CANCELADO)
+                .total(new BigDecimal("59.00"))
+                .items(List.of())
+                .build();
+
+        when(checkoutService.createFromCart(eq("burger-bros"), any())).thenReturn(checkoutPaymentResponse);
+        when(orderService.cancelByCustomer(eq("burger-bros"), eq(orderId), any())).thenReturn(canceledOrderResponse);
         when(orderService.getMyOrdersBySlug(eq("burger-bros"), any())).thenReturn(
                 PageResponse.<OrderResponse>builder()
                         .content(List.of(orderResponse))
@@ -132,7 +157,14 @@ class OrderAuthorizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(checkoutReq)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.orderNumber").value("ORD-000001"));
+                .andExpect(jsonPath("$.data.paymentId").value(paymentId.toString()))
+                .andExpect(jsonPath("$.data.checkoutUrl").value("https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=001"));
+
+        mockMvc.perform(post("/api/v1/store/burger-bros/orders/" + orderId + "/cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new OrderCancelRequest("Me equivoqué de producto"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELADO"));
 
         mockMvc.perform(get("/api/v1/store/burger-bros/orders"))
                 .andExpect(status().isOk())

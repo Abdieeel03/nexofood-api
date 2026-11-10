@@ -2,20 +2,17 @@ package lat.nexofood.api.modules.payment.web.mapper;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.payment.domain.Payment;
-import lat.nexofood.api.modules.payment.domain.PaymentStatus;
-import lat.nexofood.api.modules.payment.web.dto.request.PaymentCreateRequest;
 import lat.nexofood.api.modules.payment.web.dto.response.PaymentResponse;
-import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Mapper para la entidad Payment.
- * Sanitiza el raw_response del gateway de pagos antes de persistir,
- * eliminando datos sensibles (números de tarjeta, PII del pagador, etc.)
+ * Mapper para la entidad {@link Payment}.
+ * Sanitiza el {@code raw_response} del gateway de pagos antes de persistir,
+ * eliminando datos sensibles (números de tarjeta, PII del pagador, tokens, etc.)
  * para cumplir con PCI-DSS.
  */
 @Slf4j
@@ -31,42 +28,31 @@ public class PaymentMapper {
         return PaymentResponse.builder()
                 .id(payment.getId())
                 .orderId(payment.getOrder() != null ? payment.getOrder().getId() : null)
+                .orderNumber(payment.getOrder() != null ? payment.getOrder().getOrderNumber() : null)
                 .tenantId(payment.getTenant() != null ? payment.getTenant().getId() : null)
+                .customerId(payment.getCustomerId())
+                .mpOrderId(payment.getMpOrderId())
                 .mpPaymentId(payment.getMpPaymentId())
-                .mpPreferenceId(payment.getMpPreferenceId())
                 .paymentMethod(payment.getPaymentMethod())
                 .status(payment.getStatus())
+                .statusDetail(payment.getStatusDetail())
                 .amount(payment.getAmount())
+                .currency(payment.getCurrency())
+                .expiresAt(payment.getExpiresAt())
+                .approvedAt(payment.getApprovedAt())
+                .refundedAt(payment.getRefundedAt())
+                .refundReason(payment.getRefundReason())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
                 .build();
     }
 
-    public Payment toEntity(PaymentCreateRequest request, Order order, Tenant tenant) {
-        if (request == null) {
-            return null;
-        }
-        return Payment.builder()
-                .order(order)
-                .tenant(tenant)
-                .mpPaymentId(request.mpPaymentId())
-                .mpPreferenceId(request.mpPreferenceId())
-                .paymentMethod(request.paymentMethod())
-                .status(PaymentStatus.PENDING)
-                .amount(request.amount())
-                .rawResponse(sanitizePaymentResponse(request.rawResponse()))
-                .build();
-    }
-
     /**
-     * Sanitiza el JSON de respuesta del gateway de pagos reteniendo únicamente
-     * los metadatos operativos y de conciliación. Elimina datos de tarjeta,
-     * información personal del pagador y tokens sensibles.
-     *
-     * @param rawJson JSON crudo devuelto por Mercado Pago
-     * @return JSON sanitizado con solo campos seguros, o null si la entrada es nula
+     * Sanitiza el JSON crudo devuelto por Mercado Pago (Orders API o Payments API)
+     * reteniendo únicamente los metadatos operativos y de conciliación.
+     * Elimina datos de tarjeta, información personal del pagador y tokens sensibles.
      */
-    private String sanitizePaymentResponse(String rawJson) {
+    public String sanitizePaymentResponse(String rawJson) {
         if (rawJson == null || rawJson.isBlank()) {
             return null;
         }
@@ -74,10 +60,17 @@ public class PaymentMapper {
             JsonNode root = OBJECT_MAPPER.readTree(rawJson);
             ObjectNode sanitized = OBJECT_MAPPER.createObjectNode();
 
-            // Campos seguros para operaciones y conciliación
+            // Campos seguros de Orders API y Payments API
             copyFieldIfPresent(root, sanitized, "id");
+            copyFieldIfPresent(root, sanitized, "type");
+            copyFieldIfPresent(root, sanitized, "processing_mode");
             copyFieldIfPresent(root, sanitized, "status");
             copyFieldIfPresent(root, sanitized, "status_detail");
+            copyFieldIfPresent(root, sanitized, "external_reference");
+            copyFieldIfPresent(root, sanitized, "total_amount");
+            copyFieldIfPresent(root, sanitized, "total_paid_amount");
+            copyFieldIfPresent(root, sanitized, "created_date");
+            copyFieldIfPresent(root, sanitized, "last_updated_date");
             copyFieldIfPresent(root, sanitized, "payment_method_id");
             copyFieldIfPresent(root, sanitized, "payment_type_id");
             copyFieldIfPresent(root, sanitized, "transaction_amount");
@@ -85,12 +78,35 @@ public class PaymentMapper {
             copyFieldIfPresent(root, sanitized, "date_created");
             copyFieldIfPresent(root, sanitized, "date_approved");
             copyFieldIfPresent(root, sanitized, "date_last_updated");
-            copyFieldIfPresent(root, sanitized, "external_reference");
             copyFieldIfPresent(root, sanitized, "installments");
-            copyFieldIfPresent(root, sanitized, "issuer_id");
             copyFieldIfPresent(root, sanitized, "operation_type");
-            copyFieldIfPresent(root, sanitized, "order");
-            // EXCLUIDOS: card, payer.email, payer.identification, token, collector_id
+
+            if (root.has("transactions") && root.get("transactions").isObject()) {
+                JsonNode txNode = root.get("transactions");
+                if (txNode.has("payments") && txNode.get("payments").isArray()) {
+                    ObjectNode sanitizedTransactions = OBJECT_MAPPER.createObjectNode();
+                    ArrayNode sanitizedPayments = OBJECT_MAPPER.createArrayNode();
+                    for (JsonNode paymentNode : txNode.get("payments")) {
+                        ObjectNode safePayment = OBJECT_MAPPER.createObjectNode();
+                        copyFieldIfPresent(paymentNode, safePayment, "id");
+                        copyFieldIfPresent(paymentNode, safePayment, "amount");
+                        copyFieldIfPresent(paymentNode, safePayment, "paid_amount");
+                        copyFieldIfPresent(paymentNode, safePayment, "status");
+                        copyFieldIfPresent(paymentNode, safePayment, "status_detail");
+                        if (paymentNode.has("payment_method") && paymentNode.get("payment_method").isObject()) {
+                            JsonNode pmNode = paymentNode.get("payment_method");
+                            ObjectNode safePm = OBJECT_MAPPER.createObjectNode();
+                            copyFieldIfPresent(pmNode, safePm, "id");
+                            copyFieldIfPresent(pmNode, safePm, "type");
+                            safePayment.set("payment_method", safePm);
+                        }
+                        sanitizedPayments.add(safePayment);
+                    }
+                    sanitizedTransactions.set("payments", sanitizedPayments);
+                    sanitized.set("transactions", sanitizedTransactions);
+                }
+            }
+            // EXCLUIDOS: payer, card, token, collector_id, checkout_url
 
             return OBJECT_MAPPER.writeValueAsString(sanitized);
         } catch (Exception e) {

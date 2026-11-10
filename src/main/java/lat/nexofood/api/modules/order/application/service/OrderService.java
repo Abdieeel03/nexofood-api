@@ -1,10 +1,14 @@
 package lat.nexofood.api.modules.order.application.service;
 
 import lat.nexofood.api.common.response.PageResponse;
+import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
+import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCreateRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
+import lat.nexofood.api.modules.payment.domain.Payment;
+import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
 import org.springframework.data.domain.Pageable;
 
@@ -17,6 +21,16 @@ public interface OrderService {
     OrderResponse create(OrderCreateRequest request, UUID customerId);
 
     OrderResponse createFromResolvedCustomer(OrderCreateRequest request, String ruc, TenantCustomer customer);
+
+    OrderDraft buildDraft(OrderCreateRequest request, String ruc, TenantCustomer customer);
+
+    Order persistFromDraft(OrderDraft draft, Tenant tenant, TenantCustomer customer);
+
+    Order createEntityFromApprovedPayment(Payment payment);
+
+    OrderResponse createFromApprovedPayment(Payment payment);
+
+    OrderResponse cancelByCustomer(String slug, UUID orderId, String reason);
 
     OrderResponse findByIdAndTenant(UUID orderId, UUID tenantId);
 

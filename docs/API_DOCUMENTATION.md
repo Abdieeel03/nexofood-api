@@ -1,4 +1,4 @@
-﻿# 📖 NexoFood API — Documentación para Frontend
+# 📖 NexoFood API — Documentación para Frontend
 
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
@@ -2009,36 +2009,70 @@ ame | string | No | Nombre del plan |
 | endDate         | string                   | No       | Fecha fin del período (ISO 8601)           |
 | mpPreapprovalId | string                   | Sí       | ID de suscripción automática Mercado Pago  |
 
-## 7. Payment — Pagos y Mercado Pago
+## 7. Payment — Pagos 100% Mercado Pago (Orders API Checkout Pro, OAuth, Preapproval y Webhooks)
 
 ---
 
-### 📥 DTO: PaymentCreateRequest
+### 🔗 7.1 Suscripciones Recurrentes Preaprobadas (`SubscriptionController`)
 
-| Campo            | Tipo       | Requerido | Validación  | Descripción                             |
-| ---------------- | ---------- | --------- | ----------- | --------------------------------------- |
-| `orderId`        | UUID       | Sí        | UUID válido | Pedido a pagar                          |
-| `tenantId`       | UUID       | Sí        | UUID válido | Restaurante receptor                    |
-| `mpPaymentId`    | string     | No        | —           | ID devuelto por el SDK de Mercado Pago  |
-| `mpPreferenceId` | string     | No        | —           | ID de la preferencia de checkout        |
-| `paymentMethod`  | string     | No        | —           | Método de pago (tarjeta, yape, etc.)    |
-| `amount`         | BigDecimal | Sí        | ≥ 0.01      | Monto cobrado                           |
-| `rawResponse`    | object     | No        | —           | JSON íntegro devuelto por el procesador |
+- **`POST /api/v1/subscriptions/checkout`** (Autenticado): Crea una suscripción en estado `PENDING` y genera un `preapproval` recurrente en Mercado Pago (`POST /preapproval`). Retorna `SubscriptionCheckoutResponse { subscriptionId, mpPreapprovalId, initPoint, status }`.
+- **`GET /api/v1/subscriptions/me/payments`** (Autenticado): Lista el historial de cobros recurrentes (`SubscriptionPaymentResponse`) de la suscripción del usuario.
+- **`PATCH /api/v1/subscriptions/me/cancel`** (Autenticado): Si la suscripción es `ACTIVE` pagada con `mpPreapprovalId`, cancela la recurrencia en Mercado Pago (`status: cancelled`), marca `cancelAtPeriodEnd = true` y **mantiene el acceso abierto hasta `endDate`**.
+
+---
+
+### 🔗 7.2 Conexión OAuth de Mercado Pago del Restaurante (`MercadoPagoConnectionController` y `MercadoPagoOAuthCallbackController`)
+
+- **`GET /api/v1/tenants/{tenantId}/mercadopago/connect`** (`OWNER`): Genera la URL de autorización OAuth de Mercado Pago con un `state` firmado (expira en 10 minutos).
+- **`GET /api/v1/tenants/{tenantId}/mercadopago/status`** (`OWNER` o `ADMIN`): Consulta si el restaurante tiene su cuenta de Mercado Pago conectada (`connected`, `mpUserId`, `tokenExpiresAt`).
+- **`DELETE /api/v1/tenants/{tenantId}/mercadopago`** (`OWNER`): Desvincula la cuenta de Mercado Pago del restaurante.
+- **`GET /api/v1/mercadopago/oauth/callback?code=...&state=...`** (Público): Recibe el callback de Mercado Pago, intercambia el `code` por credenciales OAuth, las guarda cifradas con AES-256-GCM y redirige al panel del tenant (`302 Found` en navegador o `200 OK` en JSON para clientes API).
+
+---
+
+### 💳 7.3 Checkout Pro vía Orders API, Generación de Orden tras Pago y Reembolso en `PENDIENTE`
+
+1. **`POST /api/v1/store/{slug}/orders/checkout`** (Cliente autenticado):
+   - Valida carrito, cobertura PostGIS y precios vigentes, congela el `OrderDraft` en `Payment.checkoutSnapshot` (`JSONB`) y crea una orden online en Mercado Pago (`POST /v1/orders`, `type: "online"`, `processing_mode: "manual"`) usando el `mpAccessToken` del restaurante (100% del dinero va directo al tenant).
+   - Retorna `201 Created` con `CheckoutPaymentResponse`: `{ paymentId, mpOrderId, checkoutUrl, status: "PENDING", amount, currency, expiresAt }`.
+   - **Nota importante:** El pedido (`Order`) **no se crea todavía** ni se vacía el carrito hasta que el pago sea aprobado.
+2. **`POST /api/v1/webhooks/mercadopago`** (Público, protegido con firma HMAC-SHA256 `x-signature`):
+   - Valida el manifiesto `id:{data.id};request-id:{x-request-id};ts:{ts};`.
+   - Consulta el estado real en la API de Mercado Pago (`GET /v1/orders/{id}`, `GET /preapproval/{id}` o `GET /authorized_payments/{id}`).
+   - Cuando la orden de Mercado Pago pasa a `status = processed` (`APPROVED`), materializa la entidad `Order` (`PENDIENTE`) a partir del `checkoutSnapshot` y limpia el carrito del cliente.
+3. **`GET /api/v1/store/{slug}/payments/{paymentId}`** (Cliente autenticado):
+   - Permite al frontend consultar el estado del pago (`PaymentStatusResponse`) al volver del checkout de Mercado Pago y obtener el `orderId` y `orderNumber` una vez aprobado.
+4. **`POST /api/v1/store/{slug}/orders/{id}/cancel`** (Cliente autenticado):
+   - Permite al cliente cancelar su pedido y recibir el **reembolso total automático** en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`) **únicamente mientras el estado de la orden siga en `PENDIENTE`**. Si ya pasó a `EN_PREPARACION` o posterior, responde `409 Conflict`.
+5. **`GET /api/v1/tenants/{tenantId}/payments`** (`OWNER` o `ADMIN`) y **`GET /api/v1/tenants/{tenantId}/orders/{orderId}/payment`** (Miembro del tenant):
+   - Consultas de pagos para el backoffice del restaurante.
+
+---
 
 ### 📤 DTO: PaymentResponse
 
-| Campo            | Tipo          | Nullable | Descripción                                   |
-| ---------------- | ------------- | -------- | --------------------------------------------- |
-| `id`             | UUID          | No       | Identificador del pago                        |
-| `orderId`        | UUID          | No       | Pedido vinculado                              |
-| `tenantId`       | UUID          | No       | Restaurante                                   |
-| `mpPaymentId`    | string        | Sí       | ID en Mercado Pago                            |
-| `mpPreferenceId` | string        | Sí       | ID de Checkout Pro                            |
-| `paymentMethod`  | string        | Sí       | Canal utilizado                               |
-| `status`         | PaymentStatus | No       | `PENDING`, `APPROVED`, `REJECTED`, `REFUNDED` |
-| `amount`         | BigDecimal    | No       | Monto total pagado                            |
-| `createdAt`      | string        | No       | ISO 8601                                      |
-| `updatedAt`      | string        | No       | ISO 8601                                      |
+| Campo               | Tipo          | Nullable | Descripción                                                             |
+|---------------------|---------------|----------|-------------------------------------------------------------------------|
+| `id`                | UUID          | No       | Identificador del pago                                                  |
+| `orderId`           | UUID          | Sí       | Pedido vinculado (se asigna cuando el pago pasa a `APPROVED`)           |
+| `tenantId`          | UUID          | No       | Restaurante receptor                                                    |
+| `customerId`        | UUID          | Sí       | Cliente comprador                                                       |
+| `mpOrderId`         | string        | Sí       | ID de la orden en Mercado Pago (`ORD...`)                               |
+| `mpPaymentId`       | string        | Sí       | ID de la transacción de pago en Mercado Pago                            |
+| `mpPreferenceId`    | string        | Sí       | ID de preferencia / checkout                                            |
+| `externalReference` | string        | Sí       | Referencia externa enviada a Mercado Pago                               |
+| `checkoutUrl`       | string        | Sí       | URL de Checkout Pro (`ticket_url`)                                      |
+| `paymentMethod`     | string        | Sí       | Medio de pago utilizado                                                 |
+| `status`            | PaymentStatus | No       | `PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `CANCELLED`, `EXPIRED`, `REFUNDED` |
+| `statusDetail`      | string        | Sí       | Detalle del estado devuelto por Mercado Pago                            |
+| `amount`            | BigDecimal    | No       | Monto total cobrado                                                     |
+| `refundedAmount`    | BigDecimal    | Sí       | Monto reembolsado                                                       |
+| `currency`          | string        | No       | Moneda (`PEN`)                                                          |
+| `paidAt`            | string        | Sí       | Fecha de aprobación del pago (ISO 8601)                                 |
+| `refundedAt`        | string        | Sí       | Fecha de reembolso (ISO 8601)                                           |
+| `expiresAt`         | string        | Sí       | Fecha de expiración del intento de pago (ISO 8601)                      |
+| `createdAt`         | string        | No       | ISO 8601                                                                |
+| `updatedAt`         | string        | No       | ISO 8601                                                                |
 
 ---
 

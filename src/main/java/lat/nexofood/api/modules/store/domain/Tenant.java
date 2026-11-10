@@ -108,7 +108,14 @@ public class Tenant extends BaseEntity {
     @Column(name = "mp_connected_at")
     private OffsetDateTime mpConnectedAt;
 
+    @Column(name = "mp_token_expires_at")
+    private OffsetDateTime mpTokenExpiresAt;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    public boolean isMercadoPagoConnected() {
+        return mpAccessToken != null && !mpAccessToken.isBlank();
+    }
 }
