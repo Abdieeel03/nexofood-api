@@ -1,0 +1,27 @@
+meta {
+  name: 02 - OAuth - Consultar Estado de Conexion MP (OWNER o ADMIN)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/mercadopago/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna estado de conexión de Mercado Pago del tenant", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.connected).to.be.a('boolean');
+  });
+}

@@ -121,6 +121,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .tenantSlug(tenant.getSlug())
                 .logoUrl(tenant.getLogoUrl())
                 .bannerUrl(tenant.getBannerUrl())
+                .onlinePaymentsEnabled(tenant.isMercadoPagoConnected())
                 .categories(categoryResponses)
                 .uncategorizedProducts(uncategorized)
                 .build();

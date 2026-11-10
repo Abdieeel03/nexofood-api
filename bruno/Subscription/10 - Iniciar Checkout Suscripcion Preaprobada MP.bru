@@ -1,0 +1,51 @@
+meta {
+  name: 10 - Iniciar Checkout Suscripcion Preaprobada MP
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/subscriptions/checkout
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "planId": "{{planId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.subscriptionId) {
+      bru.setEnvVar("subscriptionId", data.subscriptionId);
+    }
+    if (data && data.mpPreapprovalId) {
+      bru.setEnvVar("mpPreapprovalId", data.mpPreapprovalId);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Genera preapproval recurrente en Mercado Pago y retorna initPoint", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.subscriptionId).to.be.a('string');
+    expect(data.mpPreapprovalId).to.be.a('string');
+    expect(data.initPoint).to.be.a('string');
+  });
+}

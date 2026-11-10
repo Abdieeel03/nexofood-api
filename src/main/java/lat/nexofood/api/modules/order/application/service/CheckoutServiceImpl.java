@@ -3,12 +3,13 @@ package lat.nexofood.api.modules.order.application.service;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.modules.cart.domain.Cart;
 import lat.nexofood.api.modules.cart.domain.CartItem;
-import lat.nexofood.api.modules.cart.infrastructure.repository.CartItemRepository;
 import lat.nexofood.api.modules.cart.infrastructure.repository.CartRepository;
+import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCheckoutRequest;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCreateRequest;
 import lat.nexofood.api.modules.order.web.dto.request.OrderItemRequest;
-import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
+import lat.nexofood.api.modules.payment.application.service.OrderPaymentService;
+import lat.nexofood.api.modules.payment.web.dto.response.CheckoutPaymentResponse;
 import lat.nexofood.api.modules.store.application.service.customer.CurrentCustomerResolver;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
@@ -26,12 +27,12 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     private final CurrentCustomerResolver currentCustomerResolver;
     private final CartRepository cartRepository;
-    private final CartItemRepository cartItemRepository;
     private final OrderService orderService;
+    private final OrderPaymentService orderPaymentService;
 
     @Override
     @Transactional
-    public OrderResponse createFromCart(String slug, OrderCheckoutRequest request) {
+    public CheckoutPaymentResponse createFromCart(String slug, OrderCheckoutRequest request) {
         if (request == null || request.deliveryType() == null) {
             throw new BadRequestException("Los datos de entrega son obligatorios para completar el checkout");
         }
@@ -80,19 +81,13 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .items(itemRequests)
                 .build();
 
-        OrderResponse createdOrder = orderService.createFromResolvedCustomer(
+        OrderDraft draft = orderService.buildDraft(
                 createRequest,
                 request.ruc(),
                 customer
         );
 
-        // Vaciar el carrito en la misma transacción tras confirmar la orden
-        if (cart.getId() != null) {
-            cartItemRepository.deleteAllByCartId(cart.getId());
-        }
-        cart.clear();
-        cartRepository.save(cart);
-
-        return createdOrder;
+        // El carrito se conserva hasta que el webhook confirme el pago aprobado
+        return orderPaymentService.startCheckout(draft, customer);
     }
 }

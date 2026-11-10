@@ -31,6 +31,7 @@ DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS tenant_customers CASCADE;
 DROP TABLE IF EXISTS tenant_members CASCADE;
 DROP TABLE IF EXISTS tenants CASCADE;
+DROP TABLE IF EXISTS subscription_payments CASCADE;
 DROP TABLE IF EXISTS subscriptions CASCADE;
 DROP TABLE IF EXISTS subscription_plans CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
@@ -140,23 +141,50 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- Table: subscriptions
 -- ON DELETE RESTRICT en user_id: protege el historial contable y legal de suscripciones.
 CREATE TABLE subscriptions (
-    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    plan_id           UUID        NOT NULL REFERENCES subscription_plans(id) ON DELETE RESTRICT,
-    user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status            VARCHAR(50) NOT NULL DEFAULT 'TRIAL'
-        CONSTRAINT chk_subscriptions_status CHECK (status IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'EXPIRED')),
-    start_date        TIMESTAMPTZ NOT NULL,
-    end_date          TIMESTAMPTZ NOT NULL,
-    mp_preapproval_id VARCHAR(100),
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan_id               UUID        NOT NULL REFERENCES subscription_plans(id) ON DELETE RESTRICT,
+    user_id               UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    status                VARCHAR(50) NOT NULL DEFAULT 'TRIAL'
+        CONSTRAINT chk_subscriptions_status CHECK (status IN ('PENDING', 'TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'EXPIRED')),
+    start_date            TIMESTAMPTZ NOT NULL,
+    end_date              TIMESTAMPTZ NOT NULL,
+    mp_preapproval_id     VARCHAR(100),
+    mp_preapproval_status VARCHAR(50),
+    cancel_at_period_end  BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX idx_subscriptions_plan_id ON subscriptions(plan_id);
+CREATE UNIQUE INDEX uk_subscriptions_mp_preapproval_id ON subscriptions(mp_preapproval_id)
+    WHERE mp_preapproval_id IS NOT NULL;
 
 CREATE TRIGGER trg_subscriptions_updated_at
 BEFORE UPDATE ON subscriptions
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Table: subscription_payments
+CREATE TABLE subscription_payments (
+    id                        UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    subscription_id           UUID           NOT NULL REFERENCES subscriptions(id) ON DELETE RESTRICT,
+    mp_authorized_payment_id  VARCHAR(100)   NOT NULL UNIQUE,
+    mp_payment_id             VARCHAR(100),
+    status                    VARCHAR(50)    NOT NULL
+        CONSTRAINT chk_subscription_payments_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'REFUNDED')),
+    amount                    NUMERIC(10, 2) NOT NULL,
+    currency                  VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    paid_at                   TIMESTAMPTZ,
+    period_end                TIMESTAMPTZ,
+    raw_response              JSONB,
+    created_at                TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments(subscription_id);
+
+CREATE TRIGGER trg_subscription_payments_updated_at
+BEFORE UPDATE ON subscription_payments
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ==============================================================================
@@ -184,6 +212,7 @@ CREATE TABLE tenants (
     mp_refresh_token_enc BYTEA,
     mp_user_id           VARCHAR(100),
     mp_connected_at      TIMESTAMPTZ,
+    mp_token_expires_at  TIMESTAMPTZ,
     is_active            BOOLEAN               NOT NULL DEFAULT TRUE,
     created_at           TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -571,26 +600,44 @@ CREATE POLICY tenant_isolation ON order_items
 -- ==============================================================================
 
 -- Table: payments
+-- checkout_snapshot: JSONB con el pedido calculado (items, precios e impuestos congelados).
 -- raw_response: JSONB sanitizado por la aplicación, excluyendo datos de tarjeta y PII.
 CREATE TABLE payments (
-    id               UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id         UUID           NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
-    tenant_id        UUID           NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-    mp_payment_id    VARCHAR(100),
-    mp_preference_id VARCHAR(100),
-    payment_method   VARCHAR(50),
-    status           VARCHAR(50)    NOT NULL DEFAULT 'PENDING'
-        CONSTRAINT chk_payments_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'REFUNDED')),
-    amount           NUMERIC(10, 2) NOT NULL,
-    raw_response     JSONB,
-    created_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID           NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    customer_id       UUID           NOT NULL,
+    order_id          UUID           UNIQUE REFERENCES orders(id) ON DELETE SET NULL,
+    mp_order_id       VARCHAR(100)   UNIQUE,
+    mp_payment_id     VARCHAR(100),
+    checkout_url      TEXT,
+    payment_method    VARCHAR(50),
+    status            VARCHAR(50)    NOT NULL DEFAULT 'PENDING'
+        CONSTRAINT chk_payments_status CHECK (status IN (
+            'PENDING', 'IN_PROCESS', 'APPROVED', 'REJECTED', 'CANCELED',
+            'EXPIRED', 'REFUND_PENDING', 'REFUNDED', 'CHARGED_BACK'
+        )),
+    status_detail     VARCHAR(100),
+    amount            NUMERIC(10, 2) NOT NULL,
+    currency          VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    checkout_snapshot JSONB          NOT NULL,
+    raw_response      JSONB,
+    expires_at        TIMESTAMPTZ,
+    approved_at       TIMESTAMPTZ,
+    refunded_at       TIMESTAMPTZ,
+    refund_reason     TEXT,
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT payments_tenant_customer_fkey
+        FOREIGN KEY (tenant_id, customer_id) REFERENCES tenant_customers(tenant_id, user_id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_payments_order_id       ON payments(order_id);
 CREATE INDEX idx_payments_tenant_id      ON payments(tenant_id);
+CREATE INDEX idx_payments_mp_order_id    ON payments(mp_order_id);
 CREATE INDEX idx_payments_mp_payment_id  ON payments(mp_payment_id);
 CREATE INDEX idx_payments_tenant_status  ON payments(tenant_id, status);
+CREATE INDEX idx_payments_customer       ON payments(tenant_id, customer_id);
+CREATE INDEX idx_payments_status_created ON payments(status, created_at);
 
 CREATE TRIGGER trg_payments_updated_at
 BEFORE UPDATE ON payments
@@ -598,7 +645,10 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON payments
-    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+    USING (
+        tenant_id::TEXT = current_setting('app.current_tenant_id', true)
+        OR COALESCE(current_setting('app.current_tenant_id', true), '') = ''
+    );
 
 -- ==============================================================================
 -- 11. MODULE: INVENTORY

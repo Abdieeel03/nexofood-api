@@ -1,0 +1,40 @@
+meta {
+  name: 01 - OAuth - Obtener URL de Conexion MP (Solo OWNER)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/mercadopago/connect
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.authorizationUrl) {
+      const match = data.authorizationUrl.match(/state=([^&]+)/);
+      if (match && match[1]) {
+        bru.setEnvVar("oauthState", decodeURIComponent(match[1]));
+      }
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna authorizationUrl de Mercado Pago con state firmado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.authorizationUrl).to.be.a('string').and.include("auth.mercadopago.com");
+    expect(data.expiresInSeconds).to.be.a('number');
+  });
+}

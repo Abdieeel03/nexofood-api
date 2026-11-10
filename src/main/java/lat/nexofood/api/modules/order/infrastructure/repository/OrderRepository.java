@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.order.infrastructure.repository;
 
+import jakarta.persistence.LockModeType;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
@@ -7,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -29,7 +31,22 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
 
     Optional<Order> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id AND o.tenant.id = :tenantId")
+    Optional<Order> findByIdAndTenantIdForUpdate(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId
+    );
+
     Optional<Order> findByIdAndTenantIdAndCustomerUserId(UUID id, UUID tenantId, UUID userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id AND o.tenant.id = :tenantId AND o.customerId = :userId")
+    Optional<Order> findByIdAndTenantIdAndCustomerUserIdForUpdate(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId,
+            @Param("userId") UUID userId
+    );
 
     List<Order> findAllByCustomerUserId(UUID userId);
 

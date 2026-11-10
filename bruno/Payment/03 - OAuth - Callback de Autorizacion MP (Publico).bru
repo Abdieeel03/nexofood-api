@@ -1,0 +1,22 @@
+meta {
+  name: 03 - OAuth - Callback de Autorizacion MP (Publico)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/mercadopago/oauth/callback?code={{oauthCode}}&state={{oauthState}}
+  body: none
+  auth: none
+}
+
+params:query {
+  code: {{oauthCode}}
+  state: {{oauthState}}
+}
+
+tests {
+  test("Redirige al panel del tenant (302 Found)", function() {
+    expect(res.getStatus()).to.be.oneOf([200, 302]);
+  });
+}

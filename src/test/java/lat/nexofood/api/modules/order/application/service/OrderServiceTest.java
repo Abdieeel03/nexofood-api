@@ -24,6 +24,7 @@ import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductReposit
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddressRepository;
+import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
@@ -32,9 +33,12 @@ import lat.nexofood.api.modules.order.web.dto.request.OrderCheckoutRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
 import lat.nexofood.api.modules.order.web.mapper.OrderItemMapper;
 import lat.nexofood.api.modules.order.web.mapper.OrderMapper;
+import lat.nexofood.api.modules.payment.application.service.OrderPaymentService;
+import lat.nexofood.api.modules.payment.application.service.PaymentRefundService;
 import lat.nexofood.api.modules.payment.domain.Payment;
 import lat.nexofood.api.modules.payment.domain.PaymentStatus;
 import lat.nexofood.api.modules.payment.infrastructure.repository.PaymentRepository;
+import lat.nexofood.api.modules.payment.web.dto.response.CheckoutPaymentResponse;
 import lat.nexofood.api.modules.store.application.service.customer.CurrentCustomerResolver;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
@@ -91,6 +95,10 @@ class OrderServiceTest {
     private CartRepository cartRepository;
     @Mock
     private CartItemRepository cartItemRepository;
+    @Mock
+    private OrderPaymentService orderPaymentService;
+    @Mock
+    private PaymentRefundService paymentRefundService;
 
     private OrderServiceImpl orderService;
     private CheckoutServiceImpl checkoutService;
@@ -130,14 +138,17 @@ class OrderServiceTest {
                 orderStateMachine,
                 paymentGuard,
                 tenantAccessService,
-                currentUserProvider
+                currentUserProvider,
+                null,
+                paymentRefundService,
+                null
         );
 
         checkoutService = new CheckoutServiceImpl(
                 currentCustomerResolver,
                 cartRepository,
-                cartItemRepository,
-                orderService
+                orderService,
+                orderPaymentService
         );
 
         tenant = Tenant.builder()
@@ -204,8 +215,8 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("CheckoutService.createFromCart: valida cobertura, toma defaultDeliveryFee, genera correlativo ORD-000001 y vacía el carrito")
-    void checkoutFromCartCreatesOrderAndClearsCart() {
+    @DisplayName("CheckoutService.createFromCart: valida cobertura, congela snapshot con impuestos y deliveryFee, delega a OrderPaymentService y luego crea orden al aprobarse")
+    void checkoutFromCartBuildsDraftAndStartsCheckoutThenWebhookCreatesOrder() {
         UUID addressId = UUID.randomUUID();
         CustomerAddress address = CustomerAddress.builder()
                 .id(addressId)
@@ -240,6 +251,7 @@ class OrderServiceTest {
                 .thenReturn(Optional.of(cart));
         when(customerAddressRepository.findByIdAndUserId(addressId, customerUser.getId()))
                 .thenReturn(Optional.of(address));
+        when(customerAddressRepository.findById(addressId)).thenReturn(Optional.of(address));
         when(productRepository.findByIdAndTenantId(burger.getId(), tenant.getId()))
                 .thenReturn(Optional.of(burger));
         when(orderRepository.countByTenantId(tenant.getId())).thenReturn(0L);
@@ -250,13 +262,48 @@ class OrderServiceTest {
             return o;
         });
 
+        UUID paymentId = UUID.randomUUID();
+        final OrderDraft[] capturedDraft = new OrderDraft[1];
+        when(orderPaymentService.startCheckout(any(OrderDraft.class), eq(customer))).thenAnswer(inv -> {
+            capturedDraft[0] = inv.getArgument(0);
+            return CheckoutPaymentResponse.builder()
+                    .paymentId(paymentId)
+                    .mpOrderId("ORD-MP-123")
+                    .checkoutUrl("https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=123")
+                    .status(PaymentStatus.PENDING)
+                    .amount(capturedDraft[0].total())
+                    .currency("PEN")
+                    .build();
+        });
+
         OrderCheckoutRequest request = OrderCheckoutRequest.builder()
                 .deliveryType(DeliveryType.DELIVERY)
                 .customerAddressId(addressId)
                 .ruc("20123456789")
                 .build();
 
-        OrderResponse response = checkoutService.createFromCart("burger-bros", request);
+        CheckoutPaymentResponse checkoutResp = checkoutService.createFromCart("burger-bros", request);
+
+        assertEquals(paymentId, checkoutResp.paymentId());
+        assertEquals(new BigDecimal("65.50"), checkoutResp.amount());
+        assertNotNull(capturedDraft[0]);
+
+        // El carrito no se vacía aún durante el checkout (se vacía al aprobarse el pago)
+        assertFalse(cart.getItems().isEmpty());
+
+        // Simulamos la aprobación del pago en el webhook para crear la orden desde el snapshot congelado
+        Payment approvedPayment = Payment.builder()
+                .id(paymentId)
+                .tenant(tenant)
+                .customerId(customerUser.getId())
+                .status(PaymentStatus.APPROVED)
+                .amount(new BigDecimal("65.50"))
+                .checkoutSnapshot(capturedDraft[0])
+                .build();
+        when(tenantCustomerRepository.findById(new TenantCustomerId(tenant.getId(), customerUser.getId())))
+                .thenReturn(Optional.of(customer));
+
+        OrderResponse response = orderService.createFromApprovedPayment(approvedPayment);
 
         assertEquals("ORD-000001", response.orderNumber());
         assertEquals("20123456789", response.ruc());
@@ -268,11 +315,6 @@ class OrderServiceTest {
         assertEquals(new BigDecimal("6.50"), response.deliveryFee());
         assertEquals(new BigDecimal("65.50"), response.total());
         assertEquals("Tocar intercomunicador 101", response.notes());
-
-        // Verifica que el carrito quedó vacío tras el checkout
-        assertTrue(cart.getItems().isEmpty());
-        verify(cartItemRepository).deleteAllByCartId(cart.getId());
-        verify(cartRepository).save(cart);
     }
 
     @Test

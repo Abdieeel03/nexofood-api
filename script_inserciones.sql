@@ -33,14 +33,14 @@ DELETE FROM users WHERE email LIKE '%@test.nexofood.lat';
 -- ==============================================================================
 -- 2. USUARIOS (IDENTITY)
 -- ==============================================================================
--- Contraseña simulada para todos: '$2a$10$hashedpassword'
+-- Contraseña válida para todos: 'Password123!' (BCrypt cost 10)
 INSERT INTO users (id, email, password_hash, full_name, phone, system_role, is_active) VALUES
-('00000000-0000-0000-0000-000000000001', 'admin@test.nexofood.lat',     '$2a$10$hashedpassword', 'Administrador Global', '+51900000001', 'SUPERADMIN', true),
-('00000000-0000-0000-0000-000000000002', 'mario@test.nexofood.lat',     '$2a$10$hashedpassword', 'Mario Rossi (Dueño T1)', '+51900000002', 'USER', true),
-('00000000-0000-0000-0000-000000000003', 'bob@test.nexofood.lat',       '$2a$10$hashedpassword', 'Bob Burger (Dueño T2)', '+51900000003', 'USER', true),
-('00000000-0000-0000-0000-000000000004', 'carlos.cliente@test.nexofood.lat', '$2a$10$hashedpassword', 'Carlos Cliente', '+51900000004', 'USER', true),
-('00000000-0000-0000-0000-000000000005', 'ana.cliente@test.nexofood.lat',    '$2a$10$hashedpassword', 'Ana Cliente',    '+51900000005', 'USER', true),
-('00000000-0000-0000-0000-000000000006', 'pedro.repartidor@test.nexofood.lat','$2a$10$hashedpassword', 'Pedro Repartidor', '+51900000006', 'USER', true);
+('00000000-0000-0000-0000-000000000001', 'admin@nexofood.lat',          '$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Administrador Global', '+51900000001', 'SUPERADMIN', true),
+('00000000-0000-0000-0000-000000000002', 'mario@test.nexofood.lat',     '$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Mario Rossi (Dueño T1)', '+51900000002', 'USER', true),
+('00000000-0000-0000-0000-000000000003', 'bob@test.nexofood.lat',       '$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Bob Burger (Dueño T2)', '+51900000003', 'USER', true),
+('00000000-0000-0000-0000-000000000004', 'carlos.cliente@test.nexofood.lat', '$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Carlos Cliente', '+51900000004', 'USER', true),
+('00000000-0000-0000-0000-000000000005', 'ana.cliente@test.nexofood.lat',    '$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Ana Cliente',    '+51900000005', 'USER', true),
+('00000000-0000-0000-0000-000000000006', 'pedro.repartidor@test.nexofood.lat','$2a$10$eP2e.KYoaoI9VNmTm2vUA.VTnfVmokRp8zwgYcbTiQroWhO.Y6DkG', 'Pedro Repartidor', '+51900000006', 'USER', true);
 
 -- Direcciones de entrega (PostGIS Point: longitud, latitud)
 INSERT INTO customer_addresses (id, user_id, title, address_line, reference, location) VALUES
@@ -64,10 +64,10 @@ INSERT INTO subscriptions (id, plan_id, user_id, status, start_date, end_date, m
 -- ==============================================================================
 -- 4. TENANTS (RESTAURANTES)
 -- ==============================================================================
--- Credenciales MP en BYTEA simuladas (cifrado AES-256-GCM a nivel de aplicación)
+-- Tenants (credenciales MP en NULL inicialmente; se vinculan mediante el flujo OAuth de Mercado Pago)
 INSERT INTO tenants (id, subscription_id, owner_id, name, slug, address, location, delivery_radius_km, default_delivery_fee, mp_access_token_enc, mp_public_key_enc, mp_refresh_token_enc, mp_user_id, is_active) VALUES
-('11111111-1111-1111-1111-111111111111', 'd0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Pizzería Bella Napoli', 'bella-napoli', 'Av. Benavides 1500, Miraflores', ST_SetSRID(ST_MakePoint(-77.0250, -12.1250), 4326), 6.00, 5.00, decode('0102030405060708090a0b0c0d0e0f10', 'hex'), decode('0102030405060708090a0b0c0d0e0f10', 'hex'), decode('0102030405060708090a0b0c0d0e0f10', 'hex'), 'MP-USER-NAPOLI', true),
-('22222222-2222-2222-2222-222222222222', 'd0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'Burger House Gourmet',  'burger-house', 'Calle Schell 340, Miraflores',   ST_SetSRID(ST_MakePoint(-77.0280, -12.1210), 4326), 5.00, 4.50, decode('1112131415161718191a1b1c1d1e1f20', 'hex'), decode('1112131415161718191a1b1c1d1e1f20', 'hex'), decode('1112131415161718191a1b1c1d1e1f20', 'hex'), 'MP-USER-BURGER', true);
+('11111111-1111-1111-1111-111111111111', 'd0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Pizzería Bella Napoli', 'bella-napoli', 'Av. Benavides 1500, Miraflores', ST_SetSRID(ST_MakePoint(-77.0250, -12.1250), 4326), 6.00, 5.00, NULL, NULL, NULL, NULL, true),
+('22222222-2222-2222-2222-222222222222', 'd0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'Burger House Gourmet',  'burger-house', 'Calle Schell 340, Miraflores',   ST_SetSRID(ST_MakePoint(-77.0280, -12.1210), 4326), 5.00, 4.50, NULL, NULL, NULL, NULL, true);
 
 -- Miembros de staff de cada restaurante
 INSERT INTO tenant_members (id, tenant_id, user_id, role, is_active) VALUES
@@ -137,10 +137,12 @@ INSERT INTO order_items (id, order_id, tenant_id, product_id, product_name, unit
 INSERT INTO order_items (id, order_id, tenant_id, product_id, product_name, unit_price, quantity, notes) VALUES
 ('41000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', '21000000-0000-0000-0000-000000000001', 'Doble Cheese Smash', 28.00, 1, '[TEST] Con pepinillos');
 
--- Pagos (con JSONB sanitizado sin datos de tarjeta ni PII sensible)
-INSERT INTO payments (id, order_id, tenant_id, mp_payment_id, mp_preference_id, payment_method, status, amount, raw_response) VALUES
-('42000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'MP-TEST-99887711', 'PREF-TEST-001', 'credit_card', 'APPROVED', 85.00,
- '{"id": 99887711, "status": "approved", "status_detail": "accredited", "payment_method_id": "visa", "transaction_amount": 85.00, "currency_id": "PEN"}'::JSONB);
+-- Pagos (con checkout_snapshot JSONB y respuesta de Mercado Pago Orders API)
+INSERT INTO payments (id, tenant_id, customer_id, order_id, mp_order_id, mp_payment_id, payment_method, status, amount, currency, checkout_snapshot, raw_response, approved_at) VALUES
+('42000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000001', 'ORD-TEST-99887711', 'MP-TEST-99887711', 'credit_card', 'APPROVED', 85.00, 'PEN',
+ '{"deliveryType": "DELIVERY", "items": [{"productId": "11000000-0000-0000-0000-000000000001", "productName": "Pizza Margherita", "unitPrice": 38.00, "quantity": 1}], "notes": "[TEST] Comanda inicial pagada"}'::JSONB,
+ '{"id": 99887711, "status": "approved", "status_detail": "accredited", "payment_method_id": "visa", "transaction_amount": 85.00, "currency_id": "PEN"}'::JSONB,
+ NOW());
 
 -- ==============================================================================
 -- 8. INVENTARIO: INSUMOS, STOCK Y MOVIMIENTOS

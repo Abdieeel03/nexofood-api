@@ -12,6 +12,7 @@ public record StorefrontMenuResponse(
         String tenantSlug,
         String logoUrl,
         String bannerUrl,
+        Boolean onlinePaymentsEnabled,
         List<StorefrontCategoryResponse> categories,
         List<StorefrontProductResponse> uncategorizedProducts
 ) {}

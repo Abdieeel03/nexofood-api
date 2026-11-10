@@ -33,9 +33,9 @@ flowchart LR
 | Módulo | Domain | Repository | DTO / Mapper | Service | Controller | Tests |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | **identity** (auth) | ✅ | ✅ | ✅ | ✅ | ✅ `AuthController` | ✅ |
-| **identity** (direcciones / perfil) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **store** (tenant / members / customers / store-auth) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **subscription** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **identity** (direcciones / perfil) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **store** (tenant / members / customers / store-auth) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **subscription** | ✅ | ✅ | ✅ | ✅ `SubscriptionServiceImpl`, `SubscriptionBillingServiceImpl` | ✅ `SubscriptionController`, `SubscriptionPlanController` | ✅ |
 | **catalog** – Tax | ✅ | ✅ | ✅ | ✅ `TaxServiceImpl` | ✅ `TaxController` | ✅ |
 | **catalog** – Category | ✅ | ✅ | ✅ | ✅ `CategoryServiceImpl` | ✅ `CategoryController` | ✅ |
 | **catalog** – Product | ✅ | ✅ | ✅ | ✅ `ProductServiceImpl` | ✅ `ProductController` | ✅ |
@@ -43,7 +43,7 @@ flowchart LR
 | **store** – Storefront Menu | ✅ | ✅ | ✅ | ✅ `StorefrontMenuServiceImpl` | ✅ `StorefrontCatalogController` | ✅ |
 | **cart** (Cart + CartItem) | ✅ | ✅ | ✅ | ✅ `CartServiceImpl`, `CartItemServiceImpl` | ✅ `CartController` | ✅ |
 | **order** | ✅ | ✅ | ✅ | ✅ `OrderServiceImpl`, `CheckoutServiceImpl`, `OrderStateMachine` | ✅ `OrderController`, `StorefrontOrderController` | ✅ |
-| **payment** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **payment** | ✅ | ✅ | ✅ | ✅ `OrderPaymentServiceImpl`, `PaymentRefundServiceImpl`, `MercadoPagoOAuthServiceImpl`, `MercadoPagoWebhookServiceImpl` | ✅ `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `MercadoPagoWebhookController`, `StorefrontPaymentController`, `TenantPaymentController` | ✅ |
 | **inventory** | ✅ | ✅ | ✅ | ✅ InventoryItemServiceImpl, InventoryStockServiceImpl, InventoryMovementServiceImpl, ProductIngredientServiceImpl | ✅ InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController | ✅ |
 
 ### 1.2 Hallazgos críticos detectados
@@ -326,26 +326,26 @@ flowchart TD
 > **Depende de:** F6 (órdenes), F3 (suscripciones para 7.5).
 
 ### 7.1 Conexión OAuth del restaurante
-- [ ] Agregar SDK `mercadopago-sdk-java` y propiedades `mp.client-id`, `mp.client-secret`, `mp.redirect-uri`, `mp.webhook-secret`.
-- [ ] `MercadoPagoOAuthService`: `connect` (URL de autorización con `state` firmado), `callback` (intercambia `code` por tokens, guardados cifrados vía `EncryptedStringConverter`), `refreshToken`, `disconnect`.
-- [ ] Controller: `/api/v1/tenants/{tenantId}/mercadopago/*` (solo `OWNER`).
+- [x] Cliente HTTP tipado (`RestClientMercadoPagoClient`) y propiedades `mercadopago.client-id`, `mercadopago.client-secret`, `mercadopago.redirect-uri`, `mercadopago.webhook-secret`, `mercadopago.platform-access-token`.
+- [x] `MercadoPagoOAuthService`: `connect` (URL de autorización con `state` firmado), `callback` (intercambia `code` por tokens, guardados cifrados vía `EncryptedStringConverter`), `refreshToken`, `disconnect`.
+- [x] Controller: `/api/v1/tenants/{tenantId}/mercadopago/*` (`OWNER` / `ADMIN`) y `/api/v1/mercadopago/oauth/callback`.
 
-### 7.2 Creación del pago
-- [ ] `PaymentService.createPreference(orderId)`: el **monto sale de `order.total`**, nunca del cliente. Eliminar `amount` y `rawResponse` de `PaymentCreateRequest`. *(H8)*
-- [ ] Persistir `Payment` en `PENDING` con `mpPreferenceId`.
-- [ ] Endpoint storefront: `POST /api/v1/store/{slug}/orders/{id}/pay`.
+### 7.2 Creación del pago (Orders API Checkout Pro)
+- [x] `OrderPaymentService.initiateCheckoutPayment(...)`: el **monto sale del snapshot del carrito (`OrderDraft`)**, nunca del cliente. Eliminado `PaymentCreateRequest`. *(H8)*
+- [x] Persistir `Payment` en `PENDING` con `mpOrderId`, `checkoutUrl` y `checkoutSnapshot` (`JSONB`).
+- [x] Endpoint storefront: `POST /api/v1/store/{slug}/orders/checkout` y `GET /api/v1/store/{slug}/payments/{paymentId}`.
 
 ### 7.3 Webhook
-- [ ] `POST /api/v1/webhooks/mercadopago` (público) con validación de firma `x-signature`.
-- [ ] Idempotencia por `mpPaymentId`; consultar el pago a la API de MP (no confiar en el body).
-- [ ] Sanitizar `raw_response` antes de guardar (lista blanca de campos, ver `PLAN.md` §1.3).
+- [x] `POST /api/v1/webhooks/mercadopago` (público) con validación de firma HMAC-SHA256 `x-signature`.
+- [x] Idempotencia y bloqueo pesimista; consultar la orden/preapproval directamente a la API de MP (no confiar en el body).
+- [x] Sanitizar `raw_response` antes de guardar y generar la `Order` únicamente cuando el pago pasa a `APPROVED`.
 
 ### 7.4 Integración con la orden
-- [ ] Implementar `PaymentGuard`: solo `APPROVED` permite `PENDIENTE → EN_PREPARACION` (regla anti-fraude).
-- [ ] Al cancelar una orden pagada → reembolso vía API de MP y `Payment.status = REFUNDED`.
+- [x] Implementar `PaymentGuard`: solo `APPROVED` permite `PENDIENTE → EN_PREPARACION` (regla anti-fraude).
+- [x] Al cancelar una orden pagada (`POST /api/v1/store/{slug}/orders/{id}/cancel` por el cliente mientras está en `PENDIENTE`, o cancelación por staff) → reembolso total vía API de MP (`POST /v1/orders/{mpOrderId}/refund`) y `Payment.status = REFUNDED`.
 
 ### 7.5 Cobro recurrente de suscripciones
-- [ ] Preapproval de MP (cuenta de la plataforma) al pasar de `TRIAL` a `ACTIVE`; webhook de preapproval actualiza `SubscriptionStatus`.
+- [x] Preapproval de MP (`POST /preapproval` con cuenta de la plataforma) en `POST /api/v1/subscriptions/checkout`; webhook de preapproval y `subscription_authorized_payment` actualizan `SubscriptionStatus` y `SubscriptionPayment`; cancelación al final del periodo (`cancelAtPeriodEnd = true`).
 
 **✅ Definición de Hecho F7:** ninguna orden entra a cocina sin pago aprobado confirmado por webhook verificado.
 

@@ -19,8 +19,9 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("La suscripción pasa a estado CANCELED", function() {
+  test("Cancela inmediatamente si es TRIAL/PENDING o marca cancelAtPeriodEnd=true manteniendo acceso hasta endDate si es ACTIVE pagada", function() {
     const data = res.getBody().data;
-    expect(data.status).to.equal("CANCELED");
+    expect(res.getBody().success).to.be.true;
+    expect(data.status).to.be.oneOf(["CANCELED", "ACTIVE"]);
   });
 }

@@ -7,8 +7,10 @@ import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.modules.order.application.service.CheckoutService;
 import lat.nexofood.api.modules.order.application.service.OrderService;
+import lat.nexofood.api.modules.order.web.dto.request.OrderCancelRequest;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCheckoutRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
+import lat.nexofood.api.modules.payment.web.dto.response.CheckoutPaymentResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -26,23 +28,41 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/store/{slug}/orders")
 @RequiredArgsConstructor
-@Tag(name = "Storefront - Orders", description = "Checkout desde carrito e historial de pedidos del cliente autenticado en la tienda")
+@Tag(name = "Storefront - Orders", description = "Checkout con Mercado Pago (Orders API), cancelación con reembolso e historial de pedidos del cliente")
 public class StorefrontOrderController {
 
     private final CheckoutService checkoutService;
     private final OrderService orderService;
 
     @PostMapping("/checkout")
-    @Operation(summary = "Crear pedido desde el carrito activo en la tienda (recalcula precios, congela snapshots y vacía el carrito)")
-    public ResponseEntity<ApiResponse<OrderResponse>> checkout(
+    @Operation(summary = "Iniciar checkout desde el carrito activo en la tienda (congela snapshot y genera orden de pago Checkout Pro en Mercado Pago)")
+    public ResponseEntity<ApiResponse<CheckoutPaymentResponse>> checkout(
             @PathVariable String slug,
             @Valid @RequestBody OrderCheckoutRequest request
     ) {
-        OrderResponse response = checkoutService.createFromCart(slug, request);
+        CheckoutPaymentResponse response = checkoutService.createFromCart(slug, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponse.<CheckoutPaymentResponse>builder()
+                        .success(true)
+                        .message("Orden de pago generada exitosamente en Mercado Pago")
+                        .data(response)
+                        .build()
+        );
+    }
+
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "Cancelar mi pedido y recibir reembolso automático (solo permitido mientras el estado sea PENDIENTE)")
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelMyOrder(
+            @PathVariable String slug,
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) OrderCancelRequest request
+    ) {
+        String reason = request != null ? request.reason() : null;
+        OrderResponse response = orderService.cancelByCustomer(slug, id, reason);
+        return ResponseEntity.ok(
                 ApiResponse.<OrderResponse>builder()
                         .success(true)
-                        .message("Pedido generado exitosamente desde el carrito")
+                        .message("Pedido cancelado y reembolsado exitosamente")
                         .data(response)
                         .build()
         );

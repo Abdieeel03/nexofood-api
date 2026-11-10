@@ -1,0 +1,43 @@
+meta {
+  name: 08 - Webhook - Notificacion de Orden Mercado Pago (Firma HMAC)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/webhooks/mercadopago?data.id={{mpOrderId}}&type=order
+  body: json
+  auth: none
+}
+
+params:query {
+  data.id: {{mpOrderId}}
+  type: order
+}
+
+headers {
+  Content-Type: application/json
+  x-request-id: req-order-webhook-001
+  x-signature: ts=1731100000,v1=reemplazar_con_hmac_sha256_del_manifiesto
+}
+
+body:json {
+  {
+    "id": "evt-order-001",
+    "live_mode": false,
+    "type": "order",
+    "date_created": "2026-11-08T18:30:00Z",
+    "user_id": 445566,
+    "api_version": "v1",
+    "action": "order.processed",
+    "data": {
+      "id": "{{mpOrderId}}"
+    }
+  }
+}
+
+tests {
+  test("Responde 200 OK si la firma HMAC es válida o 401 si es inválida", function() {
+    expect(res.getStatus()).to.be.oneOf([200, 401]);
+  });
+}

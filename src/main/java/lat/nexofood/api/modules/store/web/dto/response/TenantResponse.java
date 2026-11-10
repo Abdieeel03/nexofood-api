@@ -22,8 +22,10 @@ public record TenantResponse(
         BigDecimal deliveryRadiusKm,
         BigDecimal defaultDeliveryFee,
         Boolean isMpConnected,
+        Boolean onlinePaymentsEnabled,
         String mpUserId,
         OffsetDateTime mpConnectedAt,
+        OffsetDateTime mpTokenExpiresAt,
         Boolean isActive,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

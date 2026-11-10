@@ -1,0 +1,27 @@
+meta {
+  name: 11 - Listar Mis Cobros de Suscripcion
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/subscriptions/me/payments
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna historial de cobros recurrentes de la suscripción", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data).to.be.an('array');
+  });
+}

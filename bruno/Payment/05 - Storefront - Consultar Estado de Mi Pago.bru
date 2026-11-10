@@ -1,0 +1,37 @@
+meta {
+  name: 05 - Storefront - Consultar Estado de Mi Pago
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/payments/{{paymentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.orderId) {
+      bru.setEnvVar("orderId", data.orderId);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna estado actual del pago y orderId cuando fue aprobado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.paymentId).to.equal(bru.getEnvVar("paymentId"));
+    expect(data.status).to.be.a('string');
+  });
+}

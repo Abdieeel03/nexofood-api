@@ -5,6 +5,7 @@ import lat.nexofood.api.common.audit.AuditAction;
 import lat.nexofood.api.common.audit.SecurityAuditLogger;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ForbiddenException;
+import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.common.security.CurrentUserProvider;
@@ -14,10 +15,14 @@ import lat.nexofood.api.modules.catalog.application.service.ProductPricingServic
 import lat.nexofood.api.modules.catalog.application.service.TaxCalculationResult;
 import lat.nexofood.api.modules.catalog.application.service.TaxCalculationService;
 import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.catalog.domain.ProductPrice;
+import lat.nexofood.api.modules.catalog.domain.Tax;
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddressRepository;
 import lat.nexofood.api.modules.inventory.application.service.ProductIngredientService;
+import lat.nexofood.api.modules.order.application.dto.OrderDraft;
+import lat.nexofood.api.modules.order.application.dto.OrderDraftItem;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderItem;
@@ -28,6 +33,8 @@ import lat.nexofood.api.modules.order.web.dto.request.OrderItemRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
 import lat.nexofood.api.modules.order.web.mapper.OrderItemMapper;
 import lat.nexofood.api.modules.order.web.mapper.OrderMapper;
+import lat.nexofood.api.modules.payment.application.service.PaymentRefundService;
+import lat.nexofood.api.modules.payment.domain.Payment;
 import lat.nexofood.api.modules.store.application.service.customer.CurrentCustomerResolver;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantCustomer;
@@ -52,6 +59,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +85,8 @@ public class OrderServiceImpl implements OrderService {
     private final TenantAccessService tenantAccessService;
     private final CurrentUserProvider currentUserProvider;
     private final ProductIngredientService productIngredientService;
+    private final PaymentRefundService paymentRefundService;
+    private final SecurityAuditLogger securityAuditLogger;
     private final EtaProvider etaProvider;
     private final DeliveryTrackingService deliveryTrackingService;
 
@@ -99,6 +109,8 @@ public class OrderServiceImpl implements OrderService {
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
             ProductIngredientService productIngredientService,
+            @Autowired(required = false) PaymentRefundService paymentRefundService,
+            @Autowired(required = false) SecurityAuditLogger securityAuditLogger,
             @Autowired(required = false) EtaProvider etaProvider,
             @Autowired(required = false) DeliveryTrackingService deliveryTrackingService
     ) {
@@ -119,8 +131,102 @@ public class OrderServiceImpl implements OrderService {
         this.tenantAccessService = tenantAccessService;
         this.currentUserProvider = currentUserProvider;
         this.productIngredientService = productIngredientService;
+        this.paymentRefundService = paymentRefundService;
+        this.securityAuditLogger = securityAuditLogger != null ? securityAuditLogger : new SecurityAuditLogger();
         this.etaProvider = etaProvider != null ? etaProvider : new HaversineEtaProvider();
         this.deliveryTrackingService = deliveryTrackingService;
+    }
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            TenantCustomerRepository tenantCustomerRepository,
+            TenantMemberRepository tenantMemberRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ProductPricingService pricingService,
+            TaxCalculationService taxCalculationService,
+            OrderMapper orderMapper,
+            OrderItemMapper orderItemMapper,
+            CurrentCustomerResolver currentCustomerResolver,
+            SubscriptionGuard subscriptionGuard,
+            OrderStateMachine orderStateMachine,
+            PaymentGuard paymentGuard,
+            TenantAccessService tenantAccessService,
+            CurrentUserProvider currentUserProvider,
+            ProductIngredientService productIngredientService,
+            PaymentRefundService paymentRefundService,
+            SecurityAuditLogger securityAuditLogger
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                tenantRepository,
+                tenantCustomerRepository,
+                tenantMemberRepository,
+                customerAddressRepository,
+                pricingService,
+                taxCalculationService,
+                orderMapper,
+                orderItemMapper,
+                currentCustomerResolver,
+                subscriptionGuard,
+                orderStateMachine,
+                paymentGuard,
+                tenantAccessService,
+                currentUserProvider,
+                productIngredientService,
+                paymentRefundService,
+                securityAuditLogger,
+                null,
+                null
+        );
+    }
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            TenantCustomerRepository tenantCustomerRepository,
+            TenantMemberRepository tenantMemberRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ProductPricingService pricingService,
+            TaxCalculationService taxCalculationService,
+            OrderMapper orderMapper,
+            OrderItemMapper orderItemMapper,
+            CurrentCustomerResolver currentCustomerResolver,
+            SubscriptionGuard subscriptionGuard,
+            OrderStateMachine orderStateMachine,
+            PaymentGuard paymentGuard,
+            TenantAccessService tenantAccessService,
+            CurrentUserProvider currentUserProvider,
+            ProductIngredientService productIngredientService,
+            EtaProvider etaProvider,
+            DeliveryTrackingService deliveryTrackingService
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                tenantRepository,
+                tenantCustomerRepository,
+                tenantMemberRepository,
+                customerAddressRepository,
+                pricingService,
+                taxCalculationService,
+                orderMapper,
+                orderItemMapper,
+                currentCustomerResolver,
+                subscriptionGuard,
+                orderStateMachine,
+                paymentGuard,
+                tenantAccessService,
+                currentUserProvider,
+                productIngredientService,
+                null,
+                new SecurityAuditLogger(),
+                etaProvider,
+                deliveryTrackingService
+        );
     }
 
     public OrderServiceImpl(
@@ -161,6 +267,8 @@ public class OrderServiceImpl implements OrderService {
                 currentUserProvider,
                 productIngredientService,
                 null,
+                new SecurityAuditLogger(),
+                null,
                 null
         );
     }
@@ -200,7 +308,9 @@ public class OrderServiceImpl implements OrderService {
                 paymentGuard,
                 tenantAccessService,
                 currentUserProvider,
-                null
+                null,
+                null,
+                new SecurityAuditLogger()
         );
     }
 
@@ -232,7 +342,9 @@ public class OrderServiceImpl implements OrderService {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                new SecurityAuditLogger()
         );
     }
 
@@ -266,12 +378,26 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        return buildAndSaveOrder(request, null, tenant, customer);
+        OrderDraft draft = buildDraftInternal(request, null, tenant, customer);
+        Order savedOrder = persistFromDraft(draft, tenant, customer);
+        return orderMapper.toResponse(savedOrder);
     }
 
     @Override
     @Transactional
     public OrderResponse createFromResolvedCustomer(
+            OrderCreateRequest request,
+            String ruc,
+            TenantCustomer customer
+    ) {
+        OrderDraft draft = buildDraft(request, ruc, customer);
+        Order savedOrder = persistFromDraft(draft, customer.getTenant(), customer);
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDraft buildDraft(
             OrderCreateRequest request,
             String ruc,
             TenantCustomer customer
@@ -290,10 +416,10 @@ public class OrderServiceImpl implements OrderService {
             throw new ForbiddenException("Tu cuenta ha sido bloqueada por este comercio.");
         }
 
-        return buildAndSaveOrder(request, ruc, tenant, customer);
+        return buildDraftInternal(request, ruc, tenant, customer);
     }
 
-    private OrderResponse buildAndSaveOrder(
+    private OrderDraft buildDraftInternal(
             OrderCreateRequest request,
             String ruc,
             Tenant tenant,
@@ -302,14 +428,7 @@ public class OrderServiceImpl implements OrderService {
         UUID tenantId = tenant.getId();
         DeliveryType deliveryType = request.deliveryType() != null ? request.deliveryType() : DeliveryType.DELIVERY;
 
-        UUID customerUserId = null;
-        if (customer != null) {
-            if (customer.getUser() != null && customer.getUser().getId() != null) {
-                customerUserId = customer.getUser().getId();
-            } else if (customer.getId() != null) {
-                customerUserId = customer.getId().getUserId();
-            }
-        }
+        UUID customerUserId = resolveCustomerUserId(customer);
 
         CustomerAddress address = null;
         String resolvedDeliveryAddress = request.deliveryAddress();
@@ -341,6 +460,10 @@ public class OrderServiceImpl implements OrderService {
         }
 
         BigDecimal deliveryFee = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        UUID resolvedAddressId = address != null ? address.getId() : null;
+        Double resolvedLatitude = null;
+        Double resolvedLongitude = null;
+
         if (deliveryType == DeliveryType.DELIVERY) {
             if (tenant.getLocation() != null && resolvedDeliveryLocation == null) {
                 throw new BadRequestException(
@@ -362,34 +485,18 @@ public class OrderServiceImpl implements OrderService {
             if (tenant.getDefaultDeliveryFee() != null) {
                 deliveryFee = tenant.getDefaultDeliveryFee().setScale(2, RoundingMode.HALF_UP);
             }
+            resolvedLatitude = GeoUtils.getLatitude(resolvedDeliveryLocation);
+            resolvedLongitude = GeoUtils.getLongitude(resolvedDeliveryLocation);
         } else {
             // En TAKEAWAY o DINE_IN no se cobra envío
             resolvedDeliveryAddress = null;
-            resolvedDeliveryLocation = null;
-            address = null;
+            resolvedAddressId = null;
         }
-
-        String orderNumber = generateSequentialOrderNumber(tenantId);
-
-        Order order = Order.builder()
-                .tenant(tenant)
-                .customer(customer)
-                .address(address)
-                .orderNumber(orderNumber)
-                .ruc(ruc != null && !ruc.isBlank() ? ruc.trim() : null)
-                .deliveryType(deliveryType)
-                .status(OrderStatus.PENDIENTE)
-                .deliveryAddress(resolvedDeliveryAddress)
-                .deliveryLocation(resolvedDeliveryLocation)
-                .deliveryFee(deliveryFee)
-                .subtotal(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
-                .taxTotal(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
-                .notes(request.notes())
-                .items(new ArrayList<>())
-                .build();
 
         BigDecimal accumulatedSubtotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         BigDecimal accumulatedTaxTotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        List<OrderDraftItem> draftItems = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
 
         for (OrderItemRequest itemRequest : request.items()) {
             Product product = productRepository.findByIdAndTenantId(itemRequest.productId(), tenantId)
@@ -407,19 +514,210 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal sellingPrice = pricingService.calculateCurrentPrice(product);
             TaxCalculationResult calc = taxCalculationService.calculate(sellingPrice, product.getTax(), itemRequest.quantity());
 
-            OrderItem orderItem = orderItemMapper.toEntity(itemRequest, product, order, calc);
-            order.getItems().add(orderItem);
+            ProductPrice effectivePrice = pricingService.getEffectivePriceRule(product, now);
+            if (effectivePrice == null) {
+                effectivePrice = pricingService.getBasePriceRule(product);
+            }
+            Tax effectiveTax = calc != null ? calc.tax() : product.getTax();
 
-            accumulatedSubtotal = accumulatedSubtotal.add(calc.subtotal());
-            accumulatedTaxTotal = accumulatedTaxTotal.add(calc.taxAmount());
+            OrderDraftItem draftItem = OrderDraftItem.builder()
+                    .productId(product.getId())
+                    .productName(product.getName())
+                    .priceId(effectivePrice != null ? effectivePrice.getId() : null)
+                    .taxId(effectiveTax != null ? effectiveTax.getId() : null)
+                    .unitPrice(calc != null ? calc.baseUnitPrice() : sellingPrice)
+                    .quantity(itemRequest.quantity())
+                    .lineSubtotal(calc != null ? calc.subtotal() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                    .taxRate(calc != null && calc.taxRate() != null ? calc.taxRate() : BigDecimal.ZERO)
+                    .taxAmount(calc != null && calc.taxAmount() != null ? calc.taxAmount() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                    .notes(itemRequest.notes())
+                    .build();
+
+            draftItems.add(draftItem);
+            accumulatedSubtotal = accumulatedSubtotal.add(draftItem.lineSubtotal());
+            accumulatedTaxTotal = accumulatedTaxTotal.add(draftItem.taxAmount());
         }
 
-        order.setSubtotal(accumulatedSubtotal);
-        order.setTaxTotal(accumulatedTaxTotal);
-        BigDecimal total = accumulatedSubtotal.add(accumulatedTaxTotal).add(order.getDeliveryFee());
-        order.setTotal(total.setScale(2, RoundingMode.HALF_UP));
+        BigDecimal total = accumulatedSubtotal.add(accumulatedTaxTotal).add(deliveryFee).setScale(2, RoundingMode.HALF_UP);
 
+        return OrderDraft.builder()
+                .tenantId(tenantId)
+                .customerUserId(customerUserId)
+                .deliveryType(deliveryType)
+                .customerAddressId(resolvedAddressId)
+                .deliveryAddress(resolvedDeliveryAddress)
+                .deliveryLatitude(resolvedLatitude)
+                .deliveryLongitude(resolvedLongitude)
+                .ruc(ruc != null && !ruc.isBlank() ? ruc.trim() : null)
+                .notes(request.notes())
+                .subtotal(accumulatedSubtotal)
+                .taxTotal(accumulatedTaxTotal)
+                .deliveryFee(deliveryFee)
+                .total(total)
+                .items(draftItems)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public Order persistFromDraft(OrderDraft draft, Tenant tenant, TenantCustomer customer) {
+        if (draft == null) {
+            throw new BadRequestException("El borrador del pedido (draft) es obligatorio");
+        }
+        UUID tenantId = tenant.getId();
+
+        CustomerAddress address = null;
+        if (draft.customerAddressId() != null) {
+            address = customerAddressRepository.findById(draft.customerAddressId()).orElse(null);
+        }
+
+        Point deliveryLocation = null;
+        if (draft.deliveryType() == DeliveryType.DELIVERY) {
+            if (draft.deliveryLatitude() != null && draft.deliveryLongitude() != null) {
+                deliveryLocation = GeoUtils.createPoint(draft.deliveryLatitude(), draft.deliveryLongitude());
+            } else if (address != null) {
+                deliveryLocation = address.getLocation();
+            }
+        }
+
+        String orderNumber = generateSequentialOrderNumber(tenantId);
+
+        Order order = Order.builder()
+                .tenant(tenant)
+                .customer(customer)
+                .customerId(draft.customerUserId())
+                .address(address)
+                .orderNumber(orderNumber)
+                .ruc(draft.ruc())
+                .deliveryType(draft.deliveryType() != null ? draft.deliveryType() : DeliveryType.DELIVERY)
+                .status(OrderStatus.PENDIENTE)
+                .deliveryAddress(draft.deliveryAddress())
+                .deliveryLocation(deliveryLocation)
+                .deliveryFee(draft.deliveryFee() != null ? draft.deliveryFee() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .subtotal(draft.subtotal() != null ? draft.subtotal() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .taxTotal(draft.taxTotal() != null ? draft.taxTotal() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .total(draft.total() != null ? draft.total() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .notes(draft.notes())
+                .items(new ArrayList<>())
+                .build();
+
+        if (draft.items() != null) {
+            for (OrderDraftItem draftItem : draft.items()) {
+                Product product = draftItem.productId() != null
+                        ? productRepository.findByIdAndTenantId(draftItem.productId(), tenantId).orElse(null)
+                        : null;
+
+                ProductPrice priceRule = null;
+                if (product != null && product.getPrices() != null && draftItem.priceId() != null) {
+                    priceRule = product.getPrices().stream()
+                            .filter(pr -> draftItem.priceId().equals(pr.getId()))
+                            .findFirst()
+                            .orElse(null);
+                }
+
+                Tax tax = null;
+                if (product != null && product.getTax() != null
+                        && (draftItem.taxId() == null || draftItem.taxId().equals(product.getTax().getId()))) {
+                    tax = product.getTax();
+                }
+
+                OrderItem orderItem = OrderItem.builder()
+                        .order(order)
+                        .tenant(tenant)
+                        .product(product)
+                        .price(priceRule)
+                        .tax(tax)
+                        .productName(draftItem.productName())
+                        .unitPrice(draftItem.unitPrice())
+                        .quantity(draftItem.quantity())
+                        .subtotal(draftItem.lineSubtotal())
+                        .taxRate(draftItem.taxRate() != null ? draftItem.taxRate() : BigDecimal.ZERO)
+                        .taxAmount(draftItem.taxAmount() != null ? draftItem.taxAmount() : BigDecimal.ZERO)
+                        .notes(draftItem.notes())
+                        .build();
+
+                order.getItems().add(orderItem);
+            }
+        }
+
+        return orderRepository.save(order);
+    }
+
+    @Override
+    @Transactional
+    public Order createEntityFromApprovedPayment(Payment payment) {
+        if (payment == null || payment.getCheckoutSnapshot() == null) {
+            throw new BadRequestException("El pago aprobado no contiene un snapshot de checkout válido");
+        }
+        if (payment.getOrder() != null) {
+            return payment.getOrder();
+        }
+
+        OrderDraft draft = payment.getCheckoutSnapshot();
+        Tenant tenant = payment.getTenant() != null
+                ? payment.getTenant()
+                : tenantRepository.findById(draft.tenantId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado: " + draft.tenantId()));
+
+        UUID customerUserId = draft.customerUserId() != null ? draft.customerUserId() : payment.getCustomerId();
+        TenantCustomer customer = null;
+        if (customerUserId != null && tenantCustomerRepository != null) {
+            customer = tenantCustomerRepository.findById(new TenantCustomerId(tenant.getId(), customerUserId))
+                    .orElse(null);
+        }
+
+        if (payment.getAmount() != null
+                && draft.total() != null
+                && payment.getAmount().compareTo(draft.total()) != 0) {
+            throw new BadRequestException("El monto del pago no coincide con el total del snapshot del pedido");
+        }
+
+        return persistFromDraft(draft, tenant, customer);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createFromApprovedPayment(Payment payment) {
+        Order savedOrder = createEntityFromApprovedPayment(payment);
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelByCustomer(String slug, UUID orderId, String reason) {
+        TenantCustomer customer = currentCustomerResolver.resolveBySlug(slug);
+        UUID tenantId = customer.getTenant().getId();
+        UUID userId = resolveCustomerUserId(customer);
+
+        Order order = orderRepository.findByIdAndTenantIdAndCustomerUserIdForUpdate(orderId, tenantId, userId)
+                .or(() -> orderRepository.findByIdAndTenantIdAndCustomerUserId(orderId, tenantId, userId))
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado en tu historial"));
+
+        if (order.getStatus() != OrderStatus.PENDIENTE) {
+            throw new ResourceConflictException(
+                    "Solo puedes cancelar el pedido y recibir el reembolso mientras se encuentre en estado PENDIENTE (estado actual: "
+                            + order.getStatus() + ")"
+            );
+        }
+
+        String resolvedReason = (reason != null && !reason.isBlank())
+                ? reason.trim()
+                : "Cancelado por el cliente en estado PENDIENTE";
+
+        if (paymentRefundService != null) {
+            paymentRefundService.refundOrderPayment(order, resolvedReason);
+        }
+
+        order.setStatus(OrderStatus.CANCELADO);
         Order savedOrder = orderRepository.save(order);
+
+        securityAuditLogger.logEvent(
+                AuditAction.ORDER_CANCELLATION,
+                tenantId,
+                orderId.toString(),
+                "Pedido " + order.getOrderNumber() + " cancelado por el cliente en estado PENDIENTE (" + resolvedReason + ")"
+        );
+
         return orderMapper.toResponse(savedOrder);
     }
 
@@ -508,9 +806,7 @@ public class OrderServiceImpl implements OrderService {
     public PageResponse<OrderResponse> getMyOrdersBySlug(String slug, Pageable pageable) {
         TenantCustomer customer = currentCustomerResolver.resolveBySlug(slug);
         UUID tenantId = customer.getTenant().getId();
-        UUID userId = customer.getUser() != null && customer.getUser().getId() != null
-                ? customer.getUser().getId()
-                : customer.getId().getUserId();
+        UUID userId = resolveCustomerUserId(customer);
 
         Page<Order> page = orderRepository.findAllByTenantIdAndCustomerUserIdOrderByCreatedAtDesc(
                 tenantId, userId, pageable
@@ -523,9 +819,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse getMyOrderDetailBySlug(String slug, UUID orderId) {
         TenantCustomer customer = currentCustomerResolver.resolveBySlug(slug);
         UUID tenantId = customer.getTenant().getId();
-        UUID userId = customer.getUser() != null && customer.getUser().getId() != null
-                ? customer.getUser().getId()
-                : customer.getId().getUserId();
+        UUID userId = resolveCustomerUserId(customer);
 
         Order order = orderRepository.findByIdAndTenantIdAndCustomerUserId(orderId, tenantId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado en tu historial"));
@@ -536,7 +830,8 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse updateStatus(UUID tenantId, UUID orderId, OrderStatus newStatus) {
-        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
+        Order order = orderRepository.findByIdAndTenantIdForUpdate(orderId, tenantId)
+                .or(() -> orderRepository.findByIdAndTenantId(orderId, tenantId))
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + orderId));
 
         boolean isSuperAdmin = tenantAccessService != null && tenantAccessService.isSuperAdmin();
@@ -560,6 +855,10 @@ public class OrderServiceImpl implements OrderService {
 
         if (newStatus == OrderStatus.EN_PREPARACION && paymentGuard != null) {
             paymentGuard.assertCanMoveToPreparation(order);
+        }
+
+        if (newStatus == OrderStatus.CANCELADO && paymentRefundService != null) {
+            paymentRefundService.refundOrderPayment(order, "Pedido cancelado desde el restaurante (" + previousStatus + ")");
         }
 
         if (newStatus == OrderStatus.EN_PREPARACION && productIngredientService != null) {
@@ -594,7 +893,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (newStatus == OrderStatus.CANCELADO) {
-            new SecurityAuditLogger().logEvent(
+            securityAuditLogger.logEvent(
                     AuditAction.ORDER_CANCELLATION,
                     tenantId,
                     orderId.toString(),
@@ -640,6 +939,19 @@ public class OrderServiceImpl implements OrderService {
             deliveryTrackingService.onOrderDispatched(saved);
         }
         return orderMapper.toResponse(saved);
+    }
+
+    private UUID resolveCustomerUserId(TenantCustomer customer) {
+        if (customer == null) {
+            return null;
+        }
+        if (customer.getUser() != null && customer.getUser().getId() != null) {
+            return customer.getUser().getId();
+        }
+        if (customer.getId() != null) {
+            return customer.getId().getUserId();
+        }
+        return null;
     }
 
     private void applyStoreToCustomerEtaIfPossible(Order order) {
