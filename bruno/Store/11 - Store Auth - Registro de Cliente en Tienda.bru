@@ -1,0 +1,46 @@
+meta {
+  name: 11 - Store Auth - Registro de Cliente en Tienda
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "fullName": "Lucía Cliente",
+    "email": "lucia.cliente@nexofood.lat",
+    "password": "Password123!",
+    "phone": "+51987654321"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.user && data.user.id) {
+      bru.setEnvVar("customerId", data.user.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Retorna tokens y perfil del cliente en la tienda", function() {
+    const data = res.getBody().data;
+    expect(data.accessToken).to.be.a('string');
+    expect(data.customerProfile.tenantSlug).to.equal(bru.getEnvVar("tenantSlug"));
+    expect(data.customerProfile.loyaltyPoints).to.equal(0);
+  });
+}

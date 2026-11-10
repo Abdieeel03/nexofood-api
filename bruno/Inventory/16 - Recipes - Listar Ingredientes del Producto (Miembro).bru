@@ -1,0 +1,36 @@
+meta {
+  name: 16 - Recipes - Listar Ingredientes del Producto (Miembro)
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (Array.isArray(data) && data.length > 0 && data[0].id) {
+      bru.setEnvVar("ingredientId", data[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna los ingredientes configurados en la receta", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data).to.be.an('array');
+  });
+}
+

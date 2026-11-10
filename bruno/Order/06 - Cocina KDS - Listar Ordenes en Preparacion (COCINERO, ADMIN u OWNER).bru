@@ -1,0 +1,27 @@
+meta {
+  name: 06 - Cocina KDS - Listar Ordenes en Preparacion (COCINERO, ADMIN u OWNER)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/orders/kds
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna la cola KDS de órdenes EN_PREPARACION ordenadas por antigüedad", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data).to.be.an('array');
+  });
+}

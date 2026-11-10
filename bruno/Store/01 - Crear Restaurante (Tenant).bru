@@ -1,0 +1,59 @@
+meta {
+  name: 01 - Crear Restaurante (Tenant)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Pizzería Don Mario",
+    "slug": "pizzeria-don-mario",
+    "logoUrl": "https://cdn.nexofood.lat/logos/don-mario.png",
+    "bannerUrl": "https://cdn.nexofood.lat/banners/don-mario.png",
+    "phone": "+51999111222",
+    "address": "Av. Larco 123, Miraflores, Lima",
+    "latitude": -12.1191,
+    "longitude": -77.0282,
+    "deliveryRadiusKm": 5.00,
+    "defaultDeliveryFee": 6.50
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("tenantId", data.id);
+    }
+    if (data && data.slug) {
+      bru.setEnvVar("tenantSlug", data.slug);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("El ownerId y subscriptionId se resuelven automáticamente del usuario autenticado", function() {
+    const data = res.getBody().data;
+    expect(data.slug).to.equal("pizzeria-don-mario");
+    expect(data.subscriptionId).to.be.a('string');
+    expect(data.isActive).to.be.true;
+  });
+}

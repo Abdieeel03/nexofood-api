@@ -1,0 +1,46 @@
+meta {
+  name: 07 - Iniciar Suscripcion Trial (Start Trial)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/subscriptions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "planId": "{{planId}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("subscriptionId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Suscripción creada en estado TRIAL para el usuario autenticado", function() {
+    const data = res.getBody().data;
+    expect(data.status).to.equal("TRIAL");
+    expect(data.plan.id).to.equal(bru.getEnvVar("planId"));
+  });
+}

@@ -1,0 +1,41 @@
+meta {
+  name: 05 - Admin - Actualizar Plan (SUPERADMIN)
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/plans/{{planId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Plan Emprendedor Plus",
+    "price": 69.90,
+    "billingCycleDays": 30,
+    "maxProducts": 75,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Datos del plan actualizados", function() {
+    const data = res.getBody().data;
+    expect(data.name).to.equal("Plan Emprendedor Plus");
+    expect(data.maxProducts).to.equal(75);
+  });
+}

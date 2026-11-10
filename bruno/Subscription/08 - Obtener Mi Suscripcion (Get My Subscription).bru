@@ -1,0 +1,36 @@
+meta {
+  name: 08 - Obtener Mi Suscripcion (Get My Subscription)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/subscriptions/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("subscriptionId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna la suscripción del usuario autenticado", function() {
+    const data = res.getBody().data;
+    expect(data.id).to.be.a('string');
+    expect(data.plan).to.be.an('object');
+  });
+}

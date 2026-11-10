@@ -1,0 +1,45 @@
+meta {
+  name: 02 - Items - Listar Insumos Paginados (Miembro)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+  ~activeOnly: true
+  ~category: Carnes
+  ~unit: KG
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && Array.isArray(data.content) && data.content.length > 0) {
+      bru.setEnvVar("inventoryItemId", data.content[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna lista paginada de insumos", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.content).to.be.an('array');
+  });
+}
+

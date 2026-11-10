@@ -1,0 +1,40 @@
+meta {
+  name: 09 - Categories - Actualizar Categoria (OWNER o ADMIN)
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/categories/{{categoryId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Hamburguesas Gourmet",
+    "description": "100% carne Angus madurada a la parrilla",
+    "sortOrder": 1,
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna la categoría actualizada", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Hamburguesas Gourmet");
+  });
+}

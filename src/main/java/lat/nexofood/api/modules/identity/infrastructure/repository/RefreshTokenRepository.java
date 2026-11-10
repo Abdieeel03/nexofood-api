@@ -1,0 +1,33 @@
+package lat.nexofood.api.modules.identity.infrastructure.repository;
+
+import jakarta.transaction.Transactional;
+import lat.nexofood.api.modules.identity.domain.RefreshToken;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
+
+    Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE RefreshToken r SET r.revoked = true WHERE r.user.email = :email")
+    void revokeAllUserTokens(@Param("email") String email);
+
+    @Modifying
+    @Transactional
+    void deleteByExpiryDateBefore(LocalDateTime expiryDate);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM RefreshToken r WHERE r.expiryDate < :now OR r.revoked = true")
+    int deleteExpiredOrRevokedTokens(@Param("now") LocalDateTime now);
+}

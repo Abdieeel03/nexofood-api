@@ -1,0 +1,28 @@
+package lat.nexofood.api.modules.store.infrastructure.repository;
+
+import lat.nexofood.api.modules.store.domain.Tenant;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface TenantRepository extends JpaRepository<Tenant, UUID> {
+
+    Optional<Tenant> findBySlug(String slug);
+
+    boolean existsBySlug(String slug);
+
+    Optional<Tenant> findByOwnerId(UUID ownerId);
+
+    boolean existsByOwnerId(UUID ownerId);
+
+    Optional<Tenant> findBySubscriptionId(UUID subscriptionId);
+
+    Optional<Tenant> findByMpUserId(String mpUserId);
+
+    List<Tenant> findAllByMpRefreshTokenIsNotNullAndMpTokenExpiresAtBefore(OffsetDateTime threshold);
+}

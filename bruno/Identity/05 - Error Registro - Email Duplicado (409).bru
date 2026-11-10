@@ -1,0 +1,36 @@
+meta {
+  name: 05 - Error Registro - Email Duplicado (409)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "admin@nexofood.lat",
+    "password": "Password123!",
+    "fullName": "Carlos Duplicado",
+    "phone": "+51999888777"
+  }
+}
+
+tests {
+  test("Código de estado es 409 Conflict", function() {
+    expect(res.getStatus()).to.equal(409);
+  });
+
+  test("Mensaje describe correo duplicado", function() {
+    const body = res.getBody();
+    expect(body.status).to.equal(409);
+    expect(body.message).to.equal("El correo electrónico ya está registrado");
+  });
+}

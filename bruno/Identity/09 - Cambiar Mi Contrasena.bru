@@ -1,0 +1,38 @@
+meta {
+  name: 09 - Cambiar Mi Contrasena
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/users/me/password
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "currentPassword": "Password123!",
+    "newPassword": "NuevaPassword123!"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Contraseña actualizada exitosamente", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.message).to.equal("Contraseña actualizada exitosamente");
+  });
+}

@@ -1,0 +1,28 @@
+meta {
+  name: 06 - Vaciar Carrito de la Tienda
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Vacía todos los ítems del carrito y deja el total en 0", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.items).to.be.an('array').that.is.empty;
+    expect(data.total).to.equal(0);
+  });
+}

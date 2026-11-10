@@ -1,0 +1,309 @@
+package lat.nexofood.api.modules.store.web.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lat.nexofood.api.common.exception.GlobalExceptionHandler;
+import lat.nexofood.api.common.response.PageResponse;
+import lat.nexofood.api.common.security.TenantAccessService;
+import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
+import lat.nexofood.api.modules.store.application.service.customer.TenantCustomerService;
+import lat.nexofood.api.modules.store.application.service.storefront.StorefrontMenuService;
+import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
+import lat.nexofood.api.modules.store.web.dto.request.CustomerBlockRequest;
+import lat.nexofood.api.modules.store.web.dto.request.MemberRoleUpdateRequest;
+import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
+import lat.nexofood.api.modules.store.web.dto.response.StorefrontMenuResponse;
+import lat.nexofood.api.modules.store.web.dto.response.StorefrontProductResponse;
+import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
+import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
+import org.springframework.context.support.StaticApplicationContext;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
+import org.springframework.security.authorization.method.PreAuthorizeAuthorizationManager;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(SpringExtension.class)
+class TenantAuthorizationControllerTest {
+
+    private TenantService tenantService;
+    private TenantCustomerService tenantCustomerService;
+    private StorefrontMenuService storefrontMenuService;
+    private TenantAccessService tenantAccessService;
+
+    private TenantController proxiedTenantController;
+    private TenantMemberController proxiedMemberController;
+    private TenantCustomerController proxiedCustomerController;
+    private StorefrontCatalogController storefrontCatalogController;
+
+    private MockMvc mockMvc;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @BeforeEach
+    void setUp() {
+        tenantService = mock(TenantService.class);
+        tenantCustomerService = mock(TenantCustomerService.class);
+        storefrontMenuService = mock(StorefrontMenuService.class);
+        tenantAccessService = mock(TenantAccessService.class);
+
+        StaticApplicationContext appContext = new StaticApplicationContext();
+        appContext.getBeanFactory().registerSingleton("tenantAccess", tenantAccessService);
+        appContext.refresh();
+
+        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        expressionHandler.setApplicationContext(appContext);
+
+        PreAuthorizeAuthorizationManager authorizationManager = new PreAuthorizeAuthorizationManager();
+        authorizationManager.setExpressionHandler(expressionHandler);
+
+        AuthorizationManagerBeforeMethodInterceptor interceptor =
+                AuthorizationManagerBeforeMethodInterceptor.preAuthorize(authorizationManager);
+
+        proxiedTenantController = createSecuredProxy(new TenantController(tenantService), interceptor);
+        proxiedMemberController = createSecuredProxy(new TenantMemberController(tenantService), interceptor);
+        proxiedCustomerController = createSecuredProxy(new TenantCustomerController(tenantCustomerService), interceptor);
+        storefrontCatalogController = new StorefrontCatalogController(storefrontMenuService);
+
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        proxiedTenantController,
+                        proxiedMemberController,
+                        proxiedCustomerController,
+                        storefrontCatalogController
+                )
+                .setCustomArgumentResolvers(
+                        new PageableHandlerMethodArgumentResolver(),
+                        new AuthenticationPrincipalArgumentResolver()
+                )
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T createSecuredProxy(T target, AuthorizationManagerBeforeMethodInterceptor interceptor) {
+        AspectJProxyFactory factory = new AspectJProxyFactory(target);
+        factory.setProxyTargetClass(true);
+        factory.addAdvice(interceptor);
+        return (T) factory.getProxy();
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/tenants/{id} lanza AccessDeniedException si el usuario no es OWNER")
+    void updateTenantDeniedWhenNotOwner() {
+        UUID tenantId = UUID.randomUUID();
+        when(tenantAccessService.isOwner(tenantId)).thenReturn(false);
+
+        TenantUpdateRequest request = TenantUpdateRequest.builder().name("Nuevo Nombre").build();
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTenantController.updateTenant(tenantId, request)
+        );
+        verify(tenantService, never()).updateTenant(any(), any());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/tenants/{id} retorna 200 cuando el usuario es OWNER")
+    void updateTenantAllowedWhenOwner() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        when(tenantAccessService.isOwner(tenantId)).thenReturn(true);
+        when(tenantService.updateTenant(eq(tenantId), any())).thenReturn(
+                TenantResponse.builder().id(tenantId).name("Nuevo Nombre").build()
+        );
+
+        TenantUpdateRequest request = TenantUpdateRequest.builder().name("Nuevo Nombre").build();
+
+        mockMvc.perform(put("/api/v1/tenants/" + tenantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Nuevo Nombre"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/tenants/{id}/status valida DTO y retorna 400 cuando isActive es nulo")
+    void changeStatusReturns400WhenIsActiveNull() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        when(tenantAccessService.isOwner(tenantId)).thenReturn(true);
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/tenants/{tenantId}/members/{memberId}/role deniega acceso si no es OWNER ni ADMIN")
+    void updateMemberRoleDeniedWhenUnauthorized() {
+        UUID tenantId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        MemberRoleUpdateRequest request = new MemberRoleUpdateRequest(TenantStaffRole.COCINERO);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedMemberController.updateMemberRole(tenantId, memberId, request)
+        );
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/admin/tenants/{tenantId}/customers/{customerId}/block permite a OWNER/ADMIN con DTO validado")
+    void blockCustomerAllowedForAdmin() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+        when(tenantCustomerService.blockCustomer(tenantId, customerId, true))
+                .thenReturn(TenantCustomerResponse.builder().id(customerId).isBlocked(true).build());
+
+        CustomerBlockRequest request = new CustomerBlockRequest(true);
+
+        mockMvc.perform(patch("/api/v1/admin/tenants/" + tenantId + "/customers/" + customerId + "/block")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.isBlocked").value(true));
+    }
+
+    @Test
+    @DisplayName("StorefrontCatalogController: expone menú, categorías, productos paginados y detalle para clientes sin token")
+    void storefrontEndpointsArePublic() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        when(storefrontMenuService.getMenuBySlug("burger-bros")).thenReturn(
+                StorefrontMenuResponse.builder()
+                        .tenantName("Burger Bros")
+                        .tenantSlug("burger-bros")
+                        .categories(List.of())
+                        .uncategorizedProducts(List.of())
+                        .build()
+        );
+        when(storefrontMenuService.getActiveCategoriesBySlug("burger-bros")).thenReturn(
+                List.of(CategoryResponse.builder().name("Hamburguesas").sortOrder(1).isActive(true).build())
+        );
+        when(storefrontMenuService.getProductsBySlug(eq("burger-bros"), any(), any(), any())).thenReturn(
+                PageResponse.<StorefrontProductResponse>builder()
+                        .content(List.of(StorefrontProductResponse.builder().id(productId).name("Burger Royal").finalPrice(new BigDecimal("25.00")).build()))
+                        .page(0)
+                        .size(20)
+                        .totalElements(1)
+                        .totalPages(1)
+                        .first(true)
+                        .last(true)
+                        .build()
+        );
+        when(storefrontMenuService.getProductDetailBySlug("burger-bros", productId)).thenReturn(
+                StorefrontProductResponse.builder().id(productId).name("Burger Royal").finalPrice(new BigDecimal("25.00")).build()
+        );
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/menu"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tenantSlug").value("burger-bros"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Hamburguesas"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].name").value("Burger Royal"));
+
+        mockMvc.perform(get("/api/v1/store/burger-bros/products/" + productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.finalPrice").value(25.00));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/tenants/me retorna 404 Not Found cuando el usuario no tiene ninguna tienda asociada")
+    void getMyTenantReturns404WhenUserHasNoTenant() throws Exception {
+        UserDetails userDetails = User.builder()
+                .username("cliente@nexofood.lat")
+                .password("password")
+                .roles("USER")
+                .build();
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        when(tenantService.getMyTenant("cliente@nexofood.lat")).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/tenants/me").principal(auth))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("No tienes ninguna tienda asociada"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/tenants/me retorna 200 con los datos del restaurante cuando el usuario tiene tienda")
+    void getMyTenantReturns200WithTenantDataWhenUserHasTenant() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UserDetails userDetails = User.builder()
+                .username("owner@nexofood.lat")
+                .password("password")
+                .roles("USER")
+                .build();
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        TenantResponse response = TenantResponse.builder()
+                .id(tenantId)
+                .name("Mi Pizzería")
+                .slug("mi-pizzeria")
+                .build();
+
+        when(tenantService.getMyTenant("owner@nexofood.lat")).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/tenants/me").principal(auth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Restaurante del usuario obtenido exitosamente"))
+                .andExpect(jsonPath("$.data.id").value(tenantId.toString()))
+                .andExpect(jsonPath("$.data.name").value("Mi Pizzería"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/tenants/me retorna 401 Unauthorized cuando no hay usuario autenticado")
+    void getMyTenantReturns401WhenUnauthenticated() throws Exception {
+        mockMvc.perform(get("/api/v1/tenants/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Usuario no autenticado"));
+    }
+}

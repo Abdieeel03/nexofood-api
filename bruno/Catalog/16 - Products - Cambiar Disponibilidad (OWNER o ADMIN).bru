@@ -1,0 +1,37 @@
+meta {
+  name: 16 - Products - Cambiar Disponibilidad (OWNER o ADMIN)
+  type: http
+  seq: 16
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/availability
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isAvailable": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza la disponibilidad del producto", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.isAvailable).to.be.true;
+  });
+}

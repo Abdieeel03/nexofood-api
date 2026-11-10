@@ -1,0 +1,22 @@
+meta {
+  name: 03 - Obtener Restaurante por Slug (Publico)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/slug/{{tenantSlug}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Respuesta contiene datos públicos del restaurante", function() {
+    const data = res.getBody().data;
+    expect(data.slug).to.equal(bru.getEnvVar("tenantSlug"));
+  });
+}

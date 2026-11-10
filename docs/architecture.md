@@ -32,15 +32,33 @@ lat.nexofood.api
 │   └── util/                # GeoUtils, SecurityUtils
 │
 └── modules/                 # Módulos de dominio funcional
-    ├── auth/                # Autenticación global SSO, JWT y emisión de Claims
+    ├── identity/            # Identidad, Gestión de Usuarios, Autenticación global, JWT y emisión de Claims
     ├── subscription/        # Control de planes SaaS, membresías y validación de vigencia
     ├── tenant/              # Inquilinos/Restaurantes, miembros de staff (RBAC)
     ├── catalog/             # Categorías y Productos
-    ├── order/               # Carrito, cálculo de distancias PostGIS y máquina de estados
+    ├── cart/                # Gestión de carritos de compra e ítems
+    ├── order/               # Órdenes, cálculo de distancias PostGIS y máquina de estados
     └── payment/             # Mercado Pago OAuth, Webhooks y auditoría de transacciones
 ```
 
-### 2.2. Estrategia Multitenancy
+### 2.2. Arquitectura Interna de un Módulo
+Cada módulo funcional (`lat.nexofood.api.modules.<module>`) desacopla sus responsabilidades en las siguientes capas:
+
+```text
+module/
+├── api/             # Contratos públicos Java (interfaces, DTOs y eventos compartidos entre módulos)
+├── application/     # Casos de uso (UseCases), servicios de aplicación y coordinación transaccional
+├── domain/          # Entidades, Enums, Value Objects y reglas de negocio puras
+├── infrastructure/  # Implementaciones técnicas (Spring Data JPA, repositorios, clientes externos)
+│   └── repository/
+└── web/             # Capa HTTP externa (Controllers REST, DTOs Request/Response, Mappers)
+    ├── dto/
+    │   ├── request/
+    │   └── response/
+    └── mapper/
+```
+
+### 2.3. Estrategia Multitenancy
 * **Esquema:** *Shared Database, Shared Schema* (Base de datos y esquema compartidos)[cite: 1].
 * **Segregación:** Filtrado obligatorio por `tenant_id` en todos los repositorios y servicios para aislar completamente las operaciones de cada inquilino[cite: 1, 2].
 
@@ -48,9 +66,10 @@ lat.nexofood.api
 
 ## 3. Reglas de Negocio y Flujos Críticos
 
-1. **Modelo SaaS de Suscripciones (1 Tienda por Suscripción):**
+1. **Modelo SaaS y Relación 1 a 1 (1 Negocio por Usuario y por Suscripción):**
    * El servicio se monetiza mediante tarifa plana periódica.
-   * Cada suscripción activa (`subscriptions`) habilita exactamente un restaurante (`tenants`). Un usuario (`users`) puede administrar múltiples tiendas manteniendo una suscripción independiente por cada una[cite: 1, 2].
+   * Cada suscripción activa (`subscriptions`) habilita exactamente un restaurante (`tenants`).
+   * **Restricción 1 a 1 (Owner $\leftrightarrow$ Tenant):** Un usuario (`users`) solo puede ser propietario y registrar un único (1) restaurante o negocio (`tenants`). La relación está modelada como 1 a 1 (`@OneToOne` con `unique = true` en `owner_id`), impidiendo que una misma cuenta posea múltiples tiendas. Los demás usuarios pueden integrarse a una tienda existente como colaboradores mediante roles de membresía (`tenant_members`).
 2. **Cobro Directo en Mercado Pago (Cero Comisión por Pedido):**
    * El restaurante vincula su cuenta mediante Mercado Pago OAuth (`mp_access_token`)[cite: 1, 2].
    * El 100% de la venta de los comensales ingresa de forma directa e inmediata a la cuenta del restaurante (sin retención de split fee por pedido)[cite: 1].
@@ -60,6 +79,8 @@ lat.nexofood.api
    * Se evalúa la distancia esférica entre las coordenadas del local y la dirección de entrega del cliente[cite: 1, 2]. Si la distancia supera el radio configurado (`delivery_radius_km`), el pedido a domicilio es bloqueado[cite: 1, 2].
 5. **Snapshots Históricos Inmutables:**
    * Las órdenes preservan una copia inmutable del nombre del producto, precio unitario y dirección textual al momento exacto de la compra para garantizar consistencia histórica[cite: 1, 2].
+6. **Precios Dinámicos y Promociones:**
+   * El precio no es un valor estático en `products`; se desacopla en la tabla `product_prices`, permitiendo precios base y reglas dinámicas por fecha, día de la semana y rangos de horario (ej. Happy Hour, ofertas de fin de semana). Las órdenes y carritos calculan y congelan el precio vigente en el momento exacto de la operación.
 
 ---
 

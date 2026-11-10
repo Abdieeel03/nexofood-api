@@ -1,0 +1,25 @@
+meta {
+  name: 04 - OAuth - Desvincular Cuenta MP (Solo OWNER)
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/mercadopago
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Desvincula la cuenta de Mercado Pago correctamente", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: 09 - Repartidor - Listar Mis Entregas Asignadas (REPARTIDOR, ADMIN u OWNER)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/orders/my-deliveries
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~status: EN_CAMINO
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna lista de órdenes asignadas al repartidor autenticado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data).to.be.an('array');
+  });
+}

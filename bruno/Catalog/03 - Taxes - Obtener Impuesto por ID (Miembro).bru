@@ -1,0 +1,27 @@
+meta {
+  name: 03 - Taxes - Obtener Impuesto por ID (Miembro)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes/{{taxId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK (accesible por cualquier miembro del staff)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el detalle del impuesto solicitado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.equal(bru.getEnvVar("taxId"));
+  });
+}

@@ -1,0 +1,43 @@
+meta {
+  name: 15 - Products - Actualizar Producto (OWNER o ADMIN)
+  type: http
+  seq: 15
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "categoryId": "{{categoryId}}",
+    "taxId": "{{taxId}}",
+    "name": "Hamburguesa Royal Angus Especial",
+    "description": "Doble carne Angus 200g, queso cheddar inglés, tocino ahumado y huevo frito",
+    "price": 28.90,
+    "imageUrl": "https://cdn.nexofood.lat/products/royal-angus-especial.png",
+    "isAvailable": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza los datos del producto y su precio base", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("Hamburguesa Royal Angus Especial");
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: 01 - Publico - Estimar Cobertura, Tarifa y Tiempo de Entrega (ETA)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/delivery-estimate?lat=-12.1150&lng=-77.0290
+  body: none
+  auth: none
+}
+
+params:query {
+  lat: -12.1150
+  lng: -77.0290
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna cobertura, distancia y tiempo estimado (ETA)", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.withinCoverage).to.be.a('boolean');
+    expect(data.straightDistanceKm).to.be.a('number');
+    expect(data.message).to.be.a('string');
+  });
+}
+

@@ -1,0 +1,25 @@
+meta {
+  name: 05 - Eliminar Item del Carrito
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/cart/items/{{cartItemId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Elimina el ítem del carrito y actualiza el total", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}

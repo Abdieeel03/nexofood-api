@@ -1,0 +1,25 @@
+meta {
+  name: 20 - Prices - Eliminar Regla de Precio Promocional (OWNER o ADMIN)
+  type: http
+  seq: 20
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/prices/{{priceId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Elimina la regla promocional de precio exitosamente", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}

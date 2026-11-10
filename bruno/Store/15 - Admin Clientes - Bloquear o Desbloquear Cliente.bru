@@ -1,0 +1,36 @@
+meta {
+  name: 15 - Admin Clientes - Bloquear o Desbloquear Cliente
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/tenants/{{tenantId}}/customers/{{customerId}}/block
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isBlocked": false
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Estado de bloqueo actualizado", function() {
+    const data = res.getBody().data;
+    expect(data.isBlocked).to.equal(false);
+  });
+}

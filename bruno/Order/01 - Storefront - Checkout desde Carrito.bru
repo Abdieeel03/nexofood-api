@@ -1,0 +1,55 @@
+meta {
+  name: 01 - Storefront - Checkout desde Carrito (Mercado Pago Orders API)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders/checkout
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "deliveryType": "DELIVERY",
+    "customerAddressId": "{{addressId}}",
+    "ruc": "20123456789",
+    "notes": "Tocar intercomunicador 302"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.paymentId) {
+      bru.setEnvVar("paymentId", data.paymentId);
+    }
+    if (data && data.mpOrderId) {
+      bru.setEnvVar("mpOrderId", data.mpOrderId);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Crea el pago pendiente con snapshot en Mercado Pago Orders API y retorna checkoutUrl", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.paymentId).to.be.a('string');
+    expect(data.mpOrderId).to.be.a('string');
+    expect(data.checkoutUrl).to.be.a('string');
+    expect(data.status).to.equal("PENDING");
+  });
+}

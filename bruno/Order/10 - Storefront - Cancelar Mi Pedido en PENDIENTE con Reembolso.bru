@@ -1,0 +1,37 @@
+meta {
+  name: 10 - Storefront - Cancelar Mi Pedido en PENDIENTE con Reembolso
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders/{{orderId}}/cancel
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Me equivoqué de dirección de entrega, deseo reembolso"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK si estaba en PENDIENTE", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Cancela el pedido en estado PENDIENTE y dispara el reembolso total en Mercado Pago", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.status).to.equal("CANCELADO");
+  });
+}

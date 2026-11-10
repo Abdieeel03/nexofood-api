@@ -1,0 +1,26 @@
+meta {
+  name: 04 - Admin - Obtener Plan por ID (SUPERADMIN)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/plans/{{planId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el plan solicitado", function() {
+    const data = res.getBody().data;
+    expect(data.id).to.equal(bru.getEnvVar("planId"));
+  });
+}

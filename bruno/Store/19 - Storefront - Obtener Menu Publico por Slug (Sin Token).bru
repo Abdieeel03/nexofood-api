@@ -1,0 +1,25 @@
+meta {
+  name: 19 - Storefront - Obtener Menu Publico por Slug (Sin Token)
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/menu
+  body: none
+  auth: none
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna menú público del restaurante con categorías activas y productos", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.tenantSlug).to.equal(bru.getEnvVar("tenantSlug"));
+    expect(data.categories).to.be.an('array');
+    expect(data.uncategorizedProducts).to.be.an('array');
+  });
+}

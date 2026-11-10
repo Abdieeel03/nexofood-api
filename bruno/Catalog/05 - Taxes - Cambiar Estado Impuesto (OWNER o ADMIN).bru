@@ -1,0 +1,37 @@
+meta {
+  name: 05 - Taxes - Cambiar Estado Impuesto (OWNER o ADMIN)
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes/{{taxId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el impuesto con el estado actualizado", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.isActive).to.be.true;
+  });
+}

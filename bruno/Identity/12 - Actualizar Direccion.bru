@@ -1,0 +1,41 @@
+meta {
+  name: 12 - Actualizar Direccion
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/api/v1/users/me/addresses/{{addressId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "Oficina",
+    "addressLine": "Av. Javier Prado Este 1234, San Isidro",
+    "reference": "Torre Empresarial Piso 8",
+    "latitude": -12.0901,
+    "longitude": -77.0221
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Dirección actualizada correctamente", function() {
+    const data = res.getBody().data;
+    expect(data.title).to.equal("Oficina");
+    expect(data.latitude).to.equal(-12.0901);
+  });
+}

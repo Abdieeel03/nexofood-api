@@ -1,0 +1,36 @@
+meta {
+  name: 06 - Admin - Cambiar Estado del Plan (SUPERADMIN)
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/plans/{{planId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "isActive": true
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Estado del plan actualizado", function() {
+    const data = res.getBody().data;
+    expect(data.isActive).to.be.true;
+  });
+}

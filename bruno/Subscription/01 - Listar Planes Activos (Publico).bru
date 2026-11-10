@@ -1,0 +1,31 @@
+meta {
+  name: 01 - Listar Planes Activos (Publico)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/plans
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (Array.isArray(data) && data.length > 0 && data[0].id) {
+      bru.setEnvVar("planId", data[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna lista de planes activos", function() {
+    const data = res.getBody().data;
+    expect(data).to.be.an('array');
+  });
+}

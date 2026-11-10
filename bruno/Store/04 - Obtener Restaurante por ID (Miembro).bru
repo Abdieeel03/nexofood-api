@@ -1,0 +1,26 @@
+meta {
+  name: 04 - Obtener Restaurante por ID (Miembro)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK (Requiere ser miembro del tenant)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna el restaurante solicitado", function() {
+    const data = res.getBody().data;
+    expect(data.id).to.equal(bru.getEnvVar("tenantId"));
+  });
+}

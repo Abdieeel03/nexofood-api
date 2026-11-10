@@ -1,0 +1,48 @@
+meta {
+  name: 17 - Recipes - Agregar o Actualizar Ingrediente en Receta (OWNER o ADMIN)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "inventoryItemId": "{{inventoryItemId}}",
+    "quantity": 0.250
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("ingredientId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Asigna el ingrediente a la receta y guarda ingredientId", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.id).to.be.a('string');
+  });
+}
+

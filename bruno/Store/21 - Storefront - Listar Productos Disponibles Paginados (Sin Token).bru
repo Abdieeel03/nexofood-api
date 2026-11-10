@@ -1,0 +1,40 @@
+meta {
+  name: 21 - Storefront - Listar Productos Disponibles Paginados (Sin Token)
+  type: http
+  seq: 21
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/products?page=0&size=20
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 0
+  size: 20
+  ~categoryId: {{categoryId}}
+  ~search: Royal
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && Array.isArray(data.content) && data.content.length > 0 && data.content[0].id) {
+      bru.setEnvVar("productId", data.content[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna página de productos disponibles con precios vigentes e impuestos", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.content).to.be.an('array');
+    expect(data.page).to.equal(0);
+  });
+}

@@ -1,0 +1,52 @@
+meta {
+  name: 10 - Crear Direccion
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/users/me/addresses
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "Casa",
+    "addressLine": "Av. Larco 456, Miraflores",
+    "reference": "Frente al parque central",
+    "latitude": -12.1221,
+    "longitude": -77.0298
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("addressId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Dirección creada con coordenadas válidas", function() {
+    const data = res.getBody().data;
+    expect(data.id).to.be.a('string');
+    expect(data.title).to.equal("Casa");
+    expect(data.latitude).to.equal(-12.1221);
+    expect(data.longitude).to.equal(-77.0298);
+  });
+}

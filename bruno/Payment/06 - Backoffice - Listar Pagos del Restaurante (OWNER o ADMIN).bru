@@ -1,0 +1,31 @@
+meta {
+  name: 06 - Backoffice - Listar Pagos del Restaurante (OWNER o ADMIN)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/payments
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~status: APPROVED
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna listado de pagos del restaurante", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data).to.be.an('array');
+  });
+}

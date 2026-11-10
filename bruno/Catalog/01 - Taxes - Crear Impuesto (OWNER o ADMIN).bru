@@ -1,0 +1,51 @@
+meta {
+  name: 01 - Taxes - Crear Impuesto (OWNER o ADMIN)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/taxes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "IGV 18%",
+    "rate": 18.00,
+    "code": "1000",
+    "isInclusive": true,
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("taxId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Retorna el impuesto creado con su ID y tasa", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.name).to.equal("IGV 18%");
+    expect(data.rate).to.equal(18);
+  });
+}

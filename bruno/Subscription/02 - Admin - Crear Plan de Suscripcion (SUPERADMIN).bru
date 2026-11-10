@@ -1,0 +1,51 @@
+meta {
+  name: 02 - Admin - Crear Plan de Suscripcion (SUPERADMIN)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/plans
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Plan Emprendedor",
+    "price": 59.90,
+    "billingCycleDays": 30,
+    "maxProducts": 50,
+    "isActive": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const data = res.getBody().data;
+    if (data && data.id) {
+      bru.setEnvVar("planId", data.id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Plan creado con los datos especificados", function() {
+    const data = res.getBody().data;
+    expect(data.name).to.equal("Plan Emprendedor");
+    expect(data.maxProducts).to.equal(50);
+    expect(data.isActive).to.be.true;
+  });
+}

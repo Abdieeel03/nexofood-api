@@ -1,0 +1,42 @@
+meta {
+  name: 14 - Movements - Registrar Movimiento Entrada o Salida (OWNER, ADMIN o COCINERO)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/movements
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "stockId": "{{stockId}}",
+    "movementType": "ENTRY",
+    "reason": "PURCHASE",
+    "quantity": 25.000,
+    "reasonDetails": "Compra proveedor F001-00443"
+  }
+}
+
+tests {
+  test("Código de estado es 201 Created", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("Registra el movimiento y actualiza el saldo del stock", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.movementType).to.equal("ENTRY");
+  });
+}
+
