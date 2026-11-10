@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.web.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.common.exception.UnauthorizedException;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
@@ -109,13 +110,7 @@ public class TenantController {
         }
         TenantResponse response = tenantService.getMyTenant(userDetails.getUsername());
         if (response == null) {
-            return ResponseEntity.ok(
-                    ApiResponse.<TenantResponse>builder()
-                            .success(true)
-                            .message("No tienes ninguna tienda asociada")
-                            .data(null)
-                            .build()
-            );
+            throw new ResourceNotFoundException("No tienes ninguna tienda asociada");
         }
         return ResponseEntity.ok(
                 ApiResponse.<TenantResponse>builder()
