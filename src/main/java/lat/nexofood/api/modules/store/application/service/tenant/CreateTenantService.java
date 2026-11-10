@@ -1,8 +1,8 @@
 package lat.nexofood.api.modules.store.application.service.tenant;
 
+import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ForbiddenException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
-import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.subscription.domain.Subscription;
@@ -51,7 +51,7 @@ public class CreateTenantService implements CreateTenantUseCase {
         Subscription subscription;
         if (request.subscriptionId() != null) {
             subscription = subscriptionRepository.findById(request.subscriptionId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+                    .orElseThrow(() -> new BadRequestException("Suscripción no encontrada"));
 
             if (subscription.getUser() == null || !subscription.getUser().getId().equals(owner.getId())) {
                 throw new ForbiddenException("La suscripción especificada no pertenece al usuario autenticado");
@@ -59,7 +59,7 @@ public class CreateTenantService implements CreateTenantUseCase {
         } else {
             subscription = subscriptionRepository
                     .findFirstByUserIdAndStatusInOrderByCreatedAtDesc(owner.getId(), VALID_STATUSES)
-                    .orElseThrow(() -> new ResourceNotFoundException(
+                    .orElseThrow(() -> new BadRequestException(
                             "No cuentas con una suscripción vigente para crear un restaurante"));
         }
 

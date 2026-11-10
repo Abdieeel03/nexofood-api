@@ -1,8 +1,8 @@
 package lat.nexofood.api.modules.store.application.service.tenant;
 
+import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ForbiddenException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
-import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.store.domain.Tenant;
@@ -120,8 +120,8 @@ class CreateTenantServiceTest {
     }
 
     @Test
-    @DisplayName("Lanza ResourceNotFoundException cuando el usuario no tiene suscripción vigente")
-    void throwsNotFoundWhenUserHasNoActiveSubscription() {
+    @DisplayName("Lanza BadRequestException cuando el usuario no tiene suscripción vigente")
+    void throwsBadRequestWhenUserHasNoActiveSubscription() {
         UUID userId = UUID.randomUUID();
         User currentUser = User.builder().id(userId).build();
 
@@ -134,7 +134,26 @@ class CreateTenantServiceTest {
         when(subscriptionRepository.findFirstByUserIdAndStatusInOrderByCreatedAtDesc(eq(userId), any()))
                 .thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> createTenantService.execute(request));
+        assertThrows(BadRequestException.class, () -> createTenantService.execute(request));
+    }
+
+    @Test
+    @DisplayName("Lanza BadRequestException cuando la suscripción especificada no existe")
+    void throwsBadRequestWhenSubscriptionNotFound() {
+        UUID userId = UUID.randomUUID();
+        UUID subscriptionId = UUID.randomUUID();
+        User currentUser = User.builder().id(userId).build();
+
+        TenantCreateRequest request = TenantCreateRequest.builder()
+                .subscriptionId(subscriptionId)
+                .name("Pollería Nexo")
+                .slug("polleria-nexo")
+                .build();
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(currentUser);
+        when(subscriptionRepository.findById(subscriptionId)).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class, () -> createTenantService.execute(request));
     }
 
     @Test

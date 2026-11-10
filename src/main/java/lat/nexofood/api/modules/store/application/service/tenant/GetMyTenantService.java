@@ -32,13 +32,13 @@ public class GetMyTenantService implements GetMyTenantUseCase {
         return tenantRepository.findByOwnerId(user.getId())
                 .map(tenantMapper::toResponse)
                 .orElseGet(() ->
-                        // Si no es dueño, buscar como miembro de staff
+                        // Si no es dueño, buscar como miembro de staff activo
                         tenantMemberRepository.findAllByUserId(user.getId())
                                 .stream()
+                                .filter(member -> Boolean.TRUE.equals(member.getIsActive()))
                                 .findFirst()
                                 .map(member -> tenantMapper.toResponse(member.getTenant()))
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                        "No se encontró ningún restaurante asociado a este usuario"))
+                                .orElse(null)
                 );
     }
 }
