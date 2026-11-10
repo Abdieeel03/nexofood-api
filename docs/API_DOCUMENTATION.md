@@ -3,7 +3,7 @@
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-10-22  
+> **Última actualización:** 2026-11-10  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -142,16 +142,17 @@ Todas las respuestas de error (4xx y 5xx) siguen esta estructura:
 
 ## 🟢 Estado Actual de los Módulos
 
-| Bounded Context       | Estado                   | Controladores Activos                                                                                                          |
-| --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| **1. Identity**       | ✅ Activo y testeado     | `AuthController` (`/api/v1/auth/**`, `/api/v1/users/me/**`, `/api/v1/admin/users/**`)                                          |
-| **2. Store / Tenant** | ✅ Activo y testeado     | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController`, `StorefrontCatalogController` |
-| **3. Catalog & Tax**  | ✅ Activo y testeado     | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController`                                           |
-| **4. Subscription**   | ✅ Activo y testeado     | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController`                                      |
-| **5. Cart**           | ✅ Activo y testeado     | `CartController` (`/api/v1/store/{slug}/cart/**`)                                                                              |
-| **6. Order**          | ✅ Activo y testeado     | `StorefrontOrderController`, `OrderController`                                                                                 |
-| **7. Payment**        | 🔧 Modelos y DTOs listos | Integración y entidades listas                                                                                                 |
-| **8. Inventory**      | ✅ Activo y testeado     | InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController                    |
+| Bounded Context       | Estado               | Controladores Activos                                                                                                          |
+| --------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Identity**       | ✅ Activo y testeado | `AuthController`, `UserController`, `CustomerAddressController`, `AdminUserController`                                         |
+| **2. Store / Tenant** | ✅ Activo y testeado | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController`, `StorefrontCatalogController` |
+| **3. Catalog & Tax**  | ✅ Activo y testeado | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController`                                           |
+| **4. Subscription**   | ✅ Activo y testeado | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController`                                      |
+| **5. Cart**           | ✅ Activo y testeado | `CartController` (`/api/v1/store/{slug}/cart/**`)                                                                              |
+| **6. Order**          | ✅ Activo y testeado | `StorefrontOrderController`, `OrderController`                                                                                 |
+| **7. Payment**        | ✅ Activo y testeado | `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `MercadoPagoWebhookController`, `StorefrontPaymentController`, `TenantPaymentController` |
+| **8. Inventory**      | ✅ Activo y testeado | `InventoryItemController`, `InventoryStockController`, `InventoryMovementController`, `ProductIngredientController`           |
+| **9. Tracking**       | ✅ Activo y testeado | `DeliveryTrackingController`, `StorefrontTrackingController`                                                                  |
 
 ---
 
@@ -381,6 +382,300 @@ Endpoints para gestión de usuarios globales en la plataforma.
 
 ---
 
+### 👤 Perfil y Cuenta de Usuario (`UserController`)
+
+Ruta base: `/api/v1/users/me`
+
+---
+
+#### PUT `/api/v1/users/me`
+
+> Actualiza los datos de perfil (nombre completo y teléfono) del usuario autenticado actual.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON):**
+
+| Campo      | Tipo   | Requerido | Validación          | Descripción                     |
+| ---------- | ------ | --------- | ------------------- | ------------------------------- |
+| `fullName` | string | Sí        | Máx. 150 caracteres | Nombre completo del usuario     |
+| `phone`    | string | No        | Máx. 20 caracteres  | Número de teléfono de contacto  |
+
+```json
+{
+  "fullName": "Carlos Rodríguez Pérez",
+  "phone": "+51999888777"
+}
+```
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Perfil actualizado exitosamente",
+  "data": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "carlos@ejemplo.com",
+    "fullName": "Carlos Rodríguez Pérez",
+    "phone": "+51999888777",
+    "systemRole": "USER",
+    "isActive": true,
+    "createdAt": "2026-10-06T14:00:00Z",
+    "updatedAt": "2026-11-10T14:30:00Z"
+  }
+}
+```
+
+---
+
+#### PATCH `/api/v1/users/me/password`
+
+> Cambia la contraseña del usuario autenticado. Valida la contraseña actual y, por seguridad, revoca de inmediato todas las sesiones activas (`tokenVersion` se incrementa).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON):**
+
+| Campo             | Tipo   | Requerido | Validación        | Descripción                         |
+| ----------------- | ------ | --------- | ----------------- | ----------------------------------- |
+| `currentPassword` | string | Sí        | No vacío          | Contraseña actual de la cuenta      |
+| `newPassword`     | string | Sí        | Entre 8 y 100 car | Nueva contraseña segura             |
+
+```json
+{
+  "currentPassword": "PasswordAntiguo123!",
+  "newPassword": "NuevaPasswordFuerte2026#"
+}
+```
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Contraseña actualizada exitosamente"
+}
+```
+
+---
+
+#### DELETE `/api/v1/users/me`
+
+> Realiza la desactivación lógica (*soft delete*) de la cuenta del usuario autenticado y revoca inmediatamente todos sus tokens activos.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Cuenta eliminada exitosamente"
+}
+```
+
+---
+
+### 📍 Direcciones de Entrega del Cliente (`CustomerAddressController`)
+
+Ruta base: `/api/v1/users/me/addresses`
+
+---
+
+#### GET `/api/v1/users/me/addresses`
+
+> Lista todas las direcciones de entrega guardadas del usuario autenticado con sus coordenadas geográficas WGS84 (SRID 4326).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Direcciones obtenidas exitosamente",
+  "data": [
+    {
+      "id": "c1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "title": "Casa",
+      "addressLine": "Av. Las Palmeras 123, Los Olivos",
+      "reference": "Frente al parque principal",
+      "latitude": -11.993452,
+      "longitude": -77.072341,
+      "createdAt": "2026-10-06T14:00:00Z",
+      "updatedAt": "2026-10-06T14:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### POST `/api/v1/users/me/addresses`
+
+> Registra una nueva dirección de entrega para el usuario autenticado con validación de coordenadas WGS84.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON):**
+
+| Campo         | Tipo   | Requerido | Validación         | Descripción                                    |
+| ------------- | ------ | --------- | ------------------ | ---------------------------------------------- |
+| `title`       | string | No        | Máx. 50 caracteres | Etiqueta identificadora (ej. "Casa", "Trabajo")|
+| `addressLine` | string | Sí        | No vacío           | Dirección completa legible                     |
+| `reference`   | string | No        | Texto libre        | Referencia para el repartidor                  |
+| `latitude`    | number | Sí        | Entre -90.0 y 90.0 | Latitud WGS84                                  |
+| `longitude`   | number | Sí        | Entre -180 y 180.0 | Longitud WGS84                                 |
+
+```json
+{
+  "title": "Oficina",
+  "addressLine": "Calle Las Begonias 441, San Isidro",
+  "reference": "Piso 8, timbre NexoFood",
+  "latitude": -12.093124,
+  "longitude": -77.026451
+}
+```
+
+##### 📤 Response
+
+**Éxito (201 Created):**
+
+```json
+{
+  "success": true,
+  "message": "Dirección creada exitosamente",
+  "data": {
+    "id": "d2b3c4d5-e6f7-8901-bcde-fa2345678901",
+    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "title": "Oficina",
+    "addressLine": "Calle Las Begonias 441, San Isidro",
+    "reference": "Piso 8, timbre NexoFood",
+    "latitude": -12.093124,
+    "longitude": -77.026451,
+    "createdAt": "2026-11-10T14:35:00Z",
+    "updatedAt": "2026-11-10T14:35:00Z"
+  }
+}
+```
+
+---
+
+#### PUT `/api/v1/users/me/addresses/{addressId}`
+
+> Actualiza los datos o coordenadas de una dirección guardada existente del usuario.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Propietario de la dirección
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<CustomerAddressResponse>`.
+
+---
+
+#### DELETE `/api/v1/users/me/addresses/{addressId}`
+
+> Elimina de forma definitiva una dirección de entrega guardada del usuario.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Propietario de la dirección
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Dirección eliminada exitosamente"
+}
+```
+
+---
+
+### 🛡️ Administración de Usuarios Globales (`AdminUserController`)
+
+Ruta base: `/api/v1/admin/users`
+
+---
+
+#### GET `/api/v1/admin/users`
+
+> Lista de manera paginada todos los usuarios registrados en la plataforma.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `SUPERADMIN`
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<PageResponse<UserResponse>>`.
+
+---
+
+#### PATCH `/api/v1/admin/users/{userId}/status`
+
+> Activa o desactiva la cuenta de un usuario global en la plataforma. Si se desactiva, se invalidan de inmediato sus sesiones activas.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+```json
+{
+  "isActive": false
+}
+```
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Usuario desactivado",
+  "data": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "carlos@ejemplo.com",
+    "fullName": "Carlos Rodríguez Pérez",
+    "phone": "+51999888777",
+    "systemRole": "USER",
+    "isActive": false,
+    "createdAt": "2026-10-06T14:00:00Z",
+    "updatedAt": "2026-11-10T14:40:00Z"
+  }
+}
+```
+
+---
+
 ## 2. Store / Tenant — Gestión de Restaurantes, Staff y Clientes
 
 Módulo central para la administración de restaurantes, asignación de colaboradores y gestión de clientes de tienda.
@@ -394,6 +689,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
 #### POST `/api/v1/tenants`
 
 > Registra un nuevo restaurante. El propietario (owner) se extrae directamente del token JWT y la suscripción se vincula automáticamente buscando la suscripción activa o trial vigente del usuario (opcionalmente se puede pasar subscriptionId).
+>
+> ⚠️ **Validación de Suscripción:** Es estrictamente obligatorio contar con una suscripción activa o período de prueba (TRIAL) vigente. Si el usuario intenta registrar un restaurante sin suscripción, la API retorna `400 Bad Request` con el mensaje: *"No cuentas con una suscripción activa para crear un restaurante"*.
 
 **Autenticación:** Requerida (Bearer <token>)  
 **Rol requerido:** USER (con suscripción activa o trial vigente)  
@@ -457,8 +754,10 @@ Módulo central para la administración de restaurantes, asignación de colabora
     "deliveryRadiusKm": 6.5,
     "defaultDeliveryFee": 5.0,
     "isMpConnected": false,
+    "onlinePaymentsEnabled": false,
     "mpUserId": null,
     "mpConnectedAt": null,
+    "mpTokenExpiresAt": null,
     "isActive": true,
     "createdAt": "2026-10-06T14:00:00Z",
     "updatedAt": "2026-10-06T14:00:00Z"
@@ -609,14 +908,14 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 #### GET `/api/v1/tenants/me`
 
-> Obtiene el restaurante asociado al usuario autenticado actual como propietario.
+> Obtiene el restaurante asociado al usuario autenticado actual como propietario. Si el usuario aún no ha creado un restaurante, la API responde con `200 OK` y `data: null` (no genera error 404), facilitando la detección en el frontend para dirigir al onboarding.
 
-**Autenticación:** Requerida  
-**Rol requerido:** Usuario autenticado con rol `OWNER`
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado
 
 ##### 📤 Response
 
-**Éxito (200 OK):**
+**Caso 1: Con restaurante vinculado (200 OK):**
 
 ```json
 {
@@ -624,10 +923,37 @@ Módulo central para la administración de restaurantes, asignación de colabora
   "message": "Restaurante del usuario obtenido exitosamente",
   "data": {
     "id": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "subscriptionId": "8fa85f64-5717-4562-b3fc-2c963f66afa1",
+    "ownerId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     "name": "Burger Bros",
     "slug": "burger-bros",
-    "isActive": true
+    "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
+    "bannerUrl": "https://storage.nexofood.lat/banners/burger.png",
+    "phone": "+51987654321",
+    "address": "Av. Larco 456, Miraflores",
+    "latitude": -12.121543,
+    "longitude": -77.028941,
+    "deliveryRadiusKm": 6.5,
+    "defaultDeliveryFee": 5.0,
+    "isMpConnected": false,
+    "onlinePaymentsEnabled": false,
+    "mpUserId": null,
+    "mpConnectedAt": null,
+    "mpTokenExpiresAt": null,
+    "isActive": true,
+    "createdAt": "2026-10-06T14:00:00Z",
+    "updatedAt": "2026-10-06T14:00:00Z"
   }
+}
+```
+
+**Caso 2: Sin restaurante vinculado (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "No tienes ninguna tienda asociada",
+  "data": null
 }
 ```
 
@@ -1327,10 +1653,48 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 
 #### GET `/api/v1/store/{slug}/menu`
 
-> Retorna el menú público del restaurante activo identificado por su `slug`: categorías activas (ordenadas por `sortOrder`) junto con sus productos disponibles, precio vigente evaluado en el instante de la consulta e impuestos calculados.
+> Retorna el menú público del restaurante activo identificado por su `slug`: categorías activas (ordenadas por `sortOrder`) junto con sus productos disponibles, precio vigente evaluado en el instante de la consulta, impuestos calculados y el indicador `onlinePaymentsEnabled` para habilitar o deshabilitar la pasarela Mercado Pago en la interfaz del storefront.
 
 **Autenticación:** No requerida (Público)  
 **Rol requerido:** Ninguno
+
+##### 📤 Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Menú obtenido exitosamente",
+  "data": {
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tenantName": "Burger Bros",
+    "tenantSlug": "burger-bros",
+    "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
+    "bannerUrl": "https://storage.nexofood.lat/banners/burger.png",
+    "onlinePaymentsEnabled": true,
+    "categories": [
+      {
+        "id": "c1a2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Hamburguesas Clásicas",
+        "description": "Las mejores hamburguesas artesanales",
+        "sortOrder": 1,
+        "products": [
+          {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "name": "Hamburguesa Doble Queso",
+            "price": 24.90,
+            "finalPrice": 24.90,
+            "taxName": "IGV 18%",
+            "taxRate": 18.00,
+            "taxInclusive": true,
+            "isAvailable": true
+          }
+        ]
+      }
+    ],
+    "uncategorizedProducts": []
+  }
+}
+```
 
 #### GET `/api/v1/store/{slug}/categories`
 
@@ -1534,9 +1898,64 @@ Ruta base: `/api/v1/store/{slug}/orders`
 
 | Método | Ruta                                   | Descripción                                                                                                                                                                             |
 | ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST` | `/api/v1/store/{slug}/orders/checkout` | Crea una orden desde el carrito activo del cliente en la tienda `{slug}` (recalcula precios, valida cobertura `DELIVERY`, congela snapshots y vacía el carrito en la misma transacción) |
-| `GET`  | `/api/v1/store/{slug}/orders`          | Lista paginada del historial de pedidos del cliente autenticado en la tienda `{slug}`                                                                                                   |
-| `GET`  | `/api/v1/store/{slug}/orders/{id}`     | Obtiene el detalle de un pedido propio del cliente autenticado en la tienda `{slug}`                                                                                                    |
+| `POST` | `/api/v1/store/{slug}/orders/checkout` | Inicia el checkout con Checkout Pro (Mercado Pago Orders API). Valida cobertura y stock, congela el `OrderDraft` y retorna `CheckoutPaymentResponse` con `checkoutUrl`.              |
+| `POST` | `/api/v1/store/{slug}/orders/{id}/cancel` | Cancela el pedido del cliente y ejecuta el reembolso total en Mercado Pago. **Solo permitido en estado `PENDIENTE`**; en preparación o posterior retorna `409 Conflict`.          |
+| `GET`  | `/api/v1/store/{slug}/orders`          | Lista paginada del historial de pedidos del cliente autenticado en la tienda `{slug}`.                                                                                                 |
+| `GET`  | `/api/v1/store/{slug}/orders/{id}`     | Obtiene el detalle de un pedido propio del cliente autenticado en la tienda `{slug}` (incluye ETA dinámico si está en camino).                                                         |
+
+#### Detalle de Checkout Storefront (`POST /api/v1/store/{slug}/orders/checkout`)
+
+> Genera la orden de pago en Mercado Pago mediante la **Orders API v1** (`POST /v1/orders` en modo `online` y captura manual) vinculada a la cuenta del restaurante (100% de los fondos directos al tenant).  
+>
+> ⚠️ **Importante:** La orden (`Order`) en la base de datos **no se genera de inmediato** y el carrito **no se vacía** en esta llamada; se mantiene congelado un snapshot inmutable en `Payment.checkoutSnapshot`. La orden se materializa automáticamente y el carrito se vacía cuando el webhook de Mercado Pago confirma `APPROVED` (`status = processed`).
+
+**Request Body:** `OrderCheckoutRequest`
+
+##### 📤 Response (201 Created) — Envelope `ApiResponse<CheckoutPaymentResponse>`
+
+```json
+{
+  "success": true,
+  "message": "Orden de pago generada exitosamente en Mercado Pago",
+  "data": {
+    "paymentId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "mpOrderId": "ORD01HY78ZX90ABCD12345678",
+    "checkoutUrl": "https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=12345678-abc-987",
+    "status": "PENDING",
+    "amount": 49.80,
+    "currency": "PEN",
+    "expiresAt": "2026-11-10T15:30:00Z"
+  }
+}
+```
+
+#### Detalle de Cancelación con Reembolso (`POST /api/v1/store/{slug}/orders/{id}/cancel`)
+
+> Permite al cliente cancelar su orden y desencadenar un **reembolso total inmediato** en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`), marcando la orden como `CANCELADO` y liberando cualquier stock comprometido.
+
+**Request Body (Opcional):** `OrderCancelRequest`
+
+```json
+{
+  "reason": "Me equivoqué de dirección de entrega"
+}
+```
+
+##### 📤 Response (200 OK) — Envelope `ApiResponse<OrderResponse>`
+
+```json
+{
+  "success": true,
+  "message": "Pedido cancelado y reembolsado exitosamente",
+  "data": {
+    "id": "1fa85f64-5717-4562-b3fc-2c963f66afa1",
+    "orderNumber": "ORD-000142",
+    "status": "CANCELADO",
+    "total": 49.80,
+    "notes": "Cancelado por el cliente. Motivo: Me equivoqué de dirección de entrega"
+  }
+}
+```
 
 ### 🛡️ Endpoints Backoffice, KDS y Reparto (`OrderController`)
 
@@ -1572,6 +1991,12 @@ Ruta base: `/api/v1/tenants/{tenantId}/orders`
 | -------- | ------ | --------- | ------------- | ------------------------ |
 | `status` | string | Sí        | `OrderStatus` | Nuevo estado de la orden |
 
+### 📥 DTO: OrderCancelRequest
+
+| Campo    | Tipo   | Requerido | Validación           | Descripción                            |
+| -------- | ------ | --------- | -------------------- | -------------------------------------- |
+| `reason` | string | No        | Máx. 500 caracteres  | Motivo de la cancelación por el cliente|
+
 ### 📥 DTO: OrderAssignStaffRequest
 
 | Campo             | Tipo | Requerido | Validación  | Descripción                                      |
@@ -1605,30 +2030,40 @@ Ruta base: `/api/v1/tenants/{tenantId}/orders`
 
 ### 📤 DTO: OrderResponse
 
-| Campo               | Tipo                    | Nullable | Descripción                                       |
-| ------------------- | ----------------------- | -------- | ------------------------------------------------- |
-| `id`                | UUID                    | No       | Identificador del pedido                          |
-| `tenantId`          | UUID                    | No       | Restaurante                                       |
-| `customerId`        | UUID                    | No       | ID de cliente en tienda                           |
-| `customerUserId`    | UUID                    | No       | ID de usuario global                              |
-| `customerFullName`  | string                  | Sí       | Nombre del cliente                                |
-| `customerEmail`     | string                  | Sí       | Email del cliente                                 |
-| `customerPhone`     | string                  | Sí       | Teléfono de contacto                              |
-| `deliveryStaffId`   | UUID                    | Sí       | ID del repartidor asignado                        |
-| `orderNumber`       | string                  | No       | Código legible del pedido (ej. "ORD-000123")      |
-| `deliveryType`      | string                  | No       | `DELIVERY`, `TAKEAWAY`, `DINE_IN`                 |
-| `status`            | string                  | No       | `PENDIENTE`, `EN_PREPARACION`, etc.               |
-| `deliveryAddress`   | string                  | Sí       | Dirección histórica inmutable                     |
-| `deliveryLatitude`  | number                  | Sí       | Latitud de entrega                                |
-| `deliveryLongitude` | number                  | Sí       | Longitud de entrega                               |
-| `subtotal`          | BigDecimal              | No       | Suma de valores netos imponibles                  |
-| `taxTotal`          | BigDecimal              | No       | Total de impuestos calculados (ej. IGV acumulado) |
-| `deliveryFee`       | BigDecimal              | No       | Costo de envío aplicado                           |
-| `total`             | BigDecimal              | No       | Monto total final a pagar                         |
-| `notes`             | string                  | Sí       | Notas del pedido                                  |
-| `items`             | List<OrderItemResponse> | No       | Detalle de los platillos del pedido               |
-| `createdAt`         | string                  | No       | Fecha de creación (ISO 8601)                      |
-| `updatedAt`         | string                  | No       | Fecha de actualización (ISO 8601)                 |
+| Campo                      | Tipo                    | Nullable | Descripción                                                                |
+| -------------------------- | ----------------------- | -------- | -------------------------------------------------------------------------- |
+| `id`                       | UUID                    | No       | Identificador único del pedido                                             |
+| `tenantId`                 | UUID                    | No       | Restaurante asociado                                                       |
+| `tenantSlug`               | string                  | No       | Slug identificador de la tienda                                            |
+| `tenantName`               | string                  | No       | Nombre comercial del restaurante                                           |
+| `customerId`               | UUID                    | No       | ID de cliente en tienda                                                    |
+| `customerUserId`           | UUID                    | No       | ID de usuario global                                                       |
+| `customerFullName`         | string                  | Sí       | Nombre del cliente                                                         |
+| `customerEmail`            | string                  | Sí       | Email del cliente                                                          |
+| `customerPhone`            | string                  | Sí       | Teléfono de contacto                                                       |
+| `deliveryStaffId`          | UUID                    | Sí       | ID del repartidor asignado                                                 |
+| `deliveryStaffName`        | string                  | Sí       | Nombre completo del repartidor asignado                                    |
+| `orderNumber`              | string                  | No       | Código legible del pedido (ej. "ORD-000123")                               |
+| `ruc`                      | string                  | Sí       | RUC para facturación electrónica                                           |
+| `deliveryType`             | string                  | No       | `DELIVERY`, `TAKEAWAY`, `DINE_IN`                                          |
+| `status`                   | string                  | No       | `PENDIENTE`, `EN_PREPARACION`, `LISTO_PARA_ENTREGA`, `EN_CAMINO`, `ENTREGADO`, `CANCELADO` |
+| `deliveryAddress`          | string                  | Sí       | Dirección histórica inmutable                                              |
+| `deliveryLatitude`         | number                  | Sí       | Latitud de entrega                                                         |
+| `deliveryLongitude`        | number                  | Sí       | Longitud de entrega                                                        |
+| `estimatedDistanceKm`      | BigDecimal              | Sí       | Distancia calculada por PostGIS entre restaurante y cliente                |
+| `estimatedDeliveryMinutes` | number                  | Sí       | Tiempo estimado de entrega en minutos (recalculado en tiempo real con GPS) |
+| `estimatedArrivalAt`       | string                  | Sí       | Hora estimada de llegada del repartidor (ISO 8601)                         |
+| `etaMessage`               | string                  | Sí       | Mensaje formateado para el comensal (ej. "Tu pedido llegará en ~12 min")  |
+| `dispatchedAt`             | string                  | Sí       | Momento en que el repartidor inició ruta `EN_CAMINO` (ISO 8601)            |
+| `deliveredAt`              | string                  | Sí       | Momento en que la orden pasó a `ENTREGADO` (ISO 8601)                      |
+| `subtotal`                 | BigDecimal              | No       | Suma de valores netos imponibles                                           |
+| `taxTotal`                 | BigDecimal              | No       | Total de impuestos calculados (ej. IGV acumulado)                          |
+| `deliveryFee`              | BigDecimal              | No       | Costo de envío aplicado                                                    |
+| `total`                    | BigDecimal              | No       | Monto total final a pagar                                                  |
+| `notes`                    | string                  | Sí       | Notas del pedido                                                           |
+| `items`                    | List<OrderItemResponse> | No       | Detalle de los platillos del pedido                                        |
+| `createdAt`                | string                  | No       | Fecha de creación (ISO 8601)                                               |
+| `updatedAt`                | string                  | No       | Fecha de actualización (ISO 8601)                                          |
 
 ---
 
@@ -1941,26 +2376,112 @@ Ruta base: /api/v1/subscriptions
 
 ---
 
+#### POST /api/v1/subscriptions/checkout
+
+> Genera una suscripción recurrente con **pagos preaprobados en Mercado Pago** (`POST /preapproval`). Crea la suscripción en base de datos con estado `PENDING` y devuelve la URL `initPoint` para que el usuario autorice el débito automático periódico en Mercado Pago.
+>
+> Cuando Mercado Pago procesa el cobro y envía el webhook correspondiente, la suscripción pasa a `ACTIVE` y se registra el cobro en el historial.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquier usuario autenticado  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON) — `SubscriptionCreateRequest`:**
+
+| Campo    | Tipo | Requerido | Descripción         |
+| -------- | ---- | --------- | ------------------- |
+| `planId` | UUID | Sí        | ID del plan elegido |
+
+```json
+{
+  "planId": "p1a2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+
+##### 📤 Response
+
+**Éxito (201 Created):**
+
+```json
+{
+  "success": true,
+  "message": "Enlace de suscripción preaprobada generado exitosamente",
+  "data": {
+    "subscriptionId": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "planId": "p1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "mpPreapprovalId": "2c9380847290abcd017291234567890a",
+    "initPoint": "https://www.mercadopago.com.pe/subscriptions/checkout?preapproval_id=2c9380847290abcd017291234567890a",
+    "status": "PENDING"
+  }
+}
+```
+
+---
+
+#### GET /api/v1/subscriptions/me/payments
+
+> Lista el historial de cobros recurrentes de la suscripción del usuario autenticado (con ID de transacción en Mercado Pago, montos, fecha de cobro y estado).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Propietario de la suscripción
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Historial de cobros de suscripción obtenido exitosamente",
+  "data": [
+    {
+      "id": "b1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "subscriptionId": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "mpAuthorizedPaymentId": "98765432101",
+      "mpPaymentId": "12345678901",
+      "status": "APPROVED",
+      "amount": 59.90,
+      "currency": "PEN",
+      "paidAt": "2026-11-01T10:00:00Z",
+      "periodEnd": "2026-12-01T10:00:00Z",
+      "createdAt": "2026-11-01T10:00:05Z"
+    }
+  ]
+}
+```
+
+---
+
 #### PATCH /api/v1/subscriptions/me/cancel
 
-> Cancela la suscripción activa del usuario autenticado y desactiva el restaurante vinculado.
+> Cancela la suscripción vigente del usuario autenticado.  
+>
+> ⚠️ **Comportamiento según el tipo de suscripción:**
+> - **Suscripción de prueba (TRIAL) o manual:** Pasa de inmediato a `CANCELED` y desactiva el restaurante vinculado.
+> - **Suscripción pagada recurrente con Mercado Pago (`mpPreapprovalId`):** Cancela la recurrencia automática en Mercado Pago (`status: cancelled`) y marca `cancelAtPeriodEnd = true`. **Mantiene el acceso al restaurante abierto hasta el término del período ya facturado (`endDate`)**; llegada esa fecha, un scheduler la expira automáticamente.
 
-**Autenticación:** Requerida (Bearer <token>)  
+**Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Usuario autenticado con suscripción activa o trial
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
-`json
+
+```json
 {
   "success": true,
   "message": "Suscripción cancelada exitosamente",
   "data": {
     "id": "s1a2c3d4-e5f6-7890-abcd-ef1234567890",
-    "status": "CANCELED"
+    "status": "ACTIVE",
+    "cancelAtPeriodEnd": true,
+    "endDate": "2026-12-01T10:00:00Z",
+    "mpPreapprovalStatus": "cancelled"
   }
 }
-`
+```
 
 ---
 
@@ -1968,111 +2489,380 @@ Ruta base: /api/v1/subscriptions
 
 #### 📥 DTO: SubscriptionPlanRequest
 
-| Campo | Tipo | Requerido | Validación | Descripción |
-| ----- | ---- | --------- | ---------- | ----------- |
-
-|
-ame | string | Sí | Máx. 100 char | Nombre del plan (ej. "Plan Pro") |
-| price | BigDecimal | Sí | ≥ 0.00 | Tarifa mensual del plan |
-| illingCycleDays | number | Sí | ≥ 1 | Días del ciclo de facturación (default: 30)|
-| maxProducts | number | No | ≥ 1 | Límite de productos en el catálogo |
-| isActive | boolean | No | — | Estado activo |
+| Campo              | Tipo       | Requerido | Validación    | Descripción                                 |
+| ------------------ | ---------- | --------- | ------------- | ------------------------------------------- |
+| `name`             | string     | Sí        | Máx. 100 char | Nombre del plan (ej. "Plan Emprendedor")    |
+| `price`            | BigDecimal | Sí        | ≥ 0.00        | Tarifa recurrente del plan                  |
+| `billingCycleDays` | number     | Sí        | ≥ 1           | Días del ciclo de facturación (default: 30) |
+| `maxProducts`      | number     | No        | ≥ 1           | Límite de productos en el catálogo          |
+| `isActive`         | boolean    | No        | —             | Estado activo                               |
 
 #### 📤 DTO: SubscriptionPlanResponse
 
-| Campo | Tipo | Nullable | Descripción |
-| ----- | ---- | -------- | ----------- |
-| id    | UUID | No       | ID del plan |
-
-|
-ame | string | No | Nombre del plan |
-| price | BigDecimal | No | Precio recurrente |
-| illingCycleDays | number | No | Días del período |
-| maxProducts | number | Sí | Capacidad máxima de productos |
-| isActive | boolean | No | Estado |
+| Campo              | Tipo       | Nullable | Descripción                   |
+| ------------------ | ---------- | -------- | ----------------------------- |
+| `id`               | UUID       | No       | ID del plan                   |
+| `name`             | string     | No       | Nombre del plan               |
+| `price`            | BigDecimal | No       | Precio recurrente             |
+| `billingCycleDays` | number     | No       | Días del período              |
+| `maxProducts`      | number     | Sí       | Capacidad máxima de productos |
+| `isActive`         | boolean    | No       | Estado del plan               |
 
 #### 📥 DTO: SubscriptionCreateRequest
 
-| Campo  | Tipo | Requerido | Descripción         |
-| ------ | ---- | --------- | ------------------- |
-| planId | UUID | Sí        | ID del plan elegido |
+| Campo    | Tipo | Requerido | Descripción         |
+| -------- | ---- | --------- | ------------------- |
+| `planId` | UUID | Sí        | ID del plan elegido |
+
+#### 📤 DTO: SubscriptionCheckoutResponse
+
+| Campo             | Tipo               | Nullable | Descripción                                               |
+| ----------------- | ------------------ | -------- | --------------------------------------------------------- |
+| `subscriptionId`  | UUID               | No       | Identificador de la suscripción generada                  |
+| `planId`          | UUID               | No       | ID del plan SaaS contratado                               |
+| `mpPreapprovalId` | string             | No       | Identificador de suscripción recurrente en Mercado Pago   |
+| `initPoint`       | string             | No       | URL de checkout de Mercado Pago para autorizar la tarjeta |
+| `status`          | SubscriptionStatus | No       | `PENDING`, `ACTIVE`, etc.                                 |
+
+#### 📤 DTO: SubscriptionPaymentResponse
+
+| Campo                   | Tipo                      | Nullable | Descripción                                       |
+| ----------------------- | ------------------------- | -------- | ------------------------------------------------- |
+| `id`                    | UUID                      | No       | Identificador del cobro                           |
+| `subscriptionId`        | UUID                      | No       | ID de la suscripción vinculada                    |
+| `mpAuthorizedPaymentId` | string                    | Sí       | ID del pago autorizado recurrente en Mercado Pago |
+| `mpPaymentId`           | string                    | Sí       | ID del pago procesado                             |
+| `status`                | SubscriptionPaymentStatus | No       | `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`    |
+| `amount`                | BigDecimal                | No       | Monto debitado                                    |
+| `currency`              | string                    | No       | Moneda (`PEN`)                                    |
+| `paidAt`                | string                    | Sí       | Fecha de confirmación del cobro (ISO 8601)        |
+| `periodEnd`             | string                    | Sí       | Fin de cobertura del período facturado (ISO 8601) |
+| `createdAt`             | string                    | No       | Fecha de registro (ISO 8601)                      |
 
 #### 📤 DTO: SubscriptionResponse
 
-| Campo           | Tipo                     | Nullable | Descripción                                |
-| --------------- | ------------------------ | -------- | ------------------------------------------ |
-| id              | UUID                     | No       | ID de la suscripción                       |
-| plan            | SubscriptionPlanResponse | No       | Detalle del plan contratado                |
-| userId          | UUID                     | No       | Propietario de la cuenta                   |
-| status          | string                   | No       | TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED |
-| startDate       | string                   | No       | Fecha inicio (ISO 8601)                    |
-| endDate         | string                   | No       | Fecha fin del período (ISO 8601)           |
-| mpPreapprovalId | string                   | Sí       | ID de suscripción automática Mercado Pago  |
+| Campo                 | Tipo                     | Nullable | Descripción                                                                |
+| --------------------- | ------------------------ | -------- | -------------------------------------------------------------------------- |
+| `id`                  | UUID                     | No       | ID de la suscripción                                                       |
+| `plan`                | SubscriptionPlanResponse | No       | Detalle del plan contratado                                                |
+| `userId`              | UUID                     | No       | Propietario de la cuenta                                                   |
+| `status`              | string                   | No       | `TRIAL`, `ACTIVE`, `PENDING`, `PAST_DUE`, `CANCELED`, `EXPIRED`            |
+| `startDate`           | string                   | No       | Fecha inicio (ISO 8601)                                                    |
+| `endDate`             | string                   | No       | Fecha fin del período (ISO 8601)                                           |
+| `mpPreapprovalId`     | string                   | Sí       | ID de suscripción automática Mercado Pago                                  |
+| `mpPreapprovalStatus` | string                   | Sí       | Estado de la recurrencia en MP (`authorized`, `cancelled`)                 |
+| `cancelAtPeriodEnd`   | boolean                  | Sí       | Indica si la suscripción se cancelará al llegar al final del período actual|
+
+---
 
 ## 7. Payment — Pagos 100% Mercado Pago (Orders API Checkout Pro, OAuth, Preapproval y Webhooks)
 
----
-
-### 🔗 7.1 Suscripciones Recurrentes Preaprobadas (`SubscriptionController`)
-
-- **`POST /api/v1/subscriptions/checkout`** (Autenticado): Crea una suscripción en estado `PENDING` y genera un `preapproval` recurrente en Mercado Pago (`POST /preapproval`). Retorna `SubscriptionCheckoutResponse { subscriptionId, mpPreapprovalId, initPoint, status }`.
-- **`GET /api/v1/subscriptions/me/payments`** (Autenticado): Lista el historial de cobros recurrentes (`SubscriptionPaymentResponse`) de la suscripción del usuario.
-- **`PATCH /api/v1/subscriptions/me/cancel`** (Autenticado): Si la suscripción es `ACTIVE` pagada con `mpPreapprovalId`, cancela la recurrencia en Mercado Pago (`status: cancelled`), marca `cancelAtPeriodEnd = true` y **mantiene el acceso abierto hasta `endDate`**.
-
----
-
-### 🔗 7.2 Conexión OAuth de Mercado Pago del Restaurante (`MercadoPagoConnectionController` y `MercadoPagoOAuthCallbackController`)
-
-- **`GET /api/v1/tenants/{tenantId}/mercadopago/connect`** (`OWNER`): Genera la URL de autorización OAuth de Mercado Pago con un `state` firmado (expira en 10 minutos).
-- **`GET /api/v1/tenants/{tenantId}/mercadopago/status`** (`OWNER` o `ADMIN`): Consulta si el restaurante tiene su cuenta de Mercado Pago conectada (`connected`, `mpUserId`, `tokenExpiresAt`).
-- **`DELETE /api/v1/tenants/{tenantId}/mercadopago`** (`OWNER`): Desvincula la cuenta de Mercado Pago del restaurante.
-- **`GET /api/v1/mercadopago/oauth/callback?code=...&state=...`** (Público): Recibe el callback de Mercado Pago, intercambia el `code` por credenciales OAuth, las guarda cifradas con AES-256-GCM y redirige al panel del tenant (`302 Found` en navegador o `200 OK` en JSON para clientes API).
+> **Arquitectura Financiera:** Integración directa con **Mercado Pago** que garantiza cobro seguro y conciliación automática:
+> 1. **Cobro Directo al Restaurante (OAuth Multi-Tenant):** Cada restaurante vincula su propia cuenta de Mercado Pago mediante OAuth 2.0. El 100% de los ingresos de sus pedidos en línea va directamente a su cuenta, sin intermediación de fondos por la plataforma.
+> 2. **SaaS Recurrente (Preapproval):** El cobro mensual del plan SaaS del restaurante se gestiona mediante suscripciones preaprobadas (`POST /preapproval`) cargadas a la cuenta del usuario.
+> 3. **Checkout Pro vía Orders API v1 (`POST /v1/orders`):** Proporciona la experiencia moderna de Checkout Pro (tarjetas de crédito/débito, Yape, PagoEfectivo, saldo en cuenta). En el checkout se congela el snapshot del carrito (`OrderDraft`) sin crear aún la orden en BD.
+> 4. **Webhooks con Firma Criptográfica (`x-signature`):** Validación HMAC-SHA256 del manifiesto de notificación (`id;request-id;ts`). Al confirmarse el pago (`status = processed` / `APPROVED`), se materializa la orden (`Order` en `PENDIENTE`), se descuenta el stock de recetas y se limpia el carrito.
+> 5. **Reembolsos Automáticos:** Cancelación de pedidos en estado `PENDIENTE` con devolución inmediata y total en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`).
 
 ---
 
-### 💳 7.3 Checkout Pro vía Orders API, Generación de Orden tras Pago y Reembolso en `PENDIENTE`
+### 🔗 7.1 Conexión OAuth del Restaurante (`MercadoPagoConnectionController` y `MercadoPagoOAuthCallbackController`)
 
-1. **`POST /api/v1/store/{slug}/orders/checkout`** (Cliente autenticado):
-   - Valida carrito, cobertura PostGIS y precios vigentes, congela el `OrderDraft` en `Payment.checkoutSnapshot` (`JSONB`) y crea una orden online en Mercado Pago (`POST /v1/orders`, `type: "online"`, `processing_mode: "manual"`) usando el `mpAccessToken` del restaurante (100% del dinero va directo al tenant).
-   - Retorna `201 Created` con `CheckoutPaymentResponse`: `{ paymentId, mpOrderId, checkoutUrl, status: "PENDING", amount, currency, expiresAt }`.
-   - **Nota importante:** El pedido (`Order`) **no se crea todavía** ni se vacía el carrito hasta que el pago sea aprobado.
-2. **`POST /api/v1/webhooks/mercadopago`** (Público, protegido con firma HMAC-SHA256 `x-signature`):
-   - Valida el manifiesto `id:{data.id};request-id:{x-request-id};ts:{ts};`.
-   - Consulta el estado real en la API de Mercado Pago (`GET /v1/orders/{id}`, `GET /preapproval/{id}` o `GET /authorized_payments/{id}`).
-   - Cuando la orden de Mercado Pago pasa a `status = processed` (`APPROVED`), materializa la entidad `Order` (`PENDIENTE`) a partir del `checkoutSnapshot` y limpia el carrito del cliente.
-3. **`GET /api/v1/store/{slug}/payments/{paymentId}`** (Cliente autenticado):
-   - Permite al frontend consultar el estado del pago (`PaymentStatusResponse`) al volver del checkout de Mercado Pago y obtener el `orderId` y `orderNumber` una vez aprobado.
-4. **`POST /api/v1/store/{slug}/orders/{id}/cancel`** (Cliente autenticado):
-   - Permite al cliente cancelar su pedido y recibir el **reembolso total automático** en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`) **únicamente mientras el estado de la orden siga en `PENDIENTE`**. Si ya pasó a `EN_PREPARACION` o posterior, responde `409 Conflict`.
-5. **`GET /api/v1/tenants/{tenantId}/payments`** (`OWNER` o `ADMIN`) y **`GET /api/v1/tenants/{tenantId}/orders/{orderId}/payment`** (Miembro del tenant):
-   - Consultas de pagos para el backoffice del restaurante.
+Ruta base: `/api/v1/tenants/{tenantId}/mercadopago` y `/api/v1/mercadopago/oauth`
 
 ---
 
-### 📤 DTO: PaymentResponse
+#### GET `/api/v1/tenants/{tenantId}/mercadopago/connect`
+
+> Genera la URL oficial de autorización OAuth de Mercado Pago para que el dueño del restaurante vincule su cuenta. El enlace incluye un parámetro `state` firmado criptográficamente con HMAC que vincula el `tenantId` y expira en 10 minutos para evitar ataques CSRF.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` del restaurante
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "URL de autorización de Mercado Pago generada exitosamente",
+  "data": {
+    "authorizationUrl": "https://auth.mercadopago.com.pe/authorization?client_id=1234567890&response_type=code&platform_id=mp&state=eyJhbGciOiJIUzI1NiJ9...&redirect_uri=https%3A%2F%2Fapi.nexofood.lat%2Fapi%2Fv1%2Fmercadopago%2Foauth%2Fcallback",
+    "expiresInSeconds": 600
+  }
+}
+```
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/mercadopago/status`
+
+> Consulta el estado de conexión de Mercado Pago del restaurante. Informa si la tienda tiene credenciales válidas y la fecha de expiración del token OAuth.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Estado de conexión de Mercado Pago obtenido exitosamente",
+  "data": {
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "connected": true,
+    "mpUserId": "123456789",
+    "connectedAt": "2026-11-09T22:15:00Z",
+    "tokenExpiresAt": "2027-05-09T22:15:00Z"
+  }
+}
+```
+
+---
+
+#### DELETE `/api/v1/tenants/{tenantId}/mercadopago`
+
+> Desvincula la cuenta de Mercado Pago del restaurante. Borra y revoca de forma segura los tokens OAuth cifrados (AES-256-GCM) almacenados para ese restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` del restaurante
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Cuenta de Mercado Pago desvinculada exitosamente"
+}
+```
+
+---
+
+#### GET `/api/v1/mercadopago/oauth/callback`
+
+> Endpoint público de redirección registrado en el panel de desarrolladores de Mercado Pago. Valida el parámetro `state`, intercambia el código de autorización temporal (`code`) por el `access_token` y `refresh_token`, cifra las credenciales con AES-256-GCM y actualiza el restaurante.
+>
+> - **Navegadores (`Accept: text/html`):** Responde con redirección `302 Found` al frontend del panel del restaurante (`/admin/settings/payments?mp=connected`).
+> - **Clientes API (JSON):** Responde `200 OK` con envelope `ApiResponse`.
+
+**Autenticación:** No requerida (Público)  
+**Query Parameters:**
+- `code` (string): Código de autorización provisto por Mercado Pago.
+- `state` (string): Token firmado con HMAC-SHA256 emitido previamente por `/connect`.
+- `error` (string, opcional): Código de error en caso de rechazo del usuario.
+
+##### 📤 Response (Clientes API / Postman / Bruno — 200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Cuenta de Mercado Pago vinculada exitosamente",
+  "data": {
+    "connected": true,
+    "redirectUrl": "http://localhost:3000/admin/settings/payments?mp=connected"
+  }
+}
+```
+
+---
+
+### 💳 7.2 Storefront — Consulta de Estado del Pago (`StorefrontPaymentController`)
+
+Ruta base: `/api/v1/store/{slug}/payments`
+
+---
+
+#### GET `/api/v1/store/{slug}/payments/{paymentId}`
+
+> Permite al comensal consultar el estado de su pago tras regresar de la pasarela de Checkout Pro (`checkoutUrl`). Cuando el webhook de Mercado Pago procesa la transacción, este endpoint entrega el estado final (`APPROVED`), el `orderId` y el `orderNumber` del pedido generado.
+
+**Autenticación:** Requerida (`Bearer <token>` del cliente)  
+**Rol requerido:** Cliente propietario del pago
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Estado del pago obtenido exitosamente",
+  "data": {
+    "paymentId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "status": "APPROVED",
+    "statusDetail": "accredited",
+    "orderId": "1fa85f64-5717-4562-b3fc-2c963f66afa1",
+    "orderNumber": "ORD-000142",
+    "amount": 49.80,
+    "currency": "PEN",
+    "approvedAt": "2026-11-10T14:45:00Z",
+    "refundedAt": null
+  }
+}
+```
+
+---
+
+### 🛡️ 7.3 Backoffice — Auditoría de Pagos del Restaurante (`TenantPaymentController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}`
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/payments`
+
+> Lista de forma paginada todos los intentos y transacciones de pago recibidas en el restaurante con opción de filtrar por estado (`status`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Query Parameters:**
+- `status` (string, opcional): Filtra por `PaymentStatus` (`PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `CANCELLED`, `EXPIRED`, `REFUNDED`).
+- `page` (number, default: 0), `size` (number, default: 20), `sort` (default: `createdAt,desc`).
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<PageResponse<PaymentResponse>>`.
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/orders/{orderId}/payment`
+
+> Obtiene el registro de pago y detalle de pasarela Mercado Pago correspondiente a una orden específica del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`)
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<PaymentResponse>`.
+
+---
+
+### 🔔 7.4 Webhook de Mercado Pago (`MercadoPagoWebhookController`)
+
+Ruta base: `/api/v1/webhooks/mercadopago`
+
+---
+
+#### POST `/api/v1/webhooks/mercadopago`
+
+> Recibe las notificaciones asíncronas de eventos desde los servidores de Mercado Pago (`order`, `payment`, `subscription_preapproval`, `subscription_authorized_payment`).
+>
+> 🔐 **Seguridad HMAC-SHA256 Obligatoria:**
+> - Requiere la cabecera `x-signature` que contiene `ts` y el hash `v1`.
+> - Valida que el manifiesto `id:{data.id};request-id:{x-request-id};ts:{ts};` coincida exactamente con el hash HMAC-SHA256 usando el secreto configurado en `MP_WEBHOOK_SECRET`. Si la firma no coincide o es inválida, responde `401 Unauthorized`.
+>
+> ⚙️ **Procesamiento de Órdenes Online:**
+> - Al recibir un webhook de orden, consulta a la API de Mercado Pago (`GET /v1/orders/{id}`).
+> - Cuando la orden alcanza `status = processed` (`APPROVED`), crea la orden (`Order`) a partir del borrador congelado en `Payment.checkoutSnapshot`, genera el correlativo `ORD-XXXXXX`, descuenta los insumos de receta en el inventario, acumula puntos de lealtad y vacía el carrito del comensal.
+
+**Autenticación:** Firma criptográfica en cabeceras (`x-signature`, `x-request-id`)  
+**Content-Type:** `application/json`
+
+##### 📥 Request Headers
+
+```http
+x-signature: ts=1731248400,v1=a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890
+x-request-id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+```
+
+##### 📥 Request Body (JSON)
+
+```json
+{
+  "action": "order.processed",
+  "api_version": "v1",
+  "data": {
+    "id": "ORD01HY78ZX90ABCD12345678"
+  },
+  "date_created": "2026-11-10T14:45:00Z",
+  "id": 1234567890,
+  "live_mode": false,
+  "type": "order",
+  "user_id": 987654321
+}
+```
+
+##### 📤 Response
+
+**Éxito (200 OK):** HTTP Status `200 OK` vacío.
+
+---
+
+### 📦 Modelos de Datos / DTOs de Payment
+
+#### 📤 DTO: CheckoutPaymentResponse
+
+| Campo         | Tipo          | Nullable | Descripción                                               |
+| ------------- | ------------- | -------- | --------------------------------------------------------- |
+| `paymentId`   | UUID          | No       | Identificador del intento de pago en NexoFood             |
+| `mpOrderId`   | string        | No       | Identificador de la orden en Mercado Pago (`ORD...`)     |
+| `checkoutUrl` | string        | No       | URL de Checkout Pro para redirigir al cliente             |
+| `status`      | PaymentStatus | No       | `PENDING`, `APPROVED`, etc.                               |
+| `amount`      | BigDecimal    | No       | Importe a pagar                                           |
+| `currency`    | string        | No       | Moneda (`PEN`)                                            |
+| `expiresAt`   | string        | No       | Fecha límite para completar el pago (ISO 8601)            |
+
+#### 📤 DTO: MercadoPagoConnectResponse
+
+| Campo              | Tipo   | Nullable | Descripción                                              |
+| ------------------ | ------ | -------- | -------------------------------------------------------- |
+| `authorizationUrl` | string | No       | Enlace oficial de autorización OAuth de Mercado Pago     |
+| `expiresInSeconds` | number | No       | Tiempo de validez del enlace firmado (600 segundos = 10m)|
+
+#### 📤 DTO: MercadoPagoStatusResponse
+
+| Campo             | Tipo    | Nullable | Descripción                                       |
+| ----------------- | ------- | -------- | ------------------------------------------------- |
+| `tenantId`        | UUID    | No       | Restaurante consultado                            |
+| `connected`       | boolean | No       | `true` si tiene credenciales activas vinculadas   |
+| `mpUserId`        | string  | Sí       | User ID de la cuenta en Mercado Pago              |
+| `connectedAt`     | string  | Sí       | Fecha en que se vinculó la cuenta (ISO 8601)      |
+| `tokenExpiresAt`  | string  | Sí       | Fecha de expiración del token OAuth (ISO 8601)    |
+
+#### 📤 DTO: PaymentStatusResponse
+
+| Campo          | Tipo          | Nullable | Descripción                                               |
+| -------------- | ------------- | -------- | --------------------------------------------------------- |
+| `paymentId`    | UUID          | No       | Identificador único del pago en NexoFood                  |
+| `status`       | PaymentStatus | No       | `PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, etc.     |
+| `statusDetail` | string        | Sí       | Detalle devuelto por Mercado Pago (ej. "accredited")      |
+| `orderId`      | UUID          | Sí       | ID del pedido generado una vez aprobado el pago           |
+| `orderNumber`  | string        | Sí       | Código correlativo del pedido (ej. "ORD-000142")          |
+| `amount`       | BigDecimal    | No       | Monto total cobrado                                       |
+| `currency`     | string        | No       | Moneda (`PEN`)                                            |
+| `approvedAt`   | string        | Sí       | Fecha y hora de aprobación (ISO 8601)                     |
+| `refundedAt`   | string        | Sí       | Fecha y hora de reembolso si fue cancelado (ISO 8601)     |
+
+#### 📤 DTO: PaymentResponse
 
 | Campo               | Tipo          | Nullable | Descripción                                                             |
-|---------------------|---------------|----------|-------------------------------------------------------------------------|
-| `id`                | UUID          | No       | Identificador del pago                                                  |
-| `orderId`           | UUID          | Sí       | Pedido vinculado (se asigna cuando el pago pasa a `APPROVED`)           |
+| ------------------- | ------------- | -------- | ----------------------------------------------------------------------- |
+| `id`                | UUID          | No       | Identificador único del pago                                            |
+| `orderId`           | UUID          | Sí       | Pedido vinculado (asignado tras pasar a `APPROVED`)                     |
 | `tenantId`          | UUID          | No       | Restaurante receptor                                                    |
 | `customerId`        | UUID          | Sí       | Cliente comprador                                                       |
 | `mpOrderId`         | string        | Sí       | ID de la orden en Mercado Pago (`ORD...`)                               |
 | `mpPaymentId`       | string        | Sí       | ID de la transacción de pago en Mercado Pago                            |
-| `mpPreferenceId`    | string        | Sí       | ID de preferencia / checkout                                            |
-| `externalReference` | string        | Sí       | Referencia externa enviada a Mercado Pago                               |
+| `mpPreferenceId`    | string        | Sí       | ID de Checkout Pro / preferencia                                        |
+| `externalReference` | string        | Sí       | Referencia única enviada a Mercado Pago                                 |
 | `checkoutUrl`       | string        | Sí       | URL de Checkout Pro (`ticket_url`)                                      |
-| `paymentMethod`     | string        | Sí       | Medio de pago utilizado                                                 |
-| `status`            | PaymentStatus | No       | `PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `CANCELLED`, `EXPIRED`, `REFUNDED` |
+| `paymentMethod`     | string        | Sí       | Medio de pago utilizado (visa, master, yape, etc.)                      |
+| `status`            | PaymentStatus | No       | `PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `CANCELLED`, `REFUNDED`|
 | `statusDetail`      | string        | Sí       | Detalle del estado devuelto por Mercado Pago                            |
 | `amount`            | BigDecimal    | No       | Monto total cobrado                                                     |
-| `refundedAmount`    | BigDecimal    | Sí       | Monto reembolsado                                                       |
+| `refundedAmount`    | BigDecimal    | Sí       | Monto total reembolsado                                                 |
 | `currency`          | string        | No       | Moneda (`PEN`)                                                          |
 | `paidAt`            | string        | Sí       | Fecha de aprobación del pago (ISO 8601)                                 |
-| `refundedAt`        | string        | Sí       | Fecha de reembolso (ISO 8601)                                           |
-| `expiresAt`         | string        | Sí       | Fecha de expiración del intento de pago (ISO 8601)                      |
-| `createdAt`         | string        | No       | ISO 8601                                                                |
-| `updatedAt`         | string        | No       | ISO 8601                                                                |
+| `refundedAt`        | string        | Sí       | Fecha de ejecución del reembolso (ISO 8601)                              |
+| `expiresAt`         | string        | Sí       | Fecha límite de pago (ISO 8601)                                         |
+| `createdAt`         | string        | No       | Fecha de creación (ISO 8601)                                            |
+| `updatedAt`         | string        | No       | Fecha de actualización (ISO 8601)                                       |
 
 ---
 
@@ -2367,32 +3157,385 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
 
 Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
 
-- **`GET /api/v1/tenants/{tenantId}/products/{productId}/ingredients`**: Lista los insumos y cantidades requeridas por unidad del producto.
-- **`POST /api/v1/tenants/{tenantId}/products/{productId}/ingredients`**: Agrega o actualiza un ingrediente en la receta (`{ "inventoryItemId": "...", "quantity": 0.250 }`). Solo `OWNER` o `ADMIN`.
-- **`DELETE /api/v1/tenants/{tenantId}/products/{productId}/ingredients/{ingredientId}`**: Retira un ingrediente de la receta. Solo `OWNER` o `ADMIN`.
-- **Descuento automático:** Cuando una orden avanza a `EN_PREPARACION`, se registran movimientos `EXIT / SALE` por cada ingrediente de los productos con receta; si la orden se cancela desde `EN_PREPARACION`, se revierte el stock con `ENTRY / CUSTOMER_RETURN`.
+Permite configurar los insumos y porciones exactas que consume un producto al venderse.  
+> 🔄 **Descuento y Reversión Automática de Kardex:**
+> - Cuando una orden avanza al estado `EN_PREPARACION` (KDS), el sistema descuenta automáticamente las cantidades de inventario mediante movimientos `EXIT` con motivo `SALE`.
+> - Si un pedido se cancela desde `EN_PREPARACION`, se repone automáticamente el inventario mediante movimientos `ENTRY` con motivo `CUSTOMER_RETURN`.
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
+
+> Lista todos los insumos (receta) configurados para una unidad del producto del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Receta del producto obtenida exitosamente",
+  "data": [
+    {
+      "id": "1a2b3c4d-5e6f-7890-abcd-ef1234567890",
+      "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "productName": "Hamburguesa Doble Queso",
+      "inventoryItemId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
+      "inventoryItemName": "Carne de Res Molida",
+      "inventoryItemSku": "INS-CARNE-01",
+      "unit": "KG",
+      "quantity": 0.250,
+      "createdAt": "2026-11-05T15:00:00Z",
+      "updatedAt": "2026-11-05T15:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### POST `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
+
+> Agrega o actualiza la cantidad de un insumo requerida para la preparación de una unidad del producto. Si el insumo ya formaba parte de la receta, se actualiza la cantidad asignada.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON) — `ProductIngredientRequest`:**
+
+| Campo             | Tipo       | Requerido | Validación | Descripción                                  |
+| ----------------- | ---------- | --------- | ---------- | -------------------------------------------- |
+| `inventoryItemId` | UUID       | Sí        | UUID       | Identificador del insumo del almacén         |
+| `quantity`        | BigDecimal | Sí        | ≥ 0.001    | Cantidad consumida por unidad de platillo    |
+
+```json
+{
+  "inventoryItemId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "quantity": 0.250
+}
+```
+
+##### 📤 Response
+
+**Éxito (201 Created):** Retorna `ApiResponse<ProductIngredientResponse>`.
+
+---
+
+#### DELETE `/api/v1/tenants/{tenantId}/products/{productId}/ingredients/{ingredientId}`
+
+> Elimina un insumo de la receta del producto. A partir de ese momento, la venta del platillo dejará de descontar existencias de dicho insumo.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Ingrediente eliminado de la receta exitosamente"
+}
+```
+
+---
+
+### 📦 Modelos de Datos / DTOs de Recetas
+
+#### 📥 DTO: ProductIngredientRequest
+
+| Campo             | Tipo       | Requerido | Validación | Descripción                               |
+| ----------------- | ---------- | --------- | ---------- | ----------------------------------------- |
+| `inventoryItemId` | UUID       | Sí        | UUID       | Insumo del inventario                     |
+| `quantity`        | BigDecimal | Sí        | ≥ 0.001    | Cantidad requerida por porción del plato  |
+
+#### 📤 DTO: ProductIngredientResponse
+
+| Campo               | Tipo          | Nullable | Descripción                                      |
+| ------------------- | ------------- | -------- | ------------------------------------------------ |
+| `id`                | UUID          | No       | Identificador del ingrediente en la receta       |
+| `tenantId`          | UUID          | No       | Restaurante                                      |
+| `productId`         | UUID          | No       | Producto al que pertenece la receta              |
+| `productName`       | string        | No       | Nombre del producto                              |
+| `inventoryItemId`   | UUID          | No       | Insumo vinculado                                 |
+| `inventoryItemName` | string        | No       | Nombre del insumo                                |
+| `inventoryItemSku`  | string        | Sí       | Código SKU del insumo                            |
+| `unit`              | InventoryUnit | No       | Unidad de medida (`UNIT`, `KG`, `LT`)            |
+| `quantity`          | BigDecimal    | No       | Cantidad requerida                               |
+| `createdAt`         | string        | No       | ISO 8601                                         |
+| `updatedAt`         | string        | No       | ISO 8601                                         |
 
 ---
 
 ## 9. Tracking — Rastreo Geoespacial (PostGIS) y Tiempo Estimado (ETA)
 
-### 📌 Descripción General
+> **Motor Espacial PostGIS (`geometry(Point, 4326)`):** Módulo de cálculo geodésico y monitoreo en tiempo real estilo Rappi o PedidosYa:
+> 1. **Estimación Previa al Checkout:** Calcula distancia ortodrómica (`ST_DistanceSphere`) y distancia vial estimada multiplicada por el factor de ruta (`roadFactor = 1.3`), estimando tiempo de preparación y recorrido (`[minMinutes, maxMinutes]`) antes de ordenar.
+> 2. **Cálculo Automático de ETA al Despachar:** Al asignar el repartidor y pasar el pedido a `EN_CAMINO`, genera automáticamente la hora prevista de llegada (`estimatedArrivalAt`) y el mensaje amigable de ETA.
+> 3. **Telemetría GPS en Vivo con Throttling:** La aplicación móvil del repartidor envía pings GPS (`PUT .../tracking/location`) con rumbo (`heading`) y velocidad. El backend aplica *throttling* de 5 segundos, filtro de saltos anómalos y recálculo dinámico en cada ping.
+> 4. **Polling Optimizado para Frontend:** Los clientes consultan periódicamente (`GET .../orders/{id}/tracking`) siguiendo el intervalo sugerido (`pollIntervalSeconds = 15`), con banderas `trackingActive` y `stale` para una experiencia de usuario fluida e interpolación en mapa (Google Maps / Mapbox).
 
-Módulo geoespacial basado en **PostgreSQL + PostGIS (`geometry(Point, 4326)`)** que permite:
+---
 
-1. **Estimar cobertura y tiempo de entrega antes del checkout:** Calcula distancia esférica (`ST_DistanceSphere`), distancia vial estimada (`× roadFactor`), tarifa y rango de llegada.
-2. **Calcular ETA inicial al asignar el repartidor:** En `PATCH /api/v1/tenants/{tenantId}/orders/{id}/assign` y al pasar a `EN_CAMINO`, la orden calcula automáticamente `estimatedDistanceKm`, `estimatedDeliveryMinutes`, `estimatedArrivalAt` y `etaMessage` (_"Tu pedido estará en tu casa en ~14 min"_).
-3. **Seguimiento periódico del repartidor estilo Rappi / PedidosYa:** La app del repartidor envía su posición GPS cada 10–15 s (`PUT .../tracking/location`) y el frontend del cliente consulta cada `pollIntervalSeconds` (15 s por defecto) interpolando suavemente el marcador en el mapa.
+### 🌐 9.1 Storefront & Clientes (`StorefrontTrackingController`)
 
-### 📋 Tabla Resumen de Endpoints (`Tracking`)
+Ruta base: `/api/v1/store/{slug}`
 
-| Método | Ruta                                                            | Rol / Acceso                             | Descripción                                                                                              |
-| :----- | :-------------------------------------------------------------- | :--------------------------------------- | :------------------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/v1/store/{slug}/delivery-estimate?lat=&lng=`              | Público (Sin Token)                      | Verifica si las coordenadas están dentro del radio de cobertura y devuelve el ETA estimado               |
-| `GET`  | `/api/v1/store/{slug}/orders/{orderId}/tracking`                | Cliente dueño del pedido                 | Consulta la posición actual del repartidor (solo en `EN_CAMINO`), ETA y `pollIntervalSeconds`            |
-| `PUT`  | `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking/location` | `REPARTIDOR` asignado (`OWNER`, `ADMIN`) | Registra un ping GPS del repartidor (throttling a 5 s) y recalcula el ETA restante                       |
-| `GET`  | `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking`          | Miembro del restaurante                  | Obtiene el estado de rastreo de la orden y opcionalmente el historial de puntos (`?includeHistory=true`) |
-| `GET`  | `/api/v1/tenants/{tenantId}/tracking/active`                    | `OWNER`, `ADMIN`, `SUPERADMIN`           | Lista todos los repartidores con pedidos activos en ruta (`EN_CAMINO`) para el mapa del restaurante      |
+---
+
+#### GET `/api/v1/store/{slug}/delivery-estimate`
+
+> Verifica si una ubicación se encuentra dentro del radio de entrega del restaurante (`deliveryRadiusKm`) y calcula la distancia vial estimada, tarifa de envío y rango estimado de entrega en minutos.
+
+**Autenticación:** No requerida (Público)  
+**Rol requerido:** Ninguno  
+**Query Parameters:**
+
+| Parámetro | Tipo   | Requerido | Descripción                     |
+| --------- | ------ | --------- | ------------------------------- |
+| `lat`     | Double | Sí        | Latitud de entrega del cliente  |
+| `lng`     | Double | Sí        | Longitud de entrega del cliente |
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Estimación de entrega calculada exitosamente",
+  "data": {
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tenantSlug": "burger-bros",
+    "tenantName": "Burger Bros",
+    "withinCoverage": true,
+    "maxDeliveryRadiusKm": 6.5,
+    "straightDistanceKm": 2.45,
+    "estimatedRouteDistanceKm": 3.18,
+    "deliveryFee": 5.00,
+    "estimatedDeliveryMinutes": 24,
+    "minMinutes": 20,
+    "maxMinutes": 30,
+    "estimatedArrivalAt": "2026-11-10T15:24:00Z",
+    "message": "Tiempo estimado de entrega: 20-30 min"
+  }
+}
+```
+
+---
+
+#### GET `/api/v1/store/{slug}/orders/{orderId}/tracking`
+
+> Permite al comensal consultar el estado de seguimiento de su pedido en tiempo real. Cuando la orden pasa a `EN_CAMINO`, expone las coordenadas actuales del repartidor, su rumbo, velocidad, distancia restante y el ETA actualizado.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cliente dueño de la orden
+
+##### 📤 Response
+
+**Éxito (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Seguimiento del pedido obtenido exitosamente",
+  "data": {
+    "orderId": "1fa85f64-5717-4562-b3fc-2c963f66afa1",
+    "orderNumber": "ORD-000142",
+    "orderStatus": "EN_CAMINO",
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tenantName": "Burger Bros",
+    "storeLatitude": -12.121543,
+    "storeLongitude": -77.028941,
+    "deliveryAddress": "Av. Las Begonias 441, San Isidro",
+    "destinationLatitude": -12.093124,
+    "destinationLongitude": -77.026451,
+    "driverId": "5fa85f64-5717-4562-b3fc-2c963f66afa8",
+    "driverName": "Pedro Repartidor",
+    "driverPhone": "+51999111222",
+    "driverLatitude": -12.105432,
+    "driverLongitude": -77.027812,
+    "heading": 355.4,
+    "speedKmh": 28.5,
+    "accuracyM": 6.2,
+    "remainingDistanceKm": 1.42,
+    "etaMinutes": 8,
+    "etaMinMinutes": 6,
+    "etaMaxMinutes": 10,
+    "estimatedArrivalAt": "2026-11-10T15:08:00Z",
+    "etaMessage": "Tu pedido estará en tu puerta en ~8 min",
+    "trackingActive": true,
+    "stale": false,
+    "throttled": false,
+    "pollIntervalSeconds": 15,
+    "lastUpdatedAt": "2026-11-10T15:00:12Z",
+    "dispatchedAt": "2026-11-10T14:52:00Z",
+    "deliveredAt": null,
+    "routeHistory": []
+  }
+}
+```
+
+---
+
+### 🏍️ 9.2 Repartidor & Backoffice (`DeliveryTrackingController`)
+
+Ruta base: `/api/v1/tenants/{tenantId}`
+
+---
+
+#### PUT `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking/location`
+
+> Envía un ping de ubicación GPS del repartidor para una orden en curso. Actualiza la posición en memoria y BD, recalcula en vivo el ETA restante y registra el punto en el historial de ruta.
+>
+> ⚠️ **Frecuencia Recomendada:** La app móvil del repartidor debe enviar coordenadas cada 10 a 15 segundos. Peticiones con menos de 5 segundos de diferencia son admitidas con bandera `throttled = true` sin sobrecargar la base de datos.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `REPARTIDOR` asignado al pedido, `OWNER` o `ADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Body (JSON) — `DriverLocationUpdateRequest`:**
+
+| Campo       | Tipo   | Requerido | Validación        | Descripción                                 |
+| ----------- | ------ | --------- | ----------------- | ------------------------------------------- |
+| `latitude`  | Double | Sí        | Entre -90 y 90    | Latitud actual reportada por el dispositivo |
+| `longitude` | Double | Sí        | Entre -180 y 180  | Longitud actual reportada                   |
+| `heading`   | Double | No        | Entre 0 y 360     | Rumbo / dirección de desplazamiento         |
+| `speedKmh`  | Double | No        | 0.0 a 200.0       | Velocidad instantánea en km/h               |
+| `accuracyM` | Double | No        | ≥ 0.0             | Precisión del sensor GPS en metros          |
+
+```json
+{
+  "latitude": -12.105432,
+  "longitude": -77.027812,
+  "heading": 355.4,
+  "speedKmh": 28.5,
+  "accuracyM": 6.2
+}
+```
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<DeliveryTrackingResponse>`.
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking`
+
+> Obtiene el estado de seguimiento de una orden para el equipo del restaurante. Con el parámetro opcional `includeHistory=true`, incluye el array completo de puntos GPS recorridos (`routeHistory`) para renderizar la polilínea en el mapa.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Miembro del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`)  
+**Query Parameters:**
+- `includeHistory` (boolean, default: `false`): Si es `true`, devuelve todos los puntos del trayecto en `routeHistory`.
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<DeliveryTrackingResponse>`.
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/tracking/active`
+
+> Devuelve la lista en tiempo real de todos los repartidores del restaurante con pedidos actualmente en ruta (`EN_CAMINO`), con su última posición GPS reportada y ETA hacia el destino. Diseñado para el panel de despacho del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
+
+##### 📤 Response
+
+**Éxito (200 OK):** Retorna `ApiResponse<List<DeliveryTrackingResponse>>`.
+
+---
+
+### 📦 Modelos de Datos / DTOs de Tracking
+
+#### 📥 DTO: DriverLocationUpdateRequest
+
+| Campo       | Tipo   | Requerido | Validación        | Descripción                         |
+| ----------- | ------ | --------- | ----------------- | ----------------------------------- |
+| `latitude`  | Double | Sí        | Entre -90 y 90    | Latitud reportada                   |
+| `longitude` | Double | Sí        | Entre -180 y 180  | Longitud reportada                  |
+| `heading`   | Double | No        | Entre 0 y 360     | Grados de orientación de la brújula |
+| `speedKmh`  | Double | No        | 0 a 200           | Velocidad en km/h                   |
+| `accuracyM` | Double | No        | ≥ 0               | Margen de error GPS en metros       |
+
+#### 📤 DTO: DeliveryEstimateResponse
+
+| Campo                      | Tipo       | Nullable | Descripción                                            |
+| -------------------------- | ---------- | -------- | ------------------------------------------------------ |
+| `tenantId`                 | UUID       | No       | Restaurante evaluado                                   |
+| `tenantSlug`               | string     | No       | Slug de la tienda                                      |
+| `tenantName`               | string     | No       | Nombre del restaurante                                 |
+| `withinCoverage`           | boolean    | No       | `true` si la ubicación está dentro del radio permitido |
+| `maxDeliveryRadiusKm`      | BigDecimal | No       | Radio máximo configurado en el restaurante             |
+| `straightDistanceKm`       | BigDecimal | No       | Distancia lineal calculada con PostGIS                 |
+| `estimatedRouteDistanceKm` | BigDecimal | No       | Distancia vial estimada (`distancia × 1.3`)            |
+| `deliveryFee`              | BigDecimal | No       | Costo de envío aplicable                               |
+| `estimatedDeliveryMinutes` | number     | No       | Minutos totales estimados (cocina + viaje)             |
+| `minMinutes`               | number     | No       | Límite inferior del rango de entrega                   |
+| `maxMinutes`               | number     | No       | Límite superior del rango de entrega                   |
+| `estimatedArrivalAt`       | string     | No       | Fecha y hora estimada de llegada (ISO 8601)            |
+| `message`                  | string     | No       | Mensaje resumen para el comensal                       |
+
+#### 📤 DTO: DeliveryTrackingResponse
+
+| Campo                 | Tipo                       | Nullable | Descripción                                                  |
+| --------------------- | -------------------------- | -------- | ------------------------------------------------------------ |
+| `orderId`             | UUID                       | No       | Pedido rastreado                                             |
+| `orderNumber`         | string                     | No       | Código legible del pedido (ej. "ORD-000142")                 |
+| `orderStatus`         | OrderStatus                | No       | Estado del pedido (`EN_CAMINO`, `ENTREGADO`, etc.)           |
+| `tenantId`            | UUID                       | No       | Restaurante                                                  |
+| `tenantName`          | string                     | No       | Nombre del restaurante                                       |
+| `storeLatitude`       | Double                     | No       | Latitud de origen (local)                                    |
+| `storeLongitude`      | Double                     | No       | Longitud de origen (local)                                   |
+| `deliveryAddress`     | string                     | Sí       | Dirección de destino                                         |
+| `destinationLatitude` | Double                     | Sí       | Latitud de destino (cliente)                                 |
+| `destinationLongitude`| Double                     | Sí       | Longitud de destino (cliente)                                |
+| `driverId`            | UUID                       | Sí       | ID del repartidor asignado                                   |
+| `driverName`          | string                     | Sí       | Nombre del repartidor                                        |
+| `driverPhone`         | string                     | Sí       | Teléfono del repartidor                                      |
+| `driverLatitude`      | Double                     | Sí       | Última latitud GPS del repartidor                            |
+| `driverLongitude`     | Double                     | Sí       | Última longitud GPS del repartidor                           |
+| `heading`             | Double                     | Sí       | Rumbo en grados (0° Norte, 90° Este, 180° Sur, 270° Oeste)   |
+| `speedKmh`            | Double                     | Sí       | Velocidad en km/h                                            |
+| `accuracyM`           | Double                     | Sí       | Precisión GPS en metros                                      |
+| `remainingDistanceKm` | BigDecimal                 | Sí       | Distancia restante al destino                                |
+| `etaMinutes`          | number                     | Sí       | Minutos restantes estimados                                  |
+| `etaMinMinutes`       | number                     | Sí       | Rango mínimo de minutos                                      |
+| `etaMaxMinutes`       | number                     | Sí       | Rango máximo de minutos                                      |
+| `estimatedArrivalAt`  | string                     | Sí       | Hora estimada de llegada (ISO 8601)                          |
+| `etaMessage`          | string                     | Sí       | Mensaje formateado para el cliente                           |
+| `trackingActive`      | boolean                    | No       | `true` si el rastreo está activo (`EN_CAMINO`)               |
+| `stale`               | boolean                    | No       | `true` si el último ping GPS tiene más de 3 minutos de atraso|
+| `throttled`           | boolean                    | No       | `true` si la última petición fue throttled                   |
+| `pollIntervalSeconds` | number                     | No       | Frecuencia recomendada de consulta para el frontend (15 s)   |
+| `lastUpdatedAt`       | string                     | Sí       | Timestamp del último ping GPS recibido                       |
+| `dispatchedAt`        | string                     | Sí       | Timestamp en que la orden salió a ruta                       |
+| `deliveredAt`         | string                     | Sí       | Timestamp en que se confirmó la entrega                      |
+| `routeHistory`        | List<TrackingPointResponse>| No       | Historial ordenado cronológicamente de posiciones GPS        |
+
+#### 📤 DTO: TrackingPointResponse
+
+| Campo        | Tipo   | Nullable | Descripción                     |
+| ------------ | ------ | -------- | ------------------------------- |
+| `latitude`   | Double | No       | Latitud registrada              |
+| `longitude`  | Double | No       | Longitud registrada             |
+| `heading`    | Double | Sí       | Rumbo en grados                 |
+| `speedKmh`   | Double | Sí       | Velocidad en km/h               |
+| `accuracyM`  | Double | Sí       | Precisión del sensor en metros  |
+| `recordedAt` | string | No       | Timestamp del punto (ISO 8601)  |
 
 ---
 

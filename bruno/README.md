@@ -1,6 +1,6 @@
 # Colección Bruno - NexoFood API
 
-Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints de la **Fase 0, Fase 1, Fase 2, Fase 3, Fase 4, Fase 5 y Fase 6**.
+Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints de la **Fase 0 a Fase 7** (123 requests en 9 módulos + entornos).
 
 ---
 
@@ -48,7 +48,9 @@ bruno/
 │   ├── 06 - Admin - Cambiar Estado del Plan (SUPERADMIN).bru # PATCH  /api/v1/admin/plans/{{planId}}/status (200 OK)
 │   ├── 07 - Iniciar Suscripcion Trial (Start Trial).bru      # POST   /api/v1/subscriptions (201 Created - userId desde JWT)
 │   ├── 08 - Obtener Mi Suscripcion (Get My Subscription).bru # GET    /api/v1/subscriptions/me (200 OK)
-│   └── 09 - Cancelar Mi Suscripcion (Cancel Subscription).bru # PATCH /api/v1/subscriptions/me/cancel (200 OK)
+│   ├── 09 - Cancelar Mi Suscripcion (Cancel Subscription).bru # PATCH /api/v1/subscriptions/me/cancel (200 OK)
+│   ├── 10 - Iniciar Checkout Suscripcion Preaprobada MP.bru # POST   /api/v1/subscriptions/checkout (201 Created)
+│   └── 11 - Listar Mis Cobros de Suscripcion.bru             # GET    /api/v1/subscriptions/me/payments (200 OK)
 ├── Store/
 │   ├── 01 - Crear Restaurante (Tenant).bru                   # POST   /api/v1/tenants (201 Created - owner y sub desde JWT)
 │   ├── 02 - Obtener Mi Restaurante (Get My Tenant).bru       # GET    /api/v1/tenants/me (200 OK)
@@ -133,7 +135,18 @@ bruno/
     ├── 06 - Backoffice - Mis Entregas Asignadas (Delivery).bru # GET    /api/v1/tenants/{{tenantId}}/orders/my-deliveries (200 OK)
     ├── 07 - Backoffice - Obtener Detalle de Pedido.bru         # GET    /api/v1/tenants/{{tenantId}}/orders/{{orderId}} (200 OK - Staff)
     ├── 08 - Backoffice - Cambiar Estado del Pedido.bru         # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/status (200 OK - Staff)
-    └── 09 - Backoffice - Asignar Repartidor al Pedido.bru      # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/assign (200 OK - OWNER, ADMIN, CASHIER)
+    ├── 09 - Backoffice - Asignar Repartidor al Pedido.bru      # PATCH  /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/assign (200 OK - OWNER, ADMIN, CASHIER)
+    └── 10 - Storefront - Cancelar Mi Pedido en PENDIENTE con Reembolso.bru # POST /api/v1/store/{{tenantSlug}}/orders/{{orderId}}/cancel (200 OK)
+├── Payment/
+│   ├── 01 - OAuth - Obtener URL de Conexion MP (Solo OWNER).bru # GET    /api/v1/tenants/{{tenantId}}/mercadopago/connect (200 OK)
+│   ├── 02 - OAuth - Consultar Estado de Conexion MP (OWNER o ADMIN).bru # GET /api/v1/tenants/{{tenantId}}/mercadopago/status (200 OK)
+│   ├── 03 - OAuth - Callback de Autorizacion MP (Publico).bru  # GET    /api/v1/mercadopago/oauth/callback (200 OK / 302 Found)
+│   ├── 04 - OAuth - Desvincular Cuenta MP (Solo OWNER).bru     # DELETE /api/v1/tenants/{{tenantId}}/mercadopago (200 OK)
+│   ├── 05 - Storefront - Consultar Estado de Mi Pago.bru       # GET    /api/v1/store/{{tenantSlug}}/payments/{{paymentId}} (200 OK)
+│   ├── 06 - Backoffice - Listar Pagos del Restaurante (OWNER o ADMIN).bru # GET /api/v1/tenants/{{tenantId}}/payments (200 OK)
+│   ├── 07 - Backoffice - Obtener Pago de una Orden (Miembro).bru # GET /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/payment (200 OK)
+│   ├── 08 - Webhook - Notificacion de Orden Mercado Pago (Firma HMAC).bru # POST /api/v1/webhooks/mercadopago (200 OK)
+│   └── 09 - Webhook - Notificacion de Suscripcion Preapproval (Firma HMAC).bru # POST /api/v1/webhooks/mercadopago (200 OK)
 └── Tracking/
     ├── 01 - Publico - Estimar Cobertura, Tarifa y Tiempo de Entrega (ETA).bru # GET /api/v1/store/{{tenantSlug}}/delivery-estimate (200 OK - público)
     ├── 02 - Repartidor - Enviar Ping de Ubicacion GPS (EN_CAMINO).bru       # PUT /api/v1/tenants/{{tenantId}}/orders/{{orderId}}/tracking/location (200 OK)
@@ -155,4 +168,5 @@ bruno/
 * **Carrito de Compras (`Cart/01..02`):** guardan automáticamente `cartId` y `cartItemId` al consultar el carrito o agregar un producto.
 * **Pedidos y Cocina (`Order/01..04`):** guardan automáticamente `orderId` al ejecutar el checkout o al listar pedidos.
 * **Inventario y Recetas (`Inventory/01..17`):** guardan automáticamente `inventoryItemId`, `stockId` e `ingredientId` en el entorno activo.
+* **Pagos (`Payment/01..09`):** guardan automáticamente `paymentId` y `mpOrderId` para consultar el estado del pago, reconciliación y webhooks.
 * Cada petición incluye aserciones automáticas en la pestaña **Tests**.
