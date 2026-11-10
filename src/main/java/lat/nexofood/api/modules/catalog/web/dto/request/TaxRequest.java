@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.catalog.web.dto.request;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ public record TaxRequest(
 
         @NotNull(message = "La tasa del impuesto es obligatoria")
         @DecimalMin(value = "0.00", message = "La tasa del impuesto no puede ser negativa")
+        @DecimalMax(value = "100.00", message = "La tasa del impuesto no puede superar el 100%")
         @Digits(integer = 3, fraction = 2, message = "La tasa debe tener como máximo 3 enteros y 2 decimales")
         BigDecimal rate,
 
