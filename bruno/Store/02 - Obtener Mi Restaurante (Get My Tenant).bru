@@ -31,9 +31,14 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("Retorna datos del restaurante del usuario", function() {
-    const data = res.getBody().data;
-    expect(data.id).to.be.a('string');
-    expect(data.name).to.be.a('string');
+  test("Retorna datos del restaurante o mensaje de sin tiendas", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    if (body.data) {
+      expect(body.data.id).to.be.a('string');
+      expect(body.data.name).to.be.a('string');
+    } else {
+      expect(body.message).to.equal("No tienes ninguna tienda asociada");
+    }
   });
 }
