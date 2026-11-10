@@ -1,0 +1,45 @@
+meta {
+  name: 02 - Repartidor - Enviar Ping de Ubicacion GPS (EN_CAMINO)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/orders/{{orderId}}/tracking/location
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "latitude": -12.1120,
+    "longitude": -77.0300,
+    "heading": 345.0,
+    "speedKmh": 26.5,
+    "accuracyM": 8.0
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Actualiza la posición del repartidor y recalcula el ETA restante", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.driverLatitude).to.equal(-12.1120);
+    expect(data.driverLongitude).to.equal(-77.0300);
+    expect(data.etaMinutes).to.be.a('number');
+    expect(data.etaMessage).to.include('Tu pedido estará en tu casa en ~');
+  });
+}
+

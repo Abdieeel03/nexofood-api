@@ -1,0 +1,27 @@
+meta {
+  name: 09 - Stocks - Listar Alertas de Stock Bajo (Miembro)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/stocks/low-stock
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna lista de insumos con stock crítico", function() {
+    expect(res.getBody().success).to.be.true;
+    expect(res.getBody().data).to.be.an('array');
+  });
+}
+

@@ -10,15 +10,15 @@
 
 ## 📌 Información General
 
-| Campo                  | Valor                                            |
-|------------------------|--------------------------------------------------|
-| **Base URL (Local)**   | `http://localhost:8080/api/v1`                   |
-| **Base URL (Prod)**    | `https://api.nexofood.lat/api/v1`                |
-| **Formato**            | `application/json`                               |
-| **Autenticación**      | JWT Bearer Token en header `Authorization`       |
-| **Versión**            | `v1`                                             |
-| **Swagger UI**         | `http://localhost:8080/swagger-ui/index.html`    |
-| **OpenAPI JSON**       | `http://localhost:8080/v3/api-docs`              |
+| Campo                | Valor                                         |
+| -------------------- | --------------------------------------------- |
+| **Base URL (Local)** | `http://localhost:8080/api/v1`                |
+| **Base URL (Prod)**  | `https://api.nexofood.lat/api/v1`             |
+| **Formato**          | `application/json`                            |
+| **Autenticación**    | JWT Bearer Token en header `Authorization`    |
+| **Versión**          | `v1`                                          |
+| **Swagger UI**       | `http://localhost:8080/swagger-ui/index.html` |
+| **OpenAPI JSON**     | `http://localhost:8080/v3/api-docs`           |
 
 ---
 
@@ -41,6 +41,7 @@ Usuario (User)
 ```
 
 ### Reglas Clave para el Frontend:
+
 1. **Unicidad de Propietario:** Un usuario solo puede ser `OWNER` de un restaurante.
 2. **Contexto Storefront:** Los clientes que compran en la tienda acceden vía `/api/v1/store/{tenantSlug}/auth/` para registrarse o iniciar sesión vinculados al restaurante.
 3. **Carritos Aislados:** Cada cliente tiene un único carrito activo por cada restaurante (`tenantId, customerId`).
@@ -54,6 +55,7 @@ Usuario (User)
 ## 🔑 Autenticación y Autorización
 
 ### Especificaciones del Token JWT:
+
 - **Algoritmo:** HMAC-SHA256
 - **Cabecera HTTP:** `Authorization: Bearer <accessToken>`
 - **Access Token:** Expira en **15 minutos** (900 segundos).
@@ -64,15 +66,16 @@ Usuario (User)
 
 ### Claims del Access Token
 
-| Claim    | Tipo   | Descripción                                            |
-|----------|--------|--------------------------------------------------------|
-| `sub`    | string | Email del usuario                                      |
-| `role`   | string | Rol global del sistema (`SUPERADMIN` o `USER`)         |
-| `userId` | string | UUID del usuario                                       |
-| `iat`    | number | Timestamp UNIX de emisión                              |
-| `exp`    | number | Timestamp UNIX de expiración                           |
+| Claim    | Tipo   | Descripción                                    |
+| -------- | ------ | ---------------------------------------------- |
+| `sub`    | string | Email del usuario                              |
+| `role`   | string | Rol global del sistema (`SUPERADMIN` o `USER`) |
+| `userId` | string | UUID del usuario                               |
+| `iat`    | number | Timestamp UNIX de emisión                      |
+| `exp`    | number | Timestamp UNIX de expiración                   |
 
 ### Roles de Staff en el Restaurante (`TenantStaffRole`):
+
 - `OWNER`: Dueño y administrador total del restaurante.
 - `ADMIN`: Administrador delegado con permisos de catálogo, miembros y pedidos.
 - `COCINERO`: Visualización de pedidos en preparación y actualización de estado.
@@ -92,11 +95,11 @@ Todas las respuestas exitosas de la API están envueltas en este formato uniform
 }
 ```
 
-| Campo     | Tipo    | Descripción                                           |
-|-----------|---------|-------------------------------------------------------|
-| `success` | boolean | Siempre `true` en peticiones exitosas                 |
-| `message` | string  | Mensaje descriptivo para UI o logs                    |
-| `data`    | T       | Payload de la respuesta (objeto, array o paginación)  |
+| Campo     | Tipo    | Descripción                                          |
+| --------- | ------- | ---------------------------------------------------- |
+| `success` | boolean | Siempre `true` en peticiones exitosas                |
+| `message` | string  | Mensaje descriptivo para UI o logs                   |
+| `data`    | T       | Payload de la respuesta (objeto, array o paginación) |
 
 ### ❌ Envelope de Error: `ErrorResponse`
 
@@ -113,42 +116,42 @@ Todas las respuestas de error (4xx y 5xx) siguen esta estructura:
 }
 ```
 
-| Campo       | Tipo   | Descripción                                          |
-|-------------|--------|------------------------------------------------------|
-| `message`   | string | Mensaje legible del error (incluye fallos de validación)|
-| `error`     | string | Código o nombre del error HTTP                       |
-| `status`    | number | Código de estado HTTP                                |
-| `timestamp` | string | Fecha y hora de generación (ISO 8601 local)          |
-| `path`      | string | Ruta del endpoint invocado                           |
-| `method`    | string | Método HTTP utilizado                                |
+| Campo       | Tipo   | Descripción                                              |
+| ----------- | ------ | -------------------------------------------------------- |
+| `message`   | string | Mensaje legible del error (incluye fallos de validación) |
+| `error`     | string | Código o nombre del error HTTP                           |
+| `status`    | number | Código de estado HTTP                                    |
+| `timestamp` | string | Fecha y hora de generación (ISO 8601 local)              |
+| `path`      | string | Ruta del endpoint invocado                               |
+| `method`    | string | Método HTTP utilizado                                    |
 
 ### Códigos de Estado HTTP
 
-| Código | Error                 | Descripción                                                    |
-|--------|-----------------------|----------------------------------------------------------------|
-| `200`  | OK                    | Consulta, actualización o autenticación completada exitosamente|
-| `201`  | Created               | Recurso creado exitosamente                                    |
+| Código | Error                 | Descripción                                                     |
+| ------ | --------------------- | --------------------------------------------------------------- |
+| `200`  | OK                    | Consulta, actualización o autenticación completada exitosamente |
+| `201`  | Created               | Recurso creado exitosamente                                     |
 | `400`  | Bad Request           | Error de validación de campos o reglas de negocio infringidas   |
-| `401`  | Unauthorized          | Token ausente, expirado, inválido o credenciales erróneas      |
+| `401`  | Unauthorized          | Token ausente, expirado, inválido o credenciales erróneas       |
 | `403`  | Forbidden             | Sin permisos suficientes para la acción o cuenta desactivada    |
-| `404`  | Not Found             | El recurso solicitado no existe                                |
-| `409`  | Conflict              | Conflicto de unicidad (email, slug o relación 1:1 duplicada)   |
-| `500`  | Internal Server Error | Error no controlado en el servidor                             |
+| `404`  | Not Found             | El recurso solicitado no existe                                 |
+| `409`  | Conflict              | Conflicto de unicidad (email, slug o relación 1:1 duplicada)    |
+| `500`  | Internal Server Error | Error no controlado en el servidor                              |
 
 ---
 
 ## 🟢 Estado Actual de los Módulos
 
-| Bounded Context   | Estado                       | Controladores Activos                                       |
-|-------------------|------------------------------|-------------------------------------------------------------|
-| **1. Identity**   | ✅ Activo y testeado         | `AuthController` (`/api/v1/auth/**`, `/api/v1/users/me/**`, `/api/v1/admin/users/**`) |
+| Bounded Context       | Estado                   | Controladores Activos                                                                                                          |
+| --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Identity**       | ✅ Activo y testeado     | `AuthController` (`/api/v1/auth/**`, `/api/v1/users/me/**`, `/api/v1/admin/users/**`)                                          |
 | **2. Store / Tenant** | ✅ Activo y testeado     | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController`, `StorefrontCatalogController` |
-| **3. Catalog & Tax**  | ✅ Activo y testeado     | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController` |
-| **4. Subscription**   | ✅ Activo y testeado     | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController` |
-| **5. Cart**           | ✅ Activo y testeado     | `CartController` (`/api/v1/store/{slug}/cart/**`)           |
-| **6. Order**          | ✅ Activo y testeado     | `StorefrontOrderController`, `OrderController`              |
-| **7. Payment**        | 🔧 Modelos y DTOs listos   | Integración y entidades listas                             |
-| **8. Inventory**      | ✅ Activo y testeado     | InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController |
+| **3. Catalog & Tax**  | ✅ Activo y testeado     | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController`                                           |
+| **4. Subscription**   | ✅ Activo y testeado     | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController`                                      |
+| **5. Cart**           | ✅ Activo y testeado     | `CartController` (`/api/v1/store/{slug}/cart/**`)                                                                              |
+| **6. Order**          | ✅ Activo y testeado     | `StorefrontOrderController`, `OrderController`                                                                                 |
+| **7. Payment**        | 🔧 Modelos y DTOs listos | Integración y entidades listas                                                                                                 |
+| **8. Inventory**      | ✅ Activo y testeado     | InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController                    |
 
 ---
 
@@ -175,13 +178,14 @@ Endpoints para gestión de usuarios globales en la plataforma.
 **Body (JSON):**
 
 | Campo      | Tipo   | Requerido | Validación                   | Descripción              |
-|------------|--------|-----------|------------------------------|--------------------------|
+| ---------- | ------ | --------- | ---------------------------- | ------------------------ |
 | `email`    | string | Sí        | Email válido, máx. 255 chars | Correo electrónico único |
 | `password` | string | Sí        | Mín. 8, máx. 100 caracteres  | Contraseña de la cuenta  |
 | `fullName` | string | Sí        | Máx. 150 caracteres          | Nombre completo          |
 | `phone`    | string | No        | Máx. 20 caracteres           | Teléfono de contacto     |
 
 **Ejemplo:**
+
 ```json
 {
   "email": "carlos@ejemplo.com",
@@ -194,6 +198,7 @@ Endpoints para gestión de usuarios globales en la plataforma.
 #### 📤 Response
 
 **Éxito (201 Created):**
+
 ```json
 {
   "success": true,
@@ -232,11 +237,12 @@ Endpoints para gestión de usuarios globales en la plataforma.
 **Body (JSON):**
 
 | Campo      | Tipo   | Requerido | Validación   | Descripción            |
-|------------|--------|-----------|--------------|------------------------|
+| ---------- | ------ | --------- | ------------ | ---------------------- |
 | `email`    | string | Sí        | Email válido | Correo electrónico     |
 | `password` | string | Sí        | No en blanco | Contraseña del usuario |
 
 **Ejemplo:**
+
 ```json
 {
   "email": "carlos@ejemplo.com",
@@ -247,6 +253,7 @@ Endpoints para gestión de usuarios globales en la plataforma.
 #### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -284,11 +291,12 @@ Endpoints para gestión de usuarios globales en la plataforma.
 
 **Body (JSON):**
 
-| Campo          | Tipo   | Requerido | Validación   | Descripción                            |
-|----------------|--------|-----------|--------------|----------------------------------------|
-| `refreshToken` | string | Sí        | No en blanco | Refresh token vigente recibido antes   |
+| Campo          | Tipo   | Requerido | Validación   | Descripción                          |
+| -------------- | ------ | --------- | ------------ | ------------------------------------ |
+| `refreshToken` | string | Sí        | No en blanco | Refresh token vigente recibido antes |
 
 **Ejemplo:**
+
 ```json
 {
   "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -298,6 +306,7 @@ Endpoints para gestión de usuarios globales en la plataforma.
 #### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -328,11 +337,12 @@ Endpoints para gestión de usuarios globales en la plataforma.
 > Obtiene el perfil completo del usuario autenticado, incluyendo sus membresías de staff activas y sus direcciones de entrega guardadas.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Cualquier usuario autenticado  
+**Rol requerido:** Cualquier usuario autenticado
 
 #### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -393,21 +403,22 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 **Body (JSON):**
 
-| Campo                | Tipo       | Requerido | Validación                                  | Descripción                     |
-|----------------------|------------|-----------|---------------------------------------------|---------------------------------|
-| subscriptionId     | UUID       | No        | UUID válido                                 | Opcional: ID de la suscripción (se infiere si se omite)|
-| `name`               | string     | Sí        | Máx. 150 caracteres                         | Nombre comercial                |
-| `slug`               | string     | Sí        | Regex `^[a-z0-9-]+$`, máx. 100 caracteres   | Slug para la URL del storefront |
-| `logoUrl`            | string     | No        | URL válida                                  | Logo de la tienda               |
-| `bannerUrl`          | string     | No        | URL válida                                  | Banner publicitario             |
-| `phone`              | string     | No        | Máx. 20 caracteres                          | Teléfono del restaurante        |
-| `address`            | string     | No        | Texto descriptivo                           | Dirección física del local      |
-| `latitude`           | number     | No        | WGS84 (-90 a 90)                            | Latitud del local               |
-| `longitude`          | number     | No        | WGS84 (-180 a 180)                          | Longitud del local              |
-| `deliveryRadiusKm`   | BigDecimal | No        | ≥ 0.00 (default: 5.00)                      | Radio de reparto en kilómetros  |
-| `defaultDeliveryFee` | BigDecimal | No        | ≥ 0.00 (default: 0.00)                      | Tarifa de envío estándar        |
+| Campo                | Tipo       | Requerido | Validación                                | Descripción                                             |
+| -------------------- | ---------- | --------- | ----------------------------------------- | ------------------------------------------------------- |
+| subscriptionId       | UUID       | No        | UUID válido                               | Opcional: ID de la suscripción (se infiere si se omite) |
+| `name`               | string     | Sí        | Máx. 150 caracteres                       | Nombre comercial                                        |
+| `slug`               | string     | Sí        | Regex `^[a-z0-9-]+$`, máx. 100 caracteres | Slug para la URL del storefront                         |
+| `logoUrl`            | string     | No        | URL válida                                | Logo de la tienda                                       |
+| `bannerUrl`          | string     | No        | URL válida                                | Banner publicitario                                     |
+| `phone`              | string     | No        | Máx. 20 caracteres                        | Teléfono del restaurante                                |
+| `address`            | string     | No        | Texto descriptivo                         | Dirección física del local                              |
+| `latitude`           | number     | No        | WGS84 (-90 a 90)                          | Latitud del local                                       |
+| `longitude`          | number     | No        | WGS84 (-180 a 180)                        | Longitud del local                                      |
+| `deliveryRadiusKm`   | BigDecimal | No        | ≥ 0.00 (default: 5.00)                    | Radio de reparto en kilómetros                          |
+| `defaultDeliveryFee` | BigDecimal | No        | ≥ 0.00 (default: 0.00)                    | Tarifa de envío estándar                                |
 
 **Ejemplo:**
+
 ```json
 {
   "name": "Burger Bros",
@@ -419,13 +430,14 @@ Módulo central para la administración de restaurantes, asignación de colabora
   "latitude": -12.121543,
   "longitude": -77.028941,
   "deliveryRadiusKm": 6.5,
-  "defaultDeliveryFee": 5.00
+  "defaultDeliveryFee": 5.0
 }
 ```
 
 ##### 📤 Response
 
 **Éxito (201 Created):**
+
 ```json
 {
   "success": true,
@@ -442,8 +454,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
     "address": "Av. Larco 456, Miraflores",
     "latitude": -12.121543,
     "longitude": -77.028941,
-    "deliveryRadiusKm": 6.50,
-    "defaultDeliveryFee": 5.00,
+    "deliveryRadiusKm": 6.5,
+    "defaultDeliveryFee": 5.0,
     "isMpConnected": false,
     "mpUserId": null,
     "mpConnectedAt": null,
@@ -461,11 +473,12 @@ Módulo central para la administración de restaurantes, asignación de colabora
 > Obtiene los datos detallados de un restaurante por su identificador único UUID. Protegido por membresía en el restaurante.
 
 **Autenticación:** Requerida (Bearer <token>)  
-**Rol requerido:** Miembro activo del restaurante (OWNER, ADMIN, COCINERO, REPARTIDOR) o SUPERADMIN  
+**Rol requerido:** Miembro activo del restaurante (OWNER, ADMIN, COCINERO, REPARTIDOR) o SUPERADMIN
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -474,8 +487,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
     "id": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Burger Bros",
     "slug": "burger-bros",
-    "deliveryRadiusKm": 6.50,
-    "defaultDeliveryFee": 5.00,
+    "deliveryRadiusKm": 6.5,
+    "defaultDeliveryFee": 5.0,
     "isActive": true
   }
 }
@@ -488,11 +501,12 @@ Módulo central para la administración de restaurantes, asignación de colabora
 > Obtiene la información pública de un restaurante a través de su slug (utilizado por el storefront público para cargar el menú y la tienda sin necesidad de token).
 
 **Autenticación:** No requerida (Endpoint Público)  
-**Rol requerido:** Ninguno  
+**Rol requerido:** Ninguno
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -507,8 +521,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
     "address": "Av. Larco 456, Miraflores",
     "latitude": -12.121543,
     "longitude": -77.028941,
-    "deliveryRadiusKm": 6.50,
-    "defaultDeliveryFee": 5.00,
+    "deliveryRadiusKm": 6.5,
+    "defaultDeliveryFee": 5.0,
     "isMpConnected": true,
     "isActive": true
   }
@@ -529,22 +543,23 @@ Módulo central para la administración de restaurantes, asignación de colabora
 
 **Body (JSON):**
 
-| Campo                | Tipo       | Requerido | Validación             | Descripción                    |
-|----------------------|------------|-----------|------------------------|--------------------------------|
-| `name`               | string     | Sí        | Máx. 150 caracteres    | Nombre comercial               |
-| `logoUrl`            | string     | No        | —                      | Logo                           |
-| `bannerUrl`          | string     | No        | —                      | Banner                         |
-| `phone`              | string     | No        | Máx. 20 caracteres     | Teléfono                       |
-| `address`            | string     | No        | —                      | Dirección                      |
-| `latitude`           | number     | No        | Double                 | Latitud                        |
-| `longitude`          | number     | No        | Double                 | Longitud                       |
-| `deliveryRadiusKm`   | BigDecimal | No        | ≥ 0.00                 | Radio de cobertura             |
-| `defaultDeliveryFee` | BigDecimal | No        | ≥ 0.00                 | Costo de envío base            |
-| `isActive`           | boolean    | No        | —                      | Estado                         |
+| Campo                | Tipo       | Requerido | Validación          | Descripción         |
+| -------------------- | ---------- | --------- | ------------------- | ------------------- |
+| `name`               | string     | Sí        | Máx. 150 caracteres | Nombre comercial    |
+| `logoUrl`            | string     | No        | —                   | Logo                |
+| `bannerUrl`          | string     | No        | —                   | Banner              |
+| `phone`              | string     | No        | Máx. 20 caracteres  | Teléfono            |
+| `address`            | string     | No        | —                   | Dirección           |
+| `latitude`           | number     | No        | Double              | Latitud             |
+| `longitude`          | number     | No        | Double              | Longitud            |
+| `deliveryRadiusKm`   | BigDecimal | No        | ≥ 0.00              | Radio de cobertura  |
+| `defaultDeliveryFee` | BigDecimal | No        | ≥ 0.00              | Costo de envío base |
+| `isActive`           | boolean    | No        | —                   | Estado              |
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -553,8 +568,8 @@ Módulo central para la administración de restaurantes, asignación de colabora
     "id": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Burger Bros Gourmet",
     "slug": "burger-bros",
-    "deliveryRadiusKm": 7.00,
-    "defaultDeliveryFee": 6.00,
+    "deliveryRadiusKm": 7.0,
+    "defaultDeliveryFee": 6.0,
     "isActive": true
   }
 }
@@ -581,6 +596,7 @@ Módulo central para la administración de restaurantes, asignación de colabora
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -596,11 +612,12 @@ Módulo central para la administración de restaurantes, asignación de colabora
 > Obtiene el restaurante asociado al usuario autenticado actual como propietario.
 
 **Autenticación:** Requerida  
-**Rol requerido:** Usuario autenticado con rol `OWNER`  
+**Rol requerido:** Usuario autenticado con rol `OWNER`
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -627,11 +644,12 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 > Lista todos los miembros del equipo del restaurante con sus roles y estados.
 
 **Autenticación:** Requerida  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -677,12 +695,13 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 
 **Body (JSON):**
 
-| Campo    | Tipo   | Requerido | Validación                           | Descripción            |
-|----------|--------|-----------|--------------------------------------|------------------------|
-| `userId` | UUID   | Sí        | UUID válido                          | ID del usuario global  |
+| Campo    | Tipo   | Requerido | Validación                                 | Descripción            |
+| -------- | ------ | --------- | ------------------------------------------ | ---------------------- |
+| `userId` | UUID   | Sí        | UUID válido                                | ID del usuario global  |
 | `role`   | string | Sí        | `OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR` | Rol operativo asignado |
 
 **Ejemplo:**
+
 ```json
 {
   "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
@@ -693,6 +712,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 ##### 📤 Response
 
 **Éxito (201 Created):**
+
 ```json
 {
   "success": true,
@@ -730,6 +750,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -748,11 +769,12 @@ Ruta base: `/api/v1/tenants/{tenantId}/members`
 > Desvincula o retira a un empleado del restaurante.
 
 **Autenticación:** Requerida  
-**Rol requerido:** `OWNER`  
+**Rol requerido:** `OWNER`
 
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -776,6 +798,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 **Autenticación:** Requerida  
 **Rol requerido:** `OWNER` o `ADMIN`  
 **Query Parameters:**
+
 - `page`: Número de página (0-indexed, default: 0)
 - `size`: Tamaño de página (default: 20)
 - `sort`: Campo de ordenamiento (ej. `createdAt,desc`)
@@ -783,6 +806,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 ##### 📤 Response
 
 **Éxito (200 OK):**
+
 ```json
 {
   "success": true,
@@ -824,7 +848,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 > Obtiene el perfil del cliente, su historial de pedidos y puntos de lealtad en este restaurante.
 
 **Autenticación:** Requerida  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ---
 
@@ -837,6 +861,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 **Content-Type:** `application/json`
 
 ##### 📥 Request
+
 ```json
 {
   "isBlocked": true
@@ -844,6 +869,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 ```
 
 ##### 📤 Response (200 OK)
+
 ```json
 {
   "success": true,
@@ -862,6 +888,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 > Guarda o actualiza notas privadas del restaurante sobre un cliente (visibles solo para el staff).
 
 ##### 📥 Request
+
 ```json
 {
   "notes": "Cliente VIP, verificar packaging cuidadoso"
@@ -869,6 +896,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 ```
 
 ##### 📤 Response (200 OK)
+
 ```json
 {
   "success": true,
@@ -884,6 +912,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 > Ajusta manualmente el saldo de puntos de fidelidad del cliente (suma o resta).
 
 ##### 📥 Request
+
 ```json
 {
   "adjustment": 50
@@ -891,6 +920,7 @@ Ruta base: `/api/v1/admin/tenants/{tenantId}/customers`
 ```
 
 ##### 📤 Response (200 OK)
+
 ```json
 {
   "success": true,
@@ -922,14 +952,15 @@ Endpoints diseñados para el storefront web/móvil donde los clientes compran. P
 
 **Body (JSON):**
 
-| Campo      | Tipo   | Requerido | Validación                   | Descripción              |
-|------------|--------|-----------|------------------------------|--------------------------|
-| `fullName` | string | Sí        | Máx. 150 caracteres          | Nombre completo          |
-| `email`    | string | Sí        | Email válido                 | Correo electrónico       |
-| `password` | string | Sí        | Mínimo 8 caracteres          | Contraseña               |
-| `phone`    | string | No        | Máx. 20 caracteres           | Teléfono de contacto     |
+| Campo      | Tipo   | Requerido | Validación          | Descripción          |
+| ---------- | ------ | --------- | ------------------- | -------------------- |
+| `fullName` | string | Sí        | Máx. 150 caracteres | Nombre completo      |
+| `email`    | string | Sí        | Email válido        | Correo electrónico   |
+| `password` | string | Sí        | Mínimo 8 caracteres | Contraseña           |
+| `phone`    | string | No        | Máx. 20 caracteres  | Teléfono de contacto |
 
 **Ejemplo:**
+
 ```json
 {
   "fullName": "Mariana Vega",
@@ -942,6 +973,7 @@ Endpoints diseñados para el storefront web/móvil donde los clientes compran. P
 ##### 📤 Response
 
 **Éxito (201 Created):**
+
 ```json
 {
   "success": true,
@@ -981,6 +1013,7 @@ Endpoints diseñados para el storefront web/móvil donde los clientes compran. P
 **Content-Type:** `application/json`
 
 ##### 📥 Request
+
 ```json
 {
   "email": "mariana@ejemplo.com",
@@ -989,6 +1022,7 @@ Endpoints diseñados para el storefront web/móvil donde los clientes compran. P
 ```
 
 ##### 📤 Response (200 OK)
+
 Retorna la estructura `StoreAuthResponse` con tokens, `user` y `customerProfile`.
 
 ---
@@ -998,8 +1032,9 @@ Retorna la estructura `StoreAuthResponse` con tokens, `user` y `customerProfile`
 Este módulo gestiona la oferta de productos, listas de precios dinámicos, horarios de promoción, esquema fiscal aplicable y el menú público del storefront.
 
 > **🏪 Multi-Tenant & Seguridad:**
+>
 > - **Consultas de Backoffice (`GET /api/v1/tenants/{tenantId}/**`):** Protegidas con `@PreAuthorize("@tenantAccess.isMember(#tenantId)")`, permitiendo el acceso a **todo el staff activo** del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) y a `SUPERADMIN`.
-> - **Mutaciones de Backoffice (`POST`, `PUT`, `PATCH`, `DELETE` en `/api/v1/tenants/{tenantId}/**`):** Protegidas con `@PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, OWNER, ADMIN)")` (restringido a `OWNER`, `ADMIN` y `SUPERADMIN`).
+> - **Mutaciones de Backoffice (`POST`, `PUT`, `PATCH`, `DELETE` en `/api/v1/tenants/{tenantId}/**`):** Protegidas con `@PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, OWNER, ADMIN)")`(restringido a`OWNER`, `ADMIN`y`SUPERADMIN`).
 > - **Storefront para Clientes (`/api/v1/store/{slug}/menu`, `/categories`, `/products`, `/products/{id}`):** Endpoints **públicos** (`permitAll` en `SecurityConfig`) sin necesidad de token JWT.
 
 ---
@@ -1017,6 +1052,7 @@ Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto a
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 **Query Parameters:**
+
 - `activeOnly` (boolean, default `false`): si es `true`, retorna únicamente los impuestos activos.
 
 #### GET `/api/v1/tenants/{tenantId}/taxes/{taxId}`
@@ -1024,7 +1060,7 @@ Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto a
 > Obtiene el detalle de un impuesto del restaurante por su ID.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### POST `/api/v1/tenants/{tenantId}/taxes`
 
@@ -1055,33 +1091,34 @@ Cada restaurante puede configurar sus propios impuestos (ej. IGV 18%, Impuesto a
 > Elimina un impuesto si no ha sido utilizado en productos ni órdenes históricas (de lo contrario retorna `400 Bad Request` indicando que debe desactivarse).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### 📥 DTO: TaxRequest
 
-| Campo         | Tipo       | Requerido | Validación                             | Descripción                                  |
-|---------------|------------|-----------|----------------------------------------|----------------------------------------------|
-| `name`        | string     | Sí        | Máx. 50 caracteres                     | Nombre del tributo (ej. "IGV 18%")           |
-| `rate`        | BigDecimal | Sí        | ≥ 0.00, máx. 3 enteros y 2 decimales   | Tasa porcentual (ej. 18.00)                  |
-| `code`        | string     | No        | Máx. 20 caracteres                     | Código oficial SUNAT / fiscal (ej. "1000")   |
-| `isInclusive` | boolean    | No        | Default: `true`                        | Si el impuesto está incluido en el precio    |
-| `isActive`    | boolean    | No        | Default: `true`                        | Estado activo del impuesto                   |
+| Campo         | Tipo       | Requerido | Validación                           | Descripción                                |
+| ------------- | ---------- | --------- | ------------------------------------ | ------------------------------------------ |
+| `name`        | string     | Sí        | Máx. 50 caracteres                   | Nombre del tributo (ej. "IGV 18%")         |
+| `rate`        | BigDecimal | Sí        | ≥ 0.00, máx. 3 enteros y 2 decimales | Tasa porcentual (ej. 18.00)                |
+| `code`        | string     | No        | Máx. 20 caracteres                   | Código oficial SUNAT / fiscal (ej. "1000") |
+| `isInclusive` | boolean    | No        | Default: `true`                      | Si el impuesto está incluido en el precio  |
+| `isActive`    | boolean    | No        | Default: `true`                      | Estado activo del impuesto                 |
 
 #### 📤 DTO: TaxResponse
 
-| Campo         | Tipo       | Nullable | Descripción                                   |
-|---------------|------------|----------|-----------------------------------------------|
-| `id`          | UUID       | No       | Identificador único del impuesto              |
-| `tenantId`    | UUID       | No       | Restaurante propietario                       |
-| `name`        | string     | No       | Nombre del impuesto                           |
-| `rate`        | BigDecimal | No       | Tasa del impuesto (ej. 18.00)                 |
-| `code`        | string     | Sí       | Código tributario fiscal                      |
-| `isInclusive` | boolean    | No       | ¿Precio de lista ya incluye este impuesto?    |
-| `isActive`    | boolean    | No       | Estado                                        |
-| `createdAt`   | string     | No       | Fecha de creación (ISO 8601)                  |
-| `updatedAt`   | string     | No       | Fecha de actualización (ISO 8601)             |
+| Campo         | Tipo       | Nullable | Descripción                                |
+| ------------- | ---------- | -------- | ------------------------------------------ |
+| `id`          | UUID       | No       | Identificador único del impuesto           |
+| `tenantId`    | UUID       | No       | Restaurante propietario                    |
+| `name`        | string     | No       | Nombre del impuesto                        |
+| `rate`        | BigDecimal | No       | Tasa del impuesto (ej. 18.00)              |
+| `code`        | string     | Sí       | Código tributario fiscal                   |
+| `isInclusive` | boolean    | No       | ¿Precio de lista ya incluye este impuesto? |
+| `isActive`    | boolean    | No       | Estado                                     |
+| `createdAt`   | string     | No       | Fecha de creación (ISO 8601)               |
+| `updatedAt`   | string     | No       | Fecha de actualización (ISO 8601)          |
 
 #### 💡 Reglas de Cálculo de Impuestos en NexoFood:
+
 - **Impuesto Inclusivo (`isInclusive = true`, ej. IGV Perú):**
   $$\text{baseUnitPrice} = \frac{\text{unitPrice}}{1 + (\text{rate} / 100)}$$
   $$\text{taxAmount} = \text{unitPrice} - \text{baseUnitPrice}$$
@@ -1102,6 +1139,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/categories`
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 **Query Parameters:**
+
 - `activeOnly` (boolean, default `false`): si es `true`, retorna solo las categorías activas.
 
 #### GET `/api/v1/tenants/{tenantId}/categories/{categoryId}`
@@ -1109,7 +1147,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/categories`
 > Obtiene una categoría del restaurante por su ID.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### POST `/api/v1/tenants/{tenantId}/categories`
 
@@ -1148,29 +1186,29 @@ Ruta base: `/api/v1/tenants/{tenantId}/categories`
 > Elimina una categoría del restaurante. Si la categoría tiene productos asociados, bloquea la operación con `400 Bad Request`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### 📥 DTO: CategoryRequest
 
-| Campo         | Tipo    | Requerido | Validación          | Descripción                     |
-|---------------|---------|-----------|---------------------|---------------------------------|
-| `name`        | string  | Sí        | Máx. 100 caracteres | Nombre de la categoría          |
-| `description` | string  | No        | —                   | Descripción para la carta       |
-| `sortOrder`   | number  | No        | ≥ 0                 | Orden para mostrar en menú      |
-| `isActive`    | boolean | No        | Default: `true`     | Si se muestra en el storefront  |
+| Campo         | Tipo    | Requerido | Validación          | Descripción                    |
+| ------------- | ------- | --------- | ------------------- | ------------------------------ |
+| `name`        | string  | Sí        | Máx. 100 caracteres | Nombre de la categoría         |
+| `description` | string  | No        | —                   | Descripción para la carta      |
+| `sortOrder`   | number  | No        | ≥ 0                 | Orden para mostrar en menú     |
+| `isActive`    | boolean | No        | Default: `true`     | Si se muestra en el storefront |
 
 #### 📤 DTO: CategoryResponse
 
-| Campo         | Tipo    | Nullable | Descripción                             |
-|---------------|---------|----------|-----------------------------------------|
-| `id`          | UUID    | No       | Identificador único                     |
-| `tenantId`    | UUID    | No       | Restaurante                             |
-| `name`        | string  | No       | Nombre de la categoría                  |
-| `description` | string  | Sí       | Descripción                             |
-| `sortOrder`   | number  | No       | Posición relativa en la interfaz        |
-| `isActive`    | boolean | No       | Estado                                  |
-| `createdAt`   | string  | No       | ISO 8601                                |
-| `updatedAt`   | string  | No       | ISO 8601                                |
+| Campo         | Tipo    | Nullable | Descripción                      |
+| ------------- | ------- | -------- | -------------------------------- |
+| `id`          | UUID    | No       | Identificador único              |
+| `tenantId`    | UUID    | No       | Restaurante                      |
+| `name`        | string  | No       | Nombre de la categoría           |
+| `description` | string  | Sí       | Descripción                      |
+| `sortOrder`   | number  | No       | Posición relativa en la interfaz |
+| `isActive`    | boolean | No       | Estado                           |
+| `createdAt`   | string  | No       | ISO 8601                         |
+| `updatedAt`   | string  | No       | ISO 8601                         |
 
 ---
 
@@ -1187,6 +1225,7 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 **Query Parameters:**
+
 - `categoryId` (UUID, opcional): filtra por categoría.
 - `availableOnly` (boolean, opcional): si es `true`, retorna solo productos con `isAvailable = true`.
 - `page` (int, default `0`), `size` (int, default `20`), `sort` (string, opcional).
@@ -1196,7 +1235,7 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 > Obtiene el detalle completo de un producto del restaurante incluyendo todas sus reglas de precio configuradas.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### POST `/api/v1/tenants/{tenantId}/products`
 
@@ -1227,7 +1266,7 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 > Deshabilita un producto mediante borrado lógico (`isAvailable = false`) preservando la integridad referencial histórica.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 ---
 
@@ -1236,6 +1275,7 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/prices`
 
 Gestiona las reglas de precios de un producto garantizando:
+
 1. Exactamente **un precio base activo** (`isBase = true`, `isActive = true`) por producto.
 2. Coherencia en rangos de fechas (`startDate <= endDate`), horas (`startTime != endTime`, soportando horarios nocturnos que cruzan la medianoche), días ISO (`1=Lunes ... 7=Domingo`) y porcentaje de descuento (`0..100`).
 3. Prohibición de **solapamientos ambiguos** entre dos reglas promocionales activas con la **misma prioridad** (`409 Conflict`).
@@ -1245,14 +1285,14 @@ Gestiona las reglas de precios de un producto garantizando:
 > Lista todas las reglas de precio de un producto.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### GET `/api/v1/tenants/{tenantId}/products/{productId}/prices/{priceId}`
 
 > Obtiene el detalle de una regla de precio específica del producto.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 #### POST `/api/v1/tenants/{tenantId}/products/{productId}/prices`
 
@@ -1275,7 +1315,7 @@ Gestiona las reglas de precios de un producto garantizando:
 > Elimina una regla de precio promocional. No permite eliminar el precio base activo del producto (`400 Bad Request`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
 
 ---
 
@@ -1290,14 +1330,14 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 > Retorna el menú público del restaurante activo identificado por su `slug`: categorías activas (ordenadas por `sortOrder`) junto con sus productos disponibles, precio vigente evaluado en el instante de la consulta e impuestos calculados.
 
 **Autenticación:** No requerida (Público)  
-**Rol requerido:** Ninguno  
+**Rol requerido:** Ninguno
 
 #### GET `/api/v1/store/{slug}/categories`
 
 > Lista las categorías activas del restaurante ordenadas ascendentemente por `sortOrder` para filtros de navegación en la tienda del cliente.
 
 **Autenticación:** No requerida (Público)  
-**Rol requerido:** Ninguno  
+**Rol requerido:** Ninguno
 
 #### GET `/api/v1/store/{slug}/products`
 
@@ -1306,6 +1346,7 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 **Autenticación:** No requerida (Público)  
 **Rol requerido:** Ninguno  
 **Query Parameters:**
+
 - `categoryId` (UUID, opcional): filtra productos de una categoría activa.
 - `search` (string, opcional): filtra productos por coincidencia parcial en el nombre (case-insensitive).
 - `page` (int, default `0`), `size` (int, default `20`), `sort` (string, opcional).
@@ -1315,85 +1356,85 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 > Retorna el detalle público de un producto disponible en la tienda junto con su precio vigente, promoción activa (si aplica) y desglose de impuesto (`baseUnitPrice`, `taxAmount`, `finalPrice`).
 
 **Autenticación:** No requerida (Público)  
-**Rol requerido:** Ninguno  
+**Rol requerido:** Ninguno
 
 ---
 
 #### 📥 DTO: ProductRequest
 
-| Campo         | Tipo                      | Requerido | Validación                | Descripción                                |
-|---------------|---------------------------|-----------|---------------------------|--------------------------------------------|
-| `categoryId`  | UUID                      | No        | UUID válido               | Categoría asignada                         |
-| `taxId`       | UUID                      | No        | UUID válido               | Impuesto tributario aplicable              |
-| `name`        | string                    | Sí        | Máx. 150 caracteres       | Nombre del producto                        |
-| `description` | string                    | No        | —                         | Descripción / ingredientes                 |
-| `price`       | BigDecimal                | Sí        | ≥ 0.01                    | Precio base de venta al público            |
-| `imageUrl`    | string                    | No        | URL válida                | Foto del platillo                          |
-| `isAvailable` | boolean                   | No        | Default: `true`           | Disponibilidad en cocina                   |
-| `prices`      | List<ProductPriceRequest> | No        | Lista de precios extras   | Reglas de precios dinámicos/promociones    |
+| Campo         | Tipo                      | Requerido | Validación              | Descripción                             |
+| ------------- | ------------------------- | --------- | ----------------------- | --------------------------------------- |
+| `categoryId`  | UUID                      | No        | UUID válido             | Categoría asignada                      |
+| `taxId`       | UUID                      | No        | UUID válido             | Impuesto tributario aplicable           |
+| `name`        | string                    | Sí        | Máx. 150 caracteres     | Nombre del producto                     |
+| `description` | string                    | No        | —                       | Descripción / ingredientes              |
+| `price`       | BigDecimal                | Sí        | ≥ 0.01                  | Precio base de venta al público         |
+| `imageUrl`    | string                    | No        | URL válida              | Foto del platillo                       |
+| `isAvailable` | boolean                   | No        | Default: `true`         | Disponibilidad en cocina                |
+| `prices`      | List<ProductPriceRequest> | No        | Lista de precios extras | Reglas de precios dinámicos/promociones |
 
 #### 📥 DTO: ProductPriceRequest
 
-| Campo                | Tipo       | Requerido | Validación          | Descripción                                     |
-|----------------------|------------|-----------|---------------------|-------------------------------------------------|
-| `id`                 | UUID       | No        | —                   | ID si es actualización de precio existente      |
-| `name`               | string     | Sí        | Máx. 100 caracteres | Nombre (ej. "Happy Hour Jueves", "Fin de Semana")|
-| `price`              | BigDecimal | Sí        | ≥ 0.00              | Precio aplicable                                |
-| `isBase`             | boolean    | No        | —                   | Si actúa como precio base                       |
-| `discountPercentage` | BigDecimal | No        | 0.00 a 100.00       | Descuento opcional en %                         |
-| `startDate`          | string     | No        | Formato `YYYY-MM-DD`| Fecha inicio de vigencia                        |
-| `endDate`            | string     | No        | Formato `YYYY-MM-DD`| Fecha fin de vigencia                           |
-| `startTime`          | string     | No        | Formato `HH:mm:ss`  | Hora de inicio                                  |
-| `endTime`            | string     | No        | Formato `HH:mm:ss`  | Hora de fin                                     |
-| `daysOfWeek`         | Short[]    | No        | Array de 1 a 7      | Días aplicables (1=Lunes, 7=Domingo)            |
-| `priority`           | number     | No        | Integer             | Prioridad cuando hay coincidencia de horario    |
-| `isActive`           | boolean    | No        | —                   | Estado activo                                   |
+| Campo                | Tipo       | Requerido | Validación           | Descripción                                       |
+| -------------------- | ---------- | --------- | -------------------- | ------------------------------------------------- |
+| `id`                 | UUID       | No        | —                    | ID si es actualización de precio existente        |
+| `name`               | string     | Sí        | Máx. 100 caracteres  | Nombre (ej. "Happy Hour Jueves", "Fin de Semana") |
+| `price`              | BigDecimal | Sí        | ≥ 0.00               | Precio aplicable                                  |
+| `isBase`             | boolean    | No        | —                    | Si actúa como precio base                         |
+| `discountPercentage` | BigDecimal | No        | 0.00 a 100.00        | Descuento opcional en %                           |
+| `startDate`          | string     | No        | Formato `YYYY-MM-DD` | Fecha inicio de vigencia                          |
+| `endDate`            | string     | No        | Formato `YYYY-MM-DD` | Fecha fin de vigencia                             |
+| `startTime`          | string     | No        | Formato `HH:mm:ss`   | Hora de inicio                                    |
+| `endTime`            | string     | No        | Formato `HH:mm:ss`   | Hora de fin                                       |
+| `daysOfWeek`         | Short[]    | No        | Array de 1 a 7       | Días aplicables (1=Lunes, 7=Domingo)              |
+| `priority`           | number     | No        | Integer              | Prioridad cuando hay coincidencia de horario      |
+| `isActive`           | boolean    | No        | —                    | Estado activo                                     |
 
 #### 📤 DTO: ProductResponse
 
-| Campo          | Tipo                       | Nullable | Descripción                                          |
-|----------------|----------------------------|----------|------------------------------------------------------|
-| `id`           | UUID                       | No       | Identificador único del producto                     |
-| `tenantId`     | UUID                       | No       | Restaurante                                          |
-| `categoryId`   | UUID                       | Sí       | Categoría                                            |
-| `categoryName` | string                     | Sí       | Nombre de la categoría                               |
-| `taxId`        | UUID                       | Sí       | ID del impuesto configurado                          |
-| `taxName`      | string                     | Sí       | Nombre del impuesto (ej. "IGV 18%")                  |
-| `taxRate`      | BigDecimal                 | Sí       | Tasa porcentual del impuesto                         |
-| `taxInclusive` | boolean                    | Sí       | ¿El precio incluye el impuesto?                      |
-| `name`         | string                     | No       | Nombre del producto                                  |
-| `description`  | string                     | Sí       | Descripción detallada                                |
-| `price`        | BigDecimal                 | No       | Precio final vigente calculado para el momento actual|
-| `basePrice`    | BigDecimal                 | No       | Precio base sin descuentos o sin impuestos extras    |
-| `prices`       | List<ProductPriceResponse> | No       | Detalle de todas las reglas de precios configuradas  |
-| `imageUrl`     | string                     | Sí       | URL de imagen                                        |
-| `isAvailable`  | boolean                    | No       | Si se encuentra disponible para ordenar              |
-| `createdAt`    | string                     | No       | ISO 8601                                             |
-| `updatedAt`    | string                     | No       | ISO 8601                                             |
+| Campo          | Tipo                       | Nullable | Descripción                                           |
+| -------------- | -------------------------- | -------- | ----------------------------------------------------- |
+| `id`           | UUID                       | No       | Identificador único del producto                      |
+| `tenantId`     | UUID                       | No       | Restaurante                                           |
+| `categoryId`   | UUID                       | Sí       | Categoría                                             |
+| `categoryName` | string                     | Sí       | Nombre de la categoría                                |
+| `taxId`        | UUID                       | Sí       | ID del impuesto configurado                           |
+| `taxName`      | string                     | Sí       | Nombre del impuesto (ej. "IGV 18%")                   |
+| `taxRate`      | BigDecimal                 | Sí       | Tasa porcentual del impuesto                          |
+| `taxInclusive` | boolean                    | Sí       | ¿El precio incluye el impuesto?                       |
+| `name`         | string                     | No       | Nombre del producto                                   |
+| `description`  | string                     | Sí       | Descripción detallada                                 |
+| `price`        | BigDecimal                 | No       | Precio final vigente calculado para el momento actual |
+| `basePrice`    | BigDecimal                 | No       | Precio base sin descuentos o sin impuestos extras     |
+| `prices`       | List<ProductPriceResponse> | No       | Detalle de todas las reglas de precios configuradas   |
+| `imageUrl`     | string                     | Sí       | URL de imagen                                         |
+| `isAvailable`  | boolean                    | No       | Si se encuentra disponible para ordenar               |
+| `createdAt`    | string                     | No       | ISO 8601                                              |
+| `updatedAt`    | string                     | No       | ISO 8601                                              |
 
 #### 📤 DTO: StorefrontProductResponse
 
-| Campo                 | Tipo       | Nullable | Descripción                                                  |
-|-----------------------|------------|----------|--------------------------------------------------------------|
-| `id`                  | UUID       | No       | Identificador del producto                                   |
-| `tenantId`            | UUID       | No       | Restaurante                                                  |
-| `categoryId`          | UUID       | Sí       | Categoría                                                    |
-| `categoryName`        | string     | Sí       | Nombre de la categoría                                       |
-| `name`                | string     | No       | Nombre del producto                                          |
-| `description`         | string     | Sí       | Descripción                                                  |
-| `imageUrl`            | string     | Sí       | Imagen del producto                                          |
-| `price`               | BigDecimal | No       | Precio de lista vigente calculado por `ProductPricingService`|
-| `basePrice`           | BigDecimal | No       | Precio base regular del producto                             |
-| `activePromotionName` | string     | Sí       | Nombre de la promoción vigente (null si aplica precio base)  |
-| `discountPercentage`  | BigDecimal | Sí       | Porcentaje de descuento de la promoción vigente              |
-| `taxId`               | UUID       | Sí       | ID del impuesto activo                                       |
-| `taxName`             | string     | Sí       | Nombre del impuesto                                          |
-| `taxRate`             | BigDecimal | No       | Tasa porcentual aplicada (0.00 si exento)                    |
-| `taxInclusive`        | boolean    | Sí       | Si el precio ya incluye el impuesto                          |
-| `baseUnitPrice`       | BigDecimal | No       | Valor unitario neto sin impuesto                             |
-| `taxAmount`           | BigDecimal | No       | Monto unitario del impuesto                                  |
-| `finalPrice`          | BigDecimal | No       | Precio final al comensal (`baseUnitPrice + taxAmount`)       |
-| `isAvailable`         | boolean    | No       | Disponibilidad del producto                                  |
+| Campo                 | Tipo       | Nullable | Descripción                                                   |
+| --------------------- | ---------- | -------- | ------------------------------------------------------------- |
+| `id`                  | UUID       | No       | Identificador del producto                                    |
+| `tenantId`            | UUID       | No       | Restaurante                                                   |
+| `categoryId`          | UUID       | Sí       | Categoría                                                     |
+| `categoryName`        | string     | Sí       | Nombre de la categoría                                        |
+| `name`                | string     | No       | Nombre del producto                                           |
+| `description`         | string     | Sí       | Descripción                                                   |
+| `imageUrl`            | string     | Sí       | Imagen del producto                                           |
+| `price`               | BigDecimal | No       | Precio de lista vigente calculado por `ProductPricingService` |
+| `basePrice`           | BigDecimal | No       | Precio base regular del producto                              |
+| `activePromotionName` | string     | Sí       | Nombre de la promoción vigente (null si aplica precio base)   |
+| `discountPercentage`  | BigDecimal | Sí       | Porcentaje de descuento de la promoción vigente               |
+| `taxId`               | UUID       | Sí       | ID del impuesto activo                                        |
+| `taxName`             | string     | Sí       | Nombre del impuesto                                           |
+| `taxRate`             | BigDecimal | No       | Tasa porcentual aplicada (0.00 si exento)                     |
+| `taxInclusive`        | boolean    | Sí       | Si el precio ya incluye el impuesto                           |
+| `baseUnitPrice`       | BigDecimal | No       | Valor unitario neto sin impuesto                              |
+| `taxAmount`           | BigDecimal | No       | Monto unitario del impuesto                                   |
+| `finalPrice`          | BigDecimal | No       | Precio final al comensal (`baseUnitPrice + taxAmount`)        |
+| `isAvailable`         | boolean    | No       | Disponibilidad del producto                                   |
 
 ---
 
@@ -1409,61 +1450,61 @@ Ruta base: `/api/v1/store/{slug}/cart`
 
 ### Endpoints de Carrito
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/v1/store/{slug}/cart` | Obtiene el carrito del cliente en la tienda (recalcula precios dinámicos vigentes y verifica disponibilidad de cada producto) |
-| `POST` | `/api/v1/store/{slug}/cart/items` | Agrega un producto al carrito (si el producto ya existe en el carrito, fusiona la cantidad y actualiza precio/notas) |
-| `PATCH` | `/api/v1/store/{slug}/cart/items/{itemId}` | Actualiza la cantidad (`quantity`) y/o las notas (`notes`) de un ítem del carrito |
-| `DELETE` | `/api/v1/store/{slug}/cart/items/{itemId}` | Elimina un ítem específico del carrito |
-| `PATCH` | `/api/v1/store/{slug}/cart/notes` | Actualiza las notas generales del carrito |
-| `DELETE` | `/api/v1/store/{slug}/cart` | Vacía todos los ítems del carrito del cliente en la tienda |
+| Método   | Ruta                                       | Descripción                                                                                                                   |
+| -------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/v1/store/{slug}/cart`                | Obtiene el carrito del cliente en la tienda (recalcula precios dinámicos vigentes y verifica disponibilidad de cada producto) |
+| `POST`   | `/api/v1/store/{slug}/cart/items`          | Agrega un producto al carrito (si el producto ya existe en el carrito, fusiona la cantidad y actualiza precio/notas)          |
+| `PATCH`  | `/api/v1/store/{slug}/cart/items/{itemId}` | Actualiza la cantidad (`quantity`) y/o las notas (`notes`) de un ítem del carrito                                             |
+| `DELETE` | `/api/v1/store/{slug}/cart/items/{itemId}` | Elimina un ítem específico del carrito                                                                                        |
+| `PATCH`  | `/api/v1/store/{slug}/cart/notes`          | Actualiza las notas generales del carrito                                                                                     |
+| `DELETE` | `/api/v1/store/{slug}/cart`                | Vacía todos los ítems del carrito del cliente en la tienda                                                                    |
 
 ---
 
 ### 📥 DTO: CartItemRequest
 
-| Campo       | Tipo   | Requerido | Validación   | Descripción                  |
-|-------------|--------|-----------|--------------|------------------------------|
-| `productId` | UUID   | Sí        | UUID válido  | Producto a agregar (debe pertenecer a la tienda `{slug}` y estar disponible) |
-| `quantity`  | number | Sí        | ≥ 1          | Cantidad                     |
-| `notes`     | string | No        | —            | Observaciones / preferencias |
+| Campo       | Tipo   | Requerido | Validación  | Descripción                                                                  |
+| ----------- | ------ | --------- | ----------- | ---------------------------------------------------------------------------- |
+| `productId` | UUID   | Sí        | UUID válido | Producto a agregar (debe pertenecer a la tienda `{slug}` y estar disponible) |
+| `quantity`  | number | Sí        | ≥ 1         | Cantidad                                                                     |
+| `notes`     | string | No        | —           | Observaciones / preferencias                                                 |
 
 ### 📥 DTO: CartItemUpdateRequest
 
-| Campo      | Tipo   | Requerido | Validación       | Descripción                        |
-|------------|--------|-----------|------------------|------------------------------------|
-| `quantity` | number | No        | ≥ 1              | Nueva cantidad del ítem            |
-| `notes`    | string | No        | Máx. 500 chars   | Nuevas observaciones de preparación|
+| Campo      | Tipo   | Requerido | Validación     | Descripción                         |
+| ---------- | ------ | --------- | -------------- | ----------------------------------- |
+| `quantity` | number | No        | ≥ 1            | Nueva cantidad del ítem             |
+| `notes`    | string | No        | Máx. 500 chars | Nuevas observaciones de preparación |
 
 ### 📥 DTO: CartNotesRequest
 
-| Campo   | Tipo   | Requerido | Validación       | Descripción                        |
-|---------|--------|-----------|------------------|------------------------------------|
-| `notes` | string | No        | Máx. 1000 chars  | Notas generales del carrito        |
+| Campo   | Tipo   | Requerido | Validación      | Descripción                 |
+| ------- | ------ | --------- | --------------- | --------------------------- |
+| `notes` | string | No        | Máx. 1000 chars | Notas generales del carrito |
 
 ### 📤 DTO: CartResponse
 
-| Campo                  | Tipo                   | Nullable | Descripción                                                       |
-|------------------------|------------------------|----------|-------------------------------------------------------------------|
-| `id`                   | UUID                   | No       | Identificador del carrito                                         |
-| `tenantId`             | UUID                   | No       | ID del restaurante                                                |
-| `tenantSlug`           | string                 | Sí       | Slug del restaurante                                              |
-| `tenantName`           | string                 | Sí       | Nombre del restaurante                                            |
-| `customerId`           | UUID                   | No       | ID del cliente en la tienda                                       |
-| `customerUserId`       | UUID                   | No       | Usuario global del cliente                                        |
-| `total`                | BigDecimal             | No       | Total acumulado de los ítems                                      |
-| `notes`                | string                 | Sí       | Notas generales del carrito                                       |
-| `items`                | List<CartItemResponse> | No       | Lista de productos agregados                                      |
-| `hasPriceChanges`      | boolean                | No       | Indica si algún ítem cambió de precio respecto al guardado previo |
-| `hasUnavailableItems`  | boolean                | No       | Indica si algún producto del carrito dejó de estar disponible     |
-| `warnings`             | List<String>           | No       | Mensajes informativos sobre cambios de precio o disponibilidad    |
-| `createdAt`            | string                 | No       | ISO 8601                                                          |
-| `updatedAt`            | string                 | No       | ISO 8601                                                          |
+| Campo                 | Tipo                   | Nullable | Descripción                                                       |
+| --------------------- | ---------------------- | -------- | ----------------------------------------------------------------- |
+| `id`                  | UUID                   | No       | Identificador del carrito                                         |
+| `tenantId`            | UUID                   | No       | ID del restaurante                                                |
+| `tenantSlug`          | string                 | Sí       | Slug del restaurante                                              |
+| `tenantName`          | string                 | Sí       | Nombre del restaurante                                            |
+| `customerId`          | UUID                   | No       | ID del cliente en la tienda                                       |
+| `customerUserId`      | UUID                   | No       | Usuario global del cliente                                        |
+| `total`               | BigDecimal             | No       | Total acumulado de los ítems                                      |
+| `notes`               | string                 | Sí       | Notas generales del carrito                                       |
+| `items`               | List<CartItemResponse> | No       | Lista de productos agregados                                      |
+| `hasPriceChanges`     | boolean                | No       | Indica si algún ítem cambió de precio respecto al guardado previo |
+| `hasUnavailableItems` | boolean                | No       | Indica si algún producto del carrito dejó de estar disponible     |
+| `warnings`            | List<String>           | No       | Mensajes informativos sobre cambios de precio o disponibilidad    |
+| `createdAt`           | string                 | No       | ISO 8601                                                          |
+| `updatedAt`           | string                 | No       | ISO 8601                                                          |
 
 ### 📤 DTO: CartItemResponse
 
 | Campo               | Tipo       | Nullable | Descripción                                                  |
-|---------------------|------------|----------|--------------------------------------------------------------|
+| ------------------- | ---------- | -------- | ------------------------------------------------------------ |
 | `id`                | UUID       | No       | Identificador del ítem en carrito                            |
 | `productId`         | UUID       | No       | Producto                                                     |
 | `productName`       | string     | No       | Nombre del producto                                          |
@@ -1491,124 +1532,125 @@ Módulo de órdenes de compra con checkout desde carrito, numeración secuencial
 Ruta base: `/api/v1/store/{slug}/orders`  
 **Autenticación:** Requerida (`Bearer <token>`)
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
+| Método | Ruta                                   | Descripción                                                                                                                                                                             |
+| ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST` | `/api/v1/store/{slug}/orders/checkout` | Crea una orden desde el carrito activo del cliente en la tienda `{slug}` (recalcula precios, valida cobertura `DELIVERY`, congela snapshots y vacía el carrito en la misma transacción) |
-| `GET` | `/api/v1/store/{slug}/orders` | Lista paginada del historial de pedidos del cliente autenticado en la tienda `{slug}` |
-| `GET` | `/api/v1/store/{slug}/orders/{id}` | Obtiene el detalle de un pedido propio del cliente autenticado en la tienda `{slug}` |
+| `GET`  | `/api/v1/store/{slug}/orders`          | Lista paginada del historial de pedidos del cliente autenticado en la tienda `{slug}`                                                                                                   |
+| `GET`  | `/api/v1/store/{slug}/orders/{id}`     | Obtiene el detalle de un pedido propio del cliente autenticado en la tienda `{slug}`                                                                                                    |
 
 ### 🛡️ Endpoints Backoffice, KDS y Reparto (`OrderController`)
 
 Ruta base: `/api/v1/tenants/{tenantId}/orders`  
 **Autenticación:** Requerida (`Bearer <token>`)
 
-| Método | Ruta | Rol Requerido | Descripción |
-|--------|------|---------------|-------------|
-| `GET` | `/api/v1/tenants/{tenantId}/orders` | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Listado paginado de órdenes del restaurante con filtros opcionales (`status`, `deliveryType`, `fromDate`, `toDate`) |
-| `GET` | `/api/v1/tenants/{tenantId}/orders/kds` | `OWNER`, `ADMIN`, `COCINERO`, `SUPERADMIN` | Cola KDS (Kitchen Display System): órdenes en `EN_PREPARACION` ordenadas por antigüedad (`createdAt ASC`) |
-| `GET` | `/api/v1/tenants/{tenantId}/orders/my-deliveries` | `OWNER`, `ADMIN`, `REPARTIDOR`, `SUPERADMIN` | Órdenes asignadas al repartidor autenticado (filtrable por `status`) |
-| `GET` | `/api/v1/tenants/{tenantId}/orders/{id}` | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Obtiene el detalle completo de una orden del restaurante |
-| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/status` | Miembro (validado por `OrderStateMachine` según rol) | Actualiza el estado del pedido (`COCINERO`: preparación/listo; `REPARTIDOR`: en camino/entregado; `OWNER`/`ADMIN`: todos + cancelar) |
-| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/assign` | `OWNER`, `ADMIN`, `SUPERADMIN` | Asigna un miembro activo con rol `REPARTIDOR` a un pedido `DELIVERY` |
+| Método  | Ruta                                              | Rol Requerido                                                      | Descripción                                                                                                                          |
+| ------- | ------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`   | `/api/v1/tenants/{tenantId}/orders`               | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Listado paginado de órdenes del restaurante con filtros opcionales (`status`, `deliveryType`, `fromDate`, `toDate`)                  |
+| `GET`   | `/api/v1/tenants/{tenantId}/orders/kds`           | `OWNER`, `ADMIN`, `COCINERO`, `SUPERADMIN`                         | Cola KDS (Kitchen Display System): órdenes en `EN_PREPARACION` ordenadas por antigüedad (`createdAt ASC`)                            |
+| `GET`   | `/api/v1/tenants/{tenantId}/orders/my-deliveries` | `OWNER`, `ADMIN`, `REPARTIDOR`, `SUPERADMIN`                       | Órdenes asignadas al repartidor autenticado (filtrable por `status`)                                                                 |
+| `GET`   | `/api/v1/tenants/{tenantId}/orders/{id}`          | Miembro (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`, `SUPERADMIN`) | Obtiene el detalle completo de una orden del restaurante                                                                             |
+| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/status`   | Miembro (validado por `OrderStateMachine` según rol)               | Actualiza el estado del pedido (`COCINERO`: preparación/listo; `REPARTIDOR`: en camino/entregado; `OWNER`/`ADMIN`: todos + cancelar) |
+| `PATCH` | `/api/v1/tenants/{tenantId}/orders/{id}/assign`   | `OWNER`, `ADMIN`, `SUPERADMIN`                                     | Asigna un miembro activo con rol `REPARTIDOR` a un pedido `DELIVERY`                                                                 |
 
 ---
 
 ### 📥 DTO: OrderCheckoutRequest
 
-| Campo               | Tipo   | Requerido | Validación                        | Descripción                                        |
-|---------------------|--------|-----------|-----------------------------------|----------------------------------------------------|
-| `deliveryType`      | string | Sí        | `DELIVERY`, `TAKEAWAY`, `DINE_IN` | Modalidad de entrega                               |
-| `customerAddressId` | UUID   | No        | UUID válido (propiedad del user)  | Dirección guardada seleccionada                    |
-| `deliveryAddress`   | string | No        | —                                 | Dirección de entrega en texto                      |
-| `deliveryLatitude`  | number | No        | Double (WGS84)                    | Latitud de entrega                                 |
-| `deliveryLongitude` | number | No        | Double (WGS84)                    | Longitud de entrega                                |
-| `ruc`               | string | No        | Máx. 20 chars                     | RUC opcional para facturación                      |
-| `notes`             | string | No        | Máx. 1000 chars                   | Notas del pedido (si se omite, toma las del carrito)|
+| Campo               | Tipo   | Requerido | Validación                        | Descripción                                          |
+| ------------------- | ------ | --------- | --------------------------------- | ---------------------------------------------------- |
+| `deliveryType`      | string | Sí        | `DELIVERY`, `TAKEAWAY`, `DINE_IN` | Modalidad de entrega                                 |
+| `customerAddressId` | UUID   | No        | UUID válido (propiedad del user)  | Dirección guardada seleccionada                      |
+| `deliveryAddress`   | string | No        | —                                 | Dirección de entrega en texto                        |
+| `deliveryLatitude`  | number | No        | Double (WGS84)                    | Latitud de entrega                                   |
+| `deliveryLongitude` | number | No        | Double (WGS84)                    | Longitud de entrega                                  |
+| `ruc`               | string | No        | Máx. 20 chars                     | RUC opcional para facturación                        |
+| `notes`             | string | No        | Máx. 1000 chars                   | Notas del pedido (si se omite, toma las del carrito) |
 
 ### 📥 DTO: OrderStatusUpdateRequest
 
-| Campo    | Tipo   | Requerido | Validación    | Descripción                 |
-|----------|--------|-----------|---------------|-----------------------------|
-| `status` | string | Sí        | `OrderStatus` | Nuevo estado de la orden    |
+| Campo    | Tipo   | Requerido | Validación    | Descripción              |
+| -------- | ------ | --------- | ------------- | ------------------------ |
+| `status` | string | Sí        | `OrderStatus` | Nuevo estado de la orden |
 
 ### 📥 DTO: OrderAssignStaffRequest
 
-| Campo             | Tipo | Requerido | Validación  | Descripción                                          |
-|-------------------|------|-----------|-------------|------------------------------------------------------|
-| `deliveryStaffId` | UUID | Sí        | UUID válido | `userId` del miembro activo con rol `REPARTIDOR`     |
+| Campo             | Tipo | Requerido | Validación  | Descripción                                      |
+| ----------------- | ---- | --------- | ----------- | ------------------------------------------------ |
+| `deliveryStaffId` | UUID | Sí        | UUID válido | `userId` del miembro activo con rol `REPARTIDOR` |
 
 ---
 
 ### 📥 DTO: OrderCreateRequest
 
-| Campo               | Tipo                    | Requerido | Validación                             | Descripción                                |
-|---------------------|-------------------------|-----------|----------------------------------------|--------------------------------------------|
-| `tenantId`          | UUID                    | Sí        | UUID válido                            | Restaurante donde se realiza el pedido     |
-| `deliveryType`      | string                  | Sí        | `DELIVERY`, `TAKEAWAY`, `DINE_IN`      | Modalidad de entrega                       |
-| `customerAddressId` | UUID                    | No        | UUID válido                            | Dirección guardada seleccionada            |
-| `deliveryAddress`   | string                  | No        | —                                      | Texto de la dirección de entrega           |
-| `deliveryLatitude`  | number                  | No        | Double (WGS84)                         | Latitud de entrega                         |
-| `deliveryLongitude` | number                  | No        | Double (WGS84)                         | Longitud de entrega                        |
-| `notes`             | string                  | No        | —                                      | Indicaciones de preparación o entrega      |
-| `items`             | List<OrderItemRequest>  | Sí        | Mínimo 1 ítem                          | Productos solicitados                      |
+| Campo               | Tipo                   | Requerido | Validación                        | Descripción                            |
+| ------------------- | ---------------------- | --------- | --------------------------------- | -------------------------------------- |
+| `tenantId`          | UUID                   | Sí        | UUID válido                       | Restaurante donde se realiza el pedido |
+| `deliveryType`      | string                 | Sí        | `DELIVERY`, `TAKEAWAY`, `DINE_IN` | Modalidad de entrega                   |
+| `customerAddressId` | UUID                   | No        | UUID válido                       | Dirección guardada seleccionada        |
+| `deliveryAddress`   | string                 | No        | —                                 | Texto de la dirección de entrega       |
+| `deliveryLatitude`  | number                 | No        | Double (WGS84)                    | Latitud de entrega                     |
+| `deliveryLongitude` | number                 | No        | Double (WGS84)                    | Longitud de entrega                    |
+| `notes`             | string                 | No        | —                                 | Indicaciones de preparación o entrega  |
+| `items`             | List<OrderItemRequest> | Sí        | Mínimo 1 ítem                     | Productos solicitados                  |
 
 #### 📥 DTO: OrderItemRequest
 
-| Campo       | Tipo   | Requerido | Validación  | Descripción                   |
-|-------------|--------|-----------|-------------|-------------------------------|
-| `productId` | UUID   | Sí        | UUID válido | Producto a comprar            |
-| `quantity`  | number | Sí        | ≥ 1         | Cantidad                      |
-| `notes`     | string | No        | —           | Observaciones para el cocinero|
+| Campo       | Tipo   | Requerido | Validación  | Descripción                    |
+| ----------- | ------ | --------- | ----------- | ------------------------------ |
+| `productId` | UUID   | Sí        | UUID válido | Producto a comprar             |
+| `quantity`  | number | Sí        | ≥ 1         | Cantidad                       |
+| `notes`     | string | No        | —           | Observaciones para el cocinero |
 
 ---
 
 ### 📤 DTO: OrderResponse
 
-| Campo              | Tipo                    | Nullable | Descripción                                               |
-|--------------------|-------------------------|----------|-----------------------------------------------------------|
-| `id`               | UUID                    | No       | Identificador del pedido                                  |
-| `tenantId`         | UUID                    | No       | Restaurante                                               |
-| `customerId`       | UUID                    | No       | ID de cliente en tienda                                   |
-| `customerUserId`   | UUID                    | No       | ID de usuario global                                      |
-| `customerFullName` | string                  | Sí       | Nombre del cliente                                        |
-| `customerEmail`    | string                  | Sí       | Email del cliente                                         |
-| `customerPhone`    | string                  | Sí       | Teléfono de contacto                                      |
-| `deliveryStaffId`  | UUID                    | Sí       | ID del repartidor asignado                                |
-| `orderNumber`      | string                  | No       | Código legible del pedido (ej. "ORD-000123")              |
-| `deliveryType`     | string                  | No       | `DELIVERY`, `TAKEAWAY`, `DINE_IN`                         |
-| `status`           | string                  | No       | `PENDIENTE`, `EN_PREPARACION`, etc.                       |
-| `deliveryAddress`  | string                  | Sí       | Dirección histórica inmutable                             |
-| `deliveryLatitude` | number                  | Sí       | Latitud de entrega                                        |
-| `deliveryLongitude`| number                  | Sí       | Longitud de entrega                                       |
-| `subtotal`         | BigDecimal              | No       | Suma de valores netos imponibles                          |
-| `taxTotal`         | BigDecimal              | No       | Total de impuestos calculados (ej. IGV acumulado)         |
-| `deliveryFee`      | BigDecimal              | No       | Costo de envío aplicado                                   |
-| `total`            | BigDecimal              | No       | Monto total final a pagar                                 |
-| `notes`            | string                  | Sí       | Notas del pedido                                          |
-| `items`            | List<OrderItemResponse> | No       | Detalle de los platillos del pedido                       |
-| `createdAt`        | string                  | No       | Fecha de creación (ISO 8601)                              |
-| `updatedAt`        | string                  | No       | Fecha de actualización (ISO 8601)                         |
+| Campo               | Tipo                    | Nullable | Descripción                                       |
+| ------------------- | ----------------------- | -------- | ------------------------------------------------- |
+| `id`                | UUID                    | No       | Identificador del pedido                          |
+| `tenantId`          | UUID                    | No       | Restaurante                                       |
+| `customerId`        | UUID                    | No       | ID de cliente en tienda                           |
+| `customerUserId`    | UUID                    | No       | ID de usuario global                              |
+| `customerFullName`  | string                  | Sí       | Nombre del cliente                                |
+| `customerEmail`     | string                  | Sí       | Email del cliente                                 |
+| `customerPhone`     | string                  | Sí       | Teléfono de contacto                              |
+| `deliveryStaffId`   | UUID                    | Sí       | ID del repartidor asignado                        |
+| `orderNumber`       | string                  | No       | Código legible del pedido (ej. "ORD-000123")      |
+| `deliveryType`      | string                  | No       | `DELIVERY`, `TAKEAWAY`, `DINE_IN`                 |
+| `status`            | string                  | No       | `PENDIENTE`, `EN_PREPARACION`, etc.               |
+| `deliveryAddress`   | string                  | Sí       | Dirección histórica inmutable                     |
+| `deliveryLatitude`  | number                  | Sí       | Latitud de entrega                                |
+| `deliveryLongitude` | number                  | Sí       | Longitud de entrega                               |
+| `subtotal`          | BigDecimal              | No       | Suma de valores netos imponibles                  |
+| `taxTotal`          | BigDecimal              | No       | Total de impuestos calculados (ej. IGV acumulado) |
+| `deliveryFee`       | BigDecimal              | No       | Costo de envío aplicado                           |
+| `total`             | BigDecimal              | No       | Monto total final a pagar                         |
+| `notes`             | string                  | Sí       | Notas del pedido                                  |
+| `items`             | List<OrderItemResponse> | No       | Detalle de los platillos del pedido               |
+| `createdAt`         | string                  | No       | Fecha de creación (ISO 8601)                      |
+| `updatedAt`         | string                  | No       | Fecha de actualización (ISO 8601)                 |
 
 ---
 
 ### 📤 DTO: OrderItemResponse (Snapshot Fiscal Inmutable)
 
-| Campo         | Tipo       | Nullable | Descripción                                                        |
-|---------------|------------|----------|--------------------------------------------------------------------|
-| `id`          | UUID       | No       | Identificador del ítem                                             |
-| `productId`   | UUID       | Sí       | ID del producto (conserva null si se elimina del catálogo posterior)|
-| `productName` | string     | No       | **Snapshot inmutable** del nombre del producto                     |
-| `taxId`       | UUID       | Sí       | Impuesto aplicado al momento de ordenar                            |
-| `taxRate`     | BigDecimal | No       | **Snapshot inmutable** de la tasa porcentual (ej. 18.00)           |
-| `taxAmount`   | BigDecimal | No       | **Snapshot inmutable** del monto de impuesto calculado             |
-| `unitPrice`   | BigDecimal | No       | **Snapshot inmutable** del precio unitario cobrado                 |
-| `quantity`    | number     | No       | Cantidad solicitada                                                |
-| `subtotal`    | BigDecimal | No       | Subtotal (quantity × unitPrice)                                    |
-| `notes`       | string     | Sí       | Instrucciones del ítem                                             |
-| `createdAt`   | string     | No       | ISO 8601                                                           |
-| `updatedAt`   | string     | No       | ISO 8601                                                           |
+| Campo         | Tipo       | Nullable | Descripción                                                          |
+| ------------- | ---------- | -------- | -------------------------------------------------------------------- |
+| `id`          | UUID       | No       | Identificador del ítem                                               |
+| `productId`   | UUID       | Sí       | ID del producto (conserva null si se elimina del catálogo posterior) |
+| `productName` | string     | No       | **Snapshot inmutable** del nombre del producto                       |
+| `taxId`       | UUID       | Sí       | Impuesto aplicado al momento de ordenar                              |
+| `taxRate`     | BigDecimal | No       | **Snapshot inmutable** de la tasa porcentual (ej. 18.00)             |
+| `taxAmount`   | BigDecimal | No       | **Snapshot inmutable** del monto de impuesto calculado               |
+| `unitPrice`   | BigDecimal | No       | **Snapshot inmutable** del precio unitario cobrado                   |
+| `quantity`    | number     | No       | Cantidad solicitada                                                  |
+| `subtotal`    | BigDecimal | No       | Subtotal (quantity × unitPrice)                                      |
+| `notes`       | string     | Sí       | Instrucciones del ítem                                               |
+| `createdAt`   | string     | No       | ISO 8601                                                             |
+| `updatedAt`   | string     | No       | ISO 8601                                                             |
 
 #### Ciclo de Vida del Pedido (`OrderStatus`):
+
 ```
 PENDIENTE  ──>  EN_PREPARACION  ──>  LISTO_PARA_ENTREGA  ──>  EN_CAMINO  ──>  ENTREGADO
     │                 │                      │                     │
@@ -1636,7 +1678,7 @@ Ruta base: /api/v1/plans
 > Obtiene la lista de planes de suscripción activos disponibles públicamente en la plataforma.
 
 **Autenticación:** No requerida (Público)  
-**Rol requerido:** Ninguno  
+**Rol requerido:** Ninguno
 
 ##### 📤 Response
 
@@ -1673,7 +1715,7 @@ Ruta base: /api/v1/admin/plans
 > Lista todos los planes registrados en la plataforma, incluyendo inactivos.
 
 **Autenticación:** Requerida (Bearer <token>)  
-**Rol requerido:** SUPERADMIN  
+**Rol requerido:** SUPERADMIN
 
 ##### 📤 Response
 
@@ -1702,7 +1744,7 @@ Ruta base: /api/v1/admin/plans
 > Obtiene los datos de un plan por su ID único.
 
 **Autenticación:** Requerida (Bearer <token>)  
-**Rol requerido:** SUPERADMIN  
+**Rol requerido:** SUPERADMIN
 
 ##### 📤 Response
 
@@ -1722,14 +1764,15 @@ Ruta base: /api/v1/admin/plans
 
 **Body (JSON) — SubscriptionPlanRequest:**
 
-| Campo              | Tipo       | Requerido | Validación                             | Descripción                                |
-|--------------------|------------|-----------|----------------------------------------|--------------------------------------------|
-| 
-ame             | string     | Sí        | Máx. 100 caracteres, único             | Nombre comercial del plan                  |
-| price            | BigDecimal | Sí        | ≥ 0.00                                 | Tarifa del plan                            |
-| illingCycleDays | number     | Sí        | ≥ 1 (default: 30)                      | Días de vigencia por ciclo                 |
-| maxProducts      | number     | No        | ≥ 1                                    | Límite máximo de productos permitidos      |
-| isActive         | boolean    | No        | Default: 	rue                        | Si el plan está visible para contratación  |
+| Campo | Tipo | Requerido | Validación | Descripción |
+| ----- | ---- | --------- | ---------- | ----------- |
+
+|
+ame | string | Sí | Máx. 100 caracteres, único | Nombre comercial del plan |
+| price | BigDecimal | Sí | ≥ 0.00 | Tarifa del plan |
+| illingCycleDays | number | Sí | ≥ 1 (default: 30) | Días de vigencia por ciclo |
+| maxProducts | number | No | ≥ 1 | Límite máximo de productos permitidos |
+| isActive | boolean | No | Default: rue | Si el plan está visible para contratación |
 
 `json
 {
@@ -1772,9 +1815,11 @@ ame             | string     | Sí        | Máx. 100 caracteres, único        
 **Content-Type:** pplication/json
 
 ##### 📥 Request
+
 Mismo formato SubscriptionPlanRequest.
 
 ##### 📤 Response
+
 **Éxito (200 OK):** Retorna ApiResponse<SubscriptionPlanResponse>.
 
 ---
@@ -1791,9 +1836,9 @@ Mismo formato SubscriptionPlanRequest.
 
 **Body (JSON) — SubscriptionPlanStatusRequest:**
 
-| Campo      | Tipo    | Requerido | Descripción                     |
-|------------|---------|-----------|---------------------------------|
-| isActive | boolean | Sí        | 	rue para activar, alse para desactivar |
+| Campo    | Tipo    | Requerido | Descripción                            |
+| -------- | ------- | --------- | -------------------------------------- |
+| isActive | boolean | Sí        | rue para activar, alse para desactivar |
 
 `json
 {
@@ -1802,6 +1847,7 @@ Mismo formato SubscriptionPlanRequest.
 `
 
 ##### 📤 Response
+
 **Éxito (200 OK):** Retorna ApiResponse<SubscriptionPlanResponse>.
 
 ---
@@ -1824,9 +1870,9 @@ Ruta base: /api/v1/subscriptions
 
 **Body (JSON) — SubscriptionCreateRequest:**
 
-| Campo    | Tipo | Requerido | Descripción                 |
-|----------|------|-----------|-----------------------------|
-| planId | UUID | Sí        | ID del plan elegido         |
+| Campo  | Tipo | Requerido | Descripción         |
+| ------ | ---- | --------- | ------------------- |
+| planId | UUID | Sí        | ID del plan elegido |
 
 `json
 {
@@ -1869,7 +1915,7 @@ Ruta base: /api/v1/subscriptions
 > Obtiene la suscripción vigente o más reciente del usuario autenticado actual.
 
 **Autenticación:** Requerida (Bearer <token>)  
-**Rol requerido:** Cualquier usuario autenticado  
+**Rol requerido:** Cualquier usuario autenticado
 
 ##### 📤 Response
 
@@ -1900,7 +1946,7 @@ Ruta base: /api/v1/subscriptions
 > Cancela la suscripción activa del usuario autenticado y desactiva el restaurante vinculado.
 
 **Autenticación:** Requerida (Bearer <token>)  
-**Rol requerido:** Usuario autenticado con suscripción activa o trial  
+**Rol requerido:** Usuario autenticado con suscripción activa o trial
 
 ##### 📤 Response
 
@@ -1922,44 +1968,46 @@ Ruta base: /api/v1/subscriptions
 
 #### 📥 DTO: SubscriptionPlanRequest
 
-| Campo              | Tipo       | Requerido | Validación    | Descripción                                |
-|--------------------|------------|-----------|---------------|--------------------------------------------|
-| 
-ame             | string     | Sí        | Máx. 100 char | Nombre del plan (ej. "Plan Pro")           |
-| price            | BigDecimal | Sí        | ≥ 0.00        | Tarifa mensual del plan                    |
-| illingCycleDays | number     | Sí        | ≥ 1           | Días del ciclo de facturación (default: 30)|
-| maxProducts      | number     | No        | ≥ 1           | Límite de productos en el catálogo         |
-| isActive         | boolean    | No        | —             | Estado activo                              |
+| Campo | Tipo | Requerido | Validación | Descripción |
+| ----- | ---- | --------- | ---------- | ----------- |
+
+|
+ame | string | Sí | Máx. 100 char | Nombre del plan (ej. "Plan Pro") |
+| price | BigDecimal | Sí | ≥ 0.00 | Tarifa mensual del plan |
+| illingCycleDays | number | Sí | ≥ 1 | Días del ciclo de facturación (default: 30)|
+| maxProducts | number | No | ≥ 1 | Límite de productos en el catálogo |
+| isActive | boolean | No | — | Estado activo |
 
 #### 📤 DTO: SubscriptionPlanResponse
 
-| Campo              | Tipo       | Nullable | Descripción                        |
-|--------------------|------------|----------|------------------------------------|
-| id               | UUID       | No       | ID del plan                        |
-| 
-ame             | string     | No       | Nombre del plan                    |
-| price            | BigDecimal | No       | Precio recurrente                  |
-| illingCycleDays | number     | No       | Días del período                   |
-| maxProducts      | number     | Sí       | Capacidad máxima de productos      |
-| isActive         | boolean    | No       | Estado                             |
+| Campo | Tipo | Nullable | Descripción |
+| ----- | ---- | -------- | ----------- |
+| id    | UUID | No       | ID del plan |
+
+|
+ame | string | No | Nombre del plan |
+| price | BigDecimal | No | Precio recurrente |
+| illingCycleDays | number | No | Días del período |
+| maxProducts | number | Sí | Capacidad máxima de productos |
+| isActive | boolean | No | Estado |
 
 #### 📥 DTO: SubscriptionCreateRequest
 
-| Campo    | Tipo | Requerido | Descripción                 |
-|----------|------|-----------|-----------------------------|
-| planId | UUID | Sí        | ID del plan elegido         |
+| Campo  | Tipo | Requerido | Descripción         |
+| ------ | ---- | --------- | ------------------- |
+| planId | UUID | Sí        | ID del plan elegido |
 
 #### 📤 DTO: SubscriptionResponse
 
-| Campo             | Tipo                     | Nullable | Descripción                                               |
-|-------------------|--------------------------|----------|-----------------------------------------------------------|
-| id              | UUID                     | No       | ID de la suscripción                                      |
-| plan            | SubscriptionPlanResponse | No       | Detalle del plan contratado                               |
-| userId          | UUID                     | No       | Propietario de la cuenta                                  |
-| status          | string                   | No       | TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED      |
-| startDate       | string                   | No       | Fecha inicio (ISO 8601)                                   |
-| endDate         | string                   | No       | Fecha fin del período (ISO 8601)                          |
-| mpPreapprovalId | string                   | Sí       | ID de suscripción automática Mercado Pago                 |
+| Campo           | Tipo                     | Nullable | Descripción                                |
+| --------------- | ------------------------ | -------- | ------------------------------------------ |
+| id              | UUID                     | No       | ID de la suscripción                       |
+| plan            | SubscriptionPlanResponse | No       | Detalle del plan contratado                |
+| userId          | UUID                     | No       | Propietario de la cuenta                   |
+| status          | string                   | No       | TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED |
+| startDate       | string                   | No       | Fecha inicio (ISO 8601)                    |
+| endDate         | string                   | No       | Fecha fin del período (ISO 8601)           |
+| mpPreapprovalId | string                   | Sí       | ID de suscripción automática Mercado Pago  |
 
 ## 7. Payment — Pagos y Mercado Pago
 
@@ -1967,30 +2015,30 @@ ame             | string     | No       | Nombre del plan                    |
 
 ### 📥 DTO: PaymentCreateRequest
 
-| Campo            | Tipo       | Requerido | Validación  | Descripción                               |
-|------------------|------------|-----------|-------------|-------------------------------------------|
-| `orderId`        | UUID       | Sí        | UUID válido | Pedido a pagar                            |
-| `tenantId`       | UUID       | Sí        | UUID válido | Restaurante receptor                      |
-| `mpPaymentId`    | string     | No        | —           | ID devuelto por el SDK de Mercado Pago    |
-| `mpPreferenceId` | string     | No        | —           | ID de la preferencia de checkout          |
-| `paymentMethod`  | string     | No        | —           | Método de pago (tarjeta, yape, etc.)      |
-| `amount`         | BigDecimal | Sí        | ≥ 0.01      | Monto cobrado                             |
-| `rawResponse`    | object     | No        | —           | JSON íntegro devuelto por el procesador   |
+| Campo            | Tipo       | Requerido | Validación  | Descripción                             |
+| ---------------- | ---------- | --------- | ----------- | --------------------------------------- |
+| `orderId`        | UUID       | Sí        | UUID válido | Pedido a pagar                          |
+| `tenantId`       | UUID       | Sí        | UUID válido | Restaurante receptor                    |
+| `mpPaymentId`    | string     | No        | —           | ID devuelto por el SDK de Mercado Pago  |
+| `mpPreferenceId` | string     | No        | —           | ID de la preferencia de checkout        |
+| `paymentMethod`  | string     | No        | —           | Método de pago (tarjeta, yape, etc.)    |
+| `amount`         | BigDecimal | Sí        | ≥ 0.01      | Monto cobrado                           |
+| `rawResponse`    | object     | No        | —           | JSON íntegro devuelto por el procesador |
 
 ### 📤 DTO: PaymentResponse
 
-| Campo            | Tipo          | Nullable | Descripción                                          |
-|------------------|---------------|----------|------------------------------------------------------|
-| `id`             | UUID          | No       | Identificador del pago                               |
-| `orderId`        | UUID          | No       | Pedido vinculado                                     |
-| `tenantId`       | UUID          | No       | Restaurante                                          |
-| `mpPaymentId`    | string        | Sí       | ID en Mercado Pago                                   |
-| `mpPreferenceId` | string        | Sí       | ID de Checkout Pro                                   |
-| `paymentMethod`  | string        | Sí       | Canal utilizado                                      |
-| `status`         | PaymentStatus | No       | `PENDING`, `APPROVED`, `REJECTED`, `REFUNDED`        |
-| `amount`         | BigDecimal    | No       | Monto total pagado                                   |
-| `createdAt`      | string        | No       | ISO 8601                                             |
-| `updatedAt`      | string        | No       | ISO 8601                                             |
+| Campo            | Tipo          | Nullable | Descripción                                   |
+| ---------------- | ------------- | -------- | --------------------------------------------- |
+| `id`             | UUID          | No       | Identificador del pago                        |
+| `orderId`        | UUID          | No       | Pedido vinculado                              |
+| `tenantId`       | UUID          | No       | Restaurante                                   |
+| `mpPaymentId`    | string        | Sí       | ID en Mercado Pago                            |
+| `mpPreferenceId` | string        | Sí       | ID de Checkout Pro                            |
+| `paymentMethod`  | string        | Sí       | Canal utilizado                               |
+| `status`         | PaymentStatus | No       | `PENDING`, `APPROVED`, `REJECTED`, `REFUNDED` |
+| `amount`         | BigDecimal    | No       | Monto total pagado                            |
+| `createdAt`      | string        | No       | ISO 8601                                      |
+| `updatedAt`      | string        | No       | ISO 8601                                      |
 
 ---
 
@@ -2009,19 +2057,20 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/items`
 > Lista los insumos del almacén del restaurante de forma paginada con filtros opcionales.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`  
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`
 
 **Query Parameters:**
 
-| Parámetro    | Tipo    | Requerido | Descripción                                      |
-|--------------|---------|-----------|--------------------------------------------------|
-| `activeOnly` | boolean | No        | Si es `true`, retorna solo insumos activos       |
-| `category`   | string  | No        | Filtra por categoría (insensible a mayúsculas)   |
-| `unit`       | string  | No        | Filtra por unidad de medida (`UNIT` o `KG`)      |
-| `page`       | number  | No        | Página (0-indexed, default: 0)                   |
-| `size`       | number  | No        | Tamaño de página (default: 20)                   |
+| Parámetro    | Tipo    | Requerido | Descripción                                    |
+| ------------ | ------- | --------- | ---------------------------------------------- |
+| `activeOnly` | boolean | No        | Si es `true`, retorna solo insumos activos     |
+| `category`   | string  | No        | Filtra por categoría (insensible a mayúsculas) |
+| `unit`       | string  | No        | Filtra por unidad de medida (`UNIT` o `KG`)    |
+| `page`       | number  | No        | Página (0-indexed, default: 0)                 |
+| `size`       | number  | No        | Tamaño de página (default: 20)                 |
 
 ##### 📤 Response (200 OK)
+
 Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
 
 ---
@@ -2031,7 +2080,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
 > Obtiene el detalle de un insumo del restaurante por su ID.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2052,7 +2101,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
   "description": "Saco de harina italiana para masa madre",
   "category": "Secos",
   "unit": "KG",
-  "costPrice": 4.50,
+  "costPrice": 4.5,
   "isActive": true
 }
 ```
@@ -2071,7 +2120,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
     "description": "Saco de harina italiana para masa madre",
     "category": "Secos",
     "unit": "KG",
-    "costPrice": 4.50,
+    "costPrice": 4.5,
     "isActive": true,
     "createdAt": "2026-11-05T17:00:00Z",
     "updatedAt": "2026-11-05T17:00:00Z"
@@ -2086,7 +2135,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
 > Actualiza los datos de un insumo existente.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ---
 
@@ -2095,7 +2144,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
 > Activa o desactiva un insumo (`InventoryItemStatusRequest`: `{ "isActive": false }`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ---
 
@@ -2104,7 +2153,7 @@ Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
 > Elimina un insumo siempre que no tenga un registro de stock ni forme parte de una receta de producto.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ---
 
@@ -2117,7 +2166,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 > Lista los registros de existencias del restaurante de forma paginada.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2126,7 +2175,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 > Obtiene la lista de insumos en alerta de stock crítico (`quantity <= minimumStock`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2135,7 +2184,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 > Obtiene el detalle de existencias por `stockId` o por `itemId`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2152,8 +2201,8 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 ```json
 {
   "itemId": "50000000-0000-0000-0000-000000000001",
-  "minimumStock": 10.000,
-  "maximumStock": 100.000,
+  "minimumStock": 10.0,
+  "maximumStock": 100.0,
   "location": "Almacén Secos - Estante A1",
   "isActive": true
 }
@@ -2172,11 +2221,11 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
     "itemName": "Harina de Trigo 00",
     "itemSku": "INS-HAR-01",
     "unit": "KG",
-    "quantity": 0.000,
-    "reservedQuantity": 0.000,
-    "availableQuantity": 0.000,
-    "minimumStock": 10.000,
-    "maximumStock": 100.000,
+    "quantity": 0.0,
+    "reservedQuantity": 0.0,
+    "availableQuantity": 0.0,
+    "minimumStock": 10.0,
+    "maximumStock": 100.0,
     "lowStock": true,
     "location": "Almacén Secos - Estante A1",
     "isActive": true,
@@ -2193,7 +2242,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 > Actualiza umbrales (`minimumStock`, `maximumStock`), ubicación física (`location`) o estado (`isActive`) sin alterar `quantity`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
+**Rol requerido:** `OWNER` o `ADMIN`
 
 ---
 
@@ -2202,7 +2251,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
 > Consulta el Kardex (historial paginado de movimientos ordenado del más reciente al más antiguo) de un registro de stock.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2220,22 +2269,22 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
 
 ##### 📥 Request (`InventoryMovementRequest`)
 
-| Campo           | Tipo                    | Requerido | Validación                              | Descripción                                      |
-|-----------------|-------------------------|-----------|-----------------------------------------|--------------------------------------------------|
-| `stockId`       | UUID                    | Sí        | UUID válido                             | Registro de stock afectado                       |
-| `movementType`  | `InventoryMovementType` | Sí        | `ENTRY`, `EXIT`, `ADJUSTMENT`           | Tipo de operación                                |
-| `reason`        | `InventoryMovementReason`| Sí       | Coherente con `movementType`            | Motivo estandarizado del movimiento              |
-| `quantity`      | BigDecimal              | Sí        | `> 0` en ENTRY/EXIT; `!= 0` en ADJUSTMENT | Cantidad del movimiento                        |
-| `reasonDetails` | string                  | Sí        | No en blanco                            | Justificación obligatoria de auditoría           |
-| `referenceId`   | UUID                    | No        | UUID válido                             | ID de referencia opcional (ej. ID de la orden)   |
-| `referenceType` | string                  | No        | Máx. 50 caracteres                      | Tipo de referencia opcional (ej. `"ORDER"`)      |
+| Campo           | Tipo                      | Requerido | Validación                                | Descripción                                    |
+| --------------- | ------------------------- | --------- | ----------------------------------------- | ---------------------------------------------- |
+| `stockId`       | UUID                      | Sí        | UUID válido                               | Registro de stock afectado                     |
+| `movementType`  | `InventoryMovementType`   | Sí        | `ENTRY`, `EXIT`, `ADJUSTMENT`             | Tipo de operación                              |
+| `reason`        | `InventoryMovementReason` | Sí        | Coherente con `movementType`              | Motivo estandarizado del movimiento            |
+| `quantity`      | BigDecimal                | Sí        | `> 0` en ENTRY/EXIT; `!= 0` en ADJUSTMENT | Cantidad del movimiento                        |
+| `reasonDetails` | string                    | Sí        | No en blanco                              | Justificación obligatoria de auditoría         |
+| `referenceId`   | UUID                      | No        | UUID válido                               | ID de referencia opcional (ej. ID de la orden) |
+| `referenceType` | string                    | No        | Máx. 50 caracteres                        | Tipo de referencia opcional (ej. `"ORDER"`)    |
 
 ```json
 {
   "stockId": "51000000-0000-0000-0000-000000000001",
   "movementType": "ENTRY",
   "reason": "PURCHASE",
-  "quantity": 50.000,
+  "quantity": 50.0,
   "reasonDetails": "Factura proveedor F001-443"
 }
 ```
@@ -2256,9 +2305,9 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
     "unit": "KG",
     "movementType": "ENTRY",
     "reason": "PURCHASE",
-    "quantity": 50.000,
-    "previousQuantity": 0.000,
-    "newQuantity": 50.000,
+    "quantity": 50.0,
+    "previousQuantity": 0.0,
+    "newQuantity": 50.0,
     "performedById": "00000000-0000-0000-0000-000000000002",
     "performedByName": "Mario Rossi",
     "reasonDetails": "Factura proveedor F001-443",
@@ -2276,7 +2325,7 @@ Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
 > Lista paginada de movimientos de inventario del restaurante, filtrable por `movementType` y `reason`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante  
+**Rol requerido:** Miembro activo del restaurante
 
 ---
 
@@ -2288,6 +2337,28 @@ Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
 - **`POST /api/v1/tenants/{tenantId}/products/{productId}/ingredients`**: Agrega o actualiza un ingrediente en la receta (`{ "inventoryItemId": "...", "quantity": 0.250 }`). Solo `OWNER` o `ADMIN`.
 - **`DELETE /api/v1/tenants/{tenantId}/products/{productId}/ingredients/{ingredientId}`**: Retira un ingrediente de la receta. Solo `OWNER` o `ADMIN`.
 - **Descuento automático:** Cuando una orden avanza a `EN_PREPARACION`, se registran movimientos `EXIT / SALE` por cada ingrediente de los productos con receta; si la orden se cancela desde `EN_PREPARACION`, se revierte el stock con `ENTRY / CUSTOMER_RETURN`.
+
+---
+
+## 9. Tracking — Rastreo Geoespacial (PostGIS) y Tiempo Estimado (ETA)
+
+### 📌 Descripción General
+
+Módulo geoespacial basado en **PostgreSQL + PostGIS (`geometry(Point, 4326)`)** que permite:
+
+1. **Estimar cobertura y tiempo de entrega antes del checkout:** Calcula distancia esférica (`ST_DistanceSphere`), distancia vial estimada (`× roadFactor`), tarifa y rango de llegada.
+2. **Calcular ETA inicial al asignar el repartidor:** En `PATCH /api/v1/tenants/{tenantId}/orders/{id}/assign` y al pasar a `EN_CAMINO`, la orden calcula automáticamente `estimatedDistanceKm`, `estimatedDeliveryMinutes`, `estimatedArrivalAt` y `etaMessage` (_"Tu pedido estará en tu casa en ~14 min"_).
+3. **Seguimiento periódico del repartidor estilo Rappi / PedidosYa:** La app del repartidor envía su posición GPS cada 10–15 s (`PUT .../tracking/location`) y el frontend del cliente consulta cada `pollIntervalSeconds` (15 s por defecto) interpolando suavemente el marcador en el mapa.
+
+### 📋 Tabla Resumen de Endpoints (`Tracking`)
+
+| Método | Ruta                                                            | Rol / Acceso                             | Descripción                                                                                              |
+| :----- | :-------------------------------------------------------------- | :--------------------------------------- | :------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/v1/store/{slug}/delivery-estimate?lat=&lng=`              | Público (Sin Token)                      | Verifica si las coordenadas están dentro del radio de cobertura y devuelve el ETA estimado               |
+| `GET`  | `/api/v1/store/{slug}/orders/{orderId}/tracking`                | Cliente dueño del pedido                 | Consulta la posición actual del repartidor (solo en `EN_CAMINO`), ETA y `pollIntervalSeconds`            |
+| `PUT`  | `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking/location` | `REPARTIDOR` asignado (`OWNER`, `ADMIN`) | Registra un ping GPS del repartidor (throttling a 5 s) y recalcula el ETA restante                       |
+| `GET`  | `/api/v1/tenants/{tenantId}/orders/{orderId}/tracking`          | Miembro del restaurante                  | Obtiene el estado de rastreo de la orden y opcionalmente el historial de puntos (`?includeHistory=true`) |
+| `GET`  | `/api/v1/tenants/{tenantId}/tracking/active`                    | `OWNER`, `ADMIN`, `SUPERADMIN`           | Lista todos los repartidores con pedidos activos en ruta (`EN_CAMINO`) para el mapa del restaurante      |
 
 ---
 

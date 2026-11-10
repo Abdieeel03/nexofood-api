@@ -1,0 +1,29 @@
+meta {
+  name: 03 - Storefront Cliente - Consultar Seguimiento de Mi Pedido (Polling cada 15s)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/store/{{tenantSlug}}/orders/{{orderId}}/tracking
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna estado de tracking, ETA y pollIntervalSeconds para animar el marcador", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.orderId).to.equal(bru.getEnvVar("orderId"));
+    expect(data.pollIntervalSeconds).to.be.a('number');
+  });
+}
+

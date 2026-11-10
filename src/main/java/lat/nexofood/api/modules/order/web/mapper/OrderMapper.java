@@ -2,7 +2,9 @@ package lat.nexofood.api.modules.order.web.mapper;
 
 import lat.nexofood.api.common.util.GeoUtils;
 import lat.nexofood.api.modules.identity.domain.User;
+import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
+import lat.nexofood.api.modules.order.domain.OrderStatus;
 import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
 import lat.nexofood.api.modules.store.domain.Tenant;
@@ -73,6 +75,12 @@ public class OrderMapper {
                 .deliveryAddress(order.getDeliveryAddress())
                 .deliveryLatitude(GeoUtils.getLatitude(order.getDeliveryLocation()))
                 .deliveryLongitude(GeoUtils.getLongitude(order.getDeliveryLocation()))
+                .estimatedDistanceKm(order.getEstimatedDistanceKm())
+                .estimatedDeliveryMinutes(order.getEstimatedDeliveryMinutes())
+                .estimatedArrivalAt(order.getEstimatedArrivalAt())
+                .etaMessage(buildEtaMessage(order))
+                .dispatchedAt(order.getDispatchedAt())
+                .deliveredAt(order.getDeliveredAt())
                 .subtotal(order.getSubtotal())
                 .taxTotal(order.getTaxTotal())
                 .deliveryFee(order.getDeliveryFee())
@@ -82,5 +90,21 @@ public class OrderMapper {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
+    }
+
+    private String buildEtaMessage(Order order) {
+        if (order == null || order.getDeliveryType() != DeliveryType.DELIVERY) {
+            return null;
+        }
+        if (order.getStatus() == OrderStatus.ENTREGADO) {
+            return "Tu pedido ha sido entregado";
+        }
+        if (order.getStatus() == OrderStatus.CANCELADO) {
+            return "Tu pedido fue cancelado";
+        }
+        if (order.getEstimatedDeliveryMinutes() != null && order.getEstimatedDeliveryMinutes() > 0) {
+            return "Tu pedido estará en tu casa en ~" + order.getEstimatedDeliveryMinutes() + " min";
+        }
+        return null;
     }
 }

@@ -38,6 +38,10 @@ import lat.nexofood.api.modules.store.infrastructure.repository.TenantCustomerRe
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantMemberRepository;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.subscription.application.service.guard.SubscriptionGuard;
+import lat.nexofood.api.modules.tracking.application.service.DeliveryTrackingService;
+import lat.nexofood.api.modules.tracking.application.service.EtaEstimate;
+import lat.nexofood.api.modules.tracking.application.service.EtaProvider;
+import lat.nexofood.api.modules.tracking.application.service.HaversineEtaProvider;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -73,6 +77,8 @@ public class OrderServiceImpl implements OrderService {
     private final TenantAccessService tenantAccessService;
     private final CurrentUserProvider currentUserProvider;
     private final ProductIngredientService productIngredientService;
+    private final EtaProvider etaProvider;
+    private final DeliveryTrackingService deliveryTrackingService;
 
     @Autowired
     public OrderServiceImpl(
@@ -92,7 +98,9 @@ public class OrderServiceImpl implements OrderService {
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
-            ProductIngredientService productIngredientService
+            ProductIngredientService productIngredientService,
+            @Autowired(required = false) EtaProvider etaProvider,
+            @Autowired(required = false) DeliveryTrackingService deliveryTrackingService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -111,6 +119,50 @@ public class OrderServiceImpl implements OrderService {
         this.tenantAccessService = tenantAccessService;
         this.currentUserProvider = currentUserProvider;
         this.productIngredientService = productIngredientService;
+        this.etaProvider = etaProvider != null ? etaProvider : new HaversineEtaProvider();
+        this.deliveryTrackingService = deliveryTrackingService;
+    }
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            TenantCustomerRepository tenantCustomerRepository,
+            TenantMemberRepository tenantMemberRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ProductPricingService pricingService,
+            TaxCalculationService taxCalculationService,
+            OrderMapper orderMapper,
+            OrderItemMapper orderItemMapper,
+            CurrentCustomerResolver currentCustomerResolver,
+            SubscriptionGuard subscriptionGuard,
+            OrderStateMachine orderStateMachine,
+            PaymentGuard paymentGuard,
+            TenantAccessService tenantAccessService,
+            CurrentUserProvider currentUserProvider,
+            ProductIngredientService productIngredientService
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                tenantRepository,
+                tenantCustomerRepository,
+                tenantMemberRepository,
+                customerAddressRepository,
+                pricingService,
+                taxCalculationService,
+                orderMapper,
+                orderItemMapper,
+                currentCustomerResolver,
+                subscriptionGuard,
+                orderStateMachine,
+                paymentGuard,
+                tenantAccessService,
+                currentUserProvider,
+                productIngredientService,
+                null,
+                null
+        );
     }
 
     public OrderServiceImpl(
@@ -519,7 +571,27 @@ public class OrderServiceImpl implements OrderService {
         }
 
         order.setStatus(newStatus);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        if (newStatus == OrderStatus.EN_CAMINO) {
+            order.setDispatchedAt(now);
+            applyStoreToCustomerEtaIfPossible(order);
+        } else if (newStatus == OrderStatus.ENTREGADO) {
+            order.setDeliveredAt(now);
+            order.setEstimatedDeliveryMinutes(0);
+        } else if (newStatus == OrderStatus.CANCELADO) {
+            order.setEstimatedDeliveryMinutes(null);
+            order.setEstimatedArrivalAt(null);
+        }
+
         Order savedOrder = orderRepository.save(order);
+
+        if (newStatus == OrderStatus.EN_CAMINO && deliveryTrackingService != null) {
+            deliveryTrackingService.onOrderDispatched(savedOrder);
+        } else if ((newStatus == OrderStatus.ENTREGADO || newStatus == OrderStatus.CANCELADO)
+                && deliveryTrackingService != null) {
+            deliveryTrackingService.onOrderClosed(savedOrder);
+        }
 
         if (newStatus == OrderStatus.CANCELADO) {
             new SecurityAuditLogger().logEvent(
@@ -561,8 +633,29 @@ public class OrderServiceImpl implements OrderService {
         }
 
         order.setDeliveryStaff(staffMember.getUser());
+        applyStoreToCustomerEtaIfPossible(order);
+
         Order saved = orderRepository.save(order);
+        if (saved.getStatus() == OrderStatus.EN_CAMINO && deliveryTrackingService != null) {
+            deliveryTrackingService.onOrderDispatched(saved);
+        }
         return orderMapper.toResponse(saved);
+    }
+
+    private void applyStoreToCustomerEtaIfPossible(Order order) {
+        if (order == null || etaProvider == null) {
+            return;
+        }
+        Tenant tenant = order.getTenant();
+        if (tenant != null && tenant.getLocation() != null && order.getDeliveryLocation() != null) {
+            EtaEstimate estimate = etaProvider.estimateFromStoreToCustomer(
+                    tenant.getLocation(),
+                    order.getDeliveryLocation()
+            );
+            order.setEstimatedDistanceKm(estimate.estimatedRouteDistanceKm());
+            order.setEstimatedDeliveryMinutes(estimate.estimatedMinutes());
+            order.setEstimatedArrivalAt(estimate.estimatedArrivalAt());
+        }
     }
 
     private void awardLoyaltyPoints(Order order) {

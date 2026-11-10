@@ -31,6 +31,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.locationtech.jts.geom.Point;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -123,6 +124,21 @@ public class Order extends BaseEntity {
     @JoinColumn(name = "address_id")
     @ToString.Exclude
     private CustomerAddress address;
+
+    @Column(name = "estimated_distance_km", precision = 6, scale = 2)
+    private BigDecimal estimatedDistanceKm;
+
+    @Column(name = "estimated_delivery_minutes")
+    private Integer estimatedDeliveryMinutes;
+
+    @Column(name = "estimated_arrival_at")
+    private OffsetDateTime estimatedArrivalAt;
+
+    @Column(name = "dispatched_at")
+    private OffsetDateTime dispatchedAt;
+
+    @Column(name = "delivered_at")
+    private OffsetDateTime deliveredAt;
 
     @PrePersist
     @PreUpdate

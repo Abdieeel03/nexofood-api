@@ -1,0 +1,26 @@
+meta {
+  name: 18 - Recipes - Eliminar Ingrediente de Receta (OWNER o ADMIN)
+  type: http
+  seq: 18
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/ingredients/{{ingredientId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Elimina el ingrediente de la receta del producto", function() {
+    expect(res.getBody().success).to.be.true;
+  });
+}
+
