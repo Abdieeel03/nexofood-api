@@ -10,6 +10,8 @@ import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,10 @@ public class UpdateTenantService implements UpdateTenantUseCase {
     private final TenantMapper tenantMapper;
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public TenantResponse execute(UUID id, TenantUpdateRequest request) {
         Tenant tenant = tenantRepository.findById(id)

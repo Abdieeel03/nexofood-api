@@ -12,6 +12,8 @@ import lat.nexofood.api.modules.catalog.web.mapper.CategoryMapper;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public CategoryResponse create(UUID tenantId, CategoryRequest request) {
         Tenant tenant = tenantRepository.findById(tenantId)
@@ -70,6 +76,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public CategoryResponse update(UUID tenantId, UUID categoryId, CategoryRequest request) {
         Category category = getCategoryOrThrow(tenantId, categoryId);
@@ -93,6 +103,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public CategoryResponse toggleStatus(UUID tenantId, UUID categoryId, boolean isActive) {
         Category category = getCategoryOrThrow(tenantId, categoryId);
@@ -102,6 +116,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public CategoryResponse reorder(UUID tenantId, UUID categoryId, int sortOrder) {
         if (sortOrder < 0) {
@@ -114,6 +132,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public void delete(UUID tenantId, UUID categoryId) {
         Category category = getCategoryOrThrow(tenantId, categoryId);

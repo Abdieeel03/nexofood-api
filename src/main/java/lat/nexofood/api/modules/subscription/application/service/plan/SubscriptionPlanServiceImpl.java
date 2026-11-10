@@ -9,6 +9,8 @@ import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPlanRe
 import lat.nexofood.api.modules.subscription.web.mapper.SubscriptionPlanMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ public class SubscriptionPlanServiceImpl implements SubscriptionPlanService {
     private final SubscriptionPlanMapper planMapper;
 
     @Override
+    @Cacheable(value = "subscription_plans", key = "'active'")
     @Transactional(readOnly = true)
     public List<SubscriptionPlanResponse> getActivePlans() {
         return planRepository.findAllByIsActiveTrue()
@@ -33,6 +36,7 @@ public class SubscriptionPlanServiceImpl implements SubscriptionPlanService {
     }
 
     @Override
+    @Cacheable(value = "subscription_plans", key = "'all'")
     @Transactional(readOnly = true)
     public List<SubscriptionPlanResponse> getAllPlans() {
         return planRepository.findAll()
@@ -50,6 +54,7 @@ public class SubscriptionPlanServiceImpl implements SubscriptionPlanService {
     }
 
     @Override
+    @CacheEvict(value = "subscription_plans", allEntries = true)
     @Transactional
     public SubscriptionPlanResponse createPlan(SubscriptionPlanRequest request) {
         String normalizedName = request.name().trim();
@@ -66,6 +71,7 @@ public class SubscriptionPlanServiceImpl implements SubscriptionPlanService {
     }
 
     @Override
+    @CacheEvict(value = "subscription_plans", allEntries = true)
     @Transactional
     public SubscriptionPlanResponse updatePlan(UUID planId, SubscriptionPlanRequest request) {
         SubscriptionPlan plan = planRepository.findById(planId)
@@ -90,6 +96,7 @@ public class SubscriptionPlanServiceImpl implements SubscriptionPlanService {
     }
 
     @Override
+    @CacheEvict(value = "subscription_plans", allEntries = true)
     @Transactional
     public SubscriptionPlanResponse changeStatus(UUID planId, Boolean isActive) {
         SubscriptionPlan plan = planRepository.findById(planId)

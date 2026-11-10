@@ -20,6 +20,7 @@ import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository
 import lat.nexofood.api.modules.subscription.application.service.guard.SubscriptionGuard;
 import lat.nexofood.api.modules.subscription.domain.SubscriptionPlan;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -67,6 +68,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductResponse create(UUID tenantId, ProductRequest request) {
         Tenant tenant = tenantRepository.findById(tenantId)
@@ -93,6 +95,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductResponse update(UUID tenantId, UUID productId, ProductRequest request) {
         Product product = productRepository.findByIdAndTenantId(productId, tenantId)
@@ -171,6 +174,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductResponse toggleAvailability(UUID tenantId, UUID productId, boolean isAvailable) {
         Product product = productRepository.findByIdAndTenantId(productId, tenantId)
@@ -182,6 +186,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public void delete(UUID tenantId, UUID productId) {
         Product product = productRepository.findByIdAndTenantId(productId, tenantId)

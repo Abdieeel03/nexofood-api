@@ -12,6 +12,7 @@ import lat.nexofood.api.modules.order.infrastructure.repository.OrderItemReposit
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,6 +67,7 @@ public class TaxServiceImpl implements TaxService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public TaxResponse update(UUID tenantId, UUID id, TaxRequest request) {
         Tax tax = taxRepository.findByIdAndTenantId(id, tenantId)
@@ -101,6 +103,7 @@ public class TaxServiceImpl implements TaxService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public TaxResponse toggleStatus(UUID tenantId, UUID id, boolean isActive) {
         Tax tax = taxRepository.findByIdAndTenantId(id, tenantId)
@@ -112,6 +115,7 @@ public class TaxServiceImpl implements TaxService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public void delete(UUID tenantId, UUID id) {
         Tax tax = taxRepository.findByIdAndTenantId(id, tenantId)

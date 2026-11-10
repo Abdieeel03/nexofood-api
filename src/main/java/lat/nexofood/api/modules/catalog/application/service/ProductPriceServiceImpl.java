@@ -13,6 +13,7 @@ import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductPriceMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +76,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductPriceResponse create(UUID tenantId, UUID productId, ProductPriceRequest request) {
         Product product = getProductOrThrow(tenantId, productId);
@@ -120,6 +122,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductPriceResponse update(UUID tenantId, UUID productId, UUID priceId, ProductPriceRequest request) {
         Product product = getProductOrThrow(tenantId, productId);
@@ -174,6 +177,7 @@ public class ProductPriceServiceImpl implements ProductPriceService {
     }
 
     @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public void delete(UUID tenantId, UUID productId, UUID priceId) {
         Product product = getProductOrThrow(tenantId, productId);

@@ -19,6 +19,7 @@ import lat.nexofood.api.modules.store.web.dto.response.StorefrontCategoryRespons
 import lat.nexofood.api.modules.store.web.dto.response.StorefrontMenuResponse;
 import lat.nexofood.api.modules.store.web.dto.response.StorefrontProductResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -77,6 +78,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
     }
 
     @Override
+    @Cacheable(value = "storefront_menu", key = "#slug")
     @Transactional(readOnly = true)
     public StorefrontMenuResponse getMenuBySlug(String slug) {
         Tenant tenant = getActiveTenantBySlugOrThrow(slug);
@@ -128,6 +130,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
     }
 
     @Override
+    @Cacheable(value = "storefront_categories", key = "#slug")
     @Transactional(readOnly = true)
     public List<CategoryResponse> getActiveCategoriesBySlug(String slug) {
         Tenant tenant = getActiveTenantBySlugOrThrow(slug);

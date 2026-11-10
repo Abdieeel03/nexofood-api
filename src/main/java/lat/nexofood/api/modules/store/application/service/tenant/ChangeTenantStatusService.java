@@ -6,6 +6,8 @@ import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,10 @@ public class ChangeTenantStatusService implements ChangeTenantStatusUseCase {
     private final TenantRepository tenantRepository;
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "storefront_menu", allEntries = true),
+            @CacheEvict(value = "storefront_categories", allEntries = true)
+    })
     @Transactional
     public void execute(UUID id, boolean isActive) {
         Tenant tenant = tenantRepository.findById(id)
