@@ -395,6 +395,8 @@ class OrderServiceTest {
                 .orderNumber("ORD-000002")
                 .deliveryType(DeliveryType.DELIVERY)
                 .status(OrderStatus.LISTO_PARA_ENTREGA)
+                .deliveryAddress("Av. Arequipa 4100, Miraflores")
+                .deliveryLocation(GeoUtils.createPoint(-12.1040, -77.0315))
                 .items(new ArrayList<>())
                 .build();
 
@@ -415,12 +417,18 @@ class OrderServiceTest {
                 orderService.assignDeliveryStaff(tenant.getId(), orderId, staffUserId)
         );
 
-        // Si tiene rol REPARTIDOR, se asigna correctamente
+        // Si tiene rol REPARTIDOR, se asigna correctamente y calcula el ETA inicial entre tienda y cliente
         cookMember.setRole(TenantStaffRole.REPARTIDOR);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse assigned = orderService.assignDeliveryStaff(tenant.getId(), orderId, staffUserId);
         assertEquals(staffUserId, assigned.deliveryStaffId());
         assertEquals("Luis Repartidor", assigned.deliveryStaffName());
+        assertNotNull(assigned.estimatedDeliveryMinutes());
+        assertTrue(assigned.estimatedDeliveryMinutes() > 0);
+        assertEquals(
+                "Tu pedido estará en tu casa en ~" + assigned.estimatedDeliveryMinutes() + " min",
+                assigned.etaMessage()
+        );
     }
 }

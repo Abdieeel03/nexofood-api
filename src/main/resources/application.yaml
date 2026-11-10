@@ -51,3 +51,15 @@ app:
     exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization}
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
     max-age: ${CORS_MAX_AGE:3600}
+  tracking:
+    average-speed-kmh: ${TRACKING_AVG_SPEED_KMH:25.0}
+    road-factor: ${TRACKING_ROAD_FACTOR:1.35}
+    pickup-buffer-minutes: ${TRACKING_PICKUP_BUFFER_MINUTES:3}
+    dropoff-buffer-minutes: ${TRACKING_DROPOFF_BUFFER_MINUTES:2}
+    min-eta-minutes: ${TRACKING_MIN_ETA_MINUTES:2}
+    min-ping-interval-seconds: ${TRACKING_MIN_PING_INTERVAL_SECONDS:5}
+    poll-interval-seconds: ${TRACKING_POLL_INTERVAL_SECONDS:15}
+    stale-after-seconds: ${TRACKING_STALE_AFTER_SECONDS:60}
+    max-plausible-speed-kmh: ${TRACKING_MAX_PLAUSIBLE_SPEED_KMH:150.0}
+    history-retention-days: ${TRACKING_HISTORY_RETENTION_DAYS:7}
+    cleanup-cron: ${TRACKING_CLEANUP_CRON:0 30 3 * * *}

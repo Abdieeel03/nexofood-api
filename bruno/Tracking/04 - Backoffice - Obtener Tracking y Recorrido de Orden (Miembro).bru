@@ -1,0 +1,32 @@
+meta {
+  name: 04 - Backoffice - Obtener Tracking y Recorrido de Orden (Miembro)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/orders/{{orderId}}/tracking?includeHistory=true
+  body: none
+  auth: bearer
+}
+
+params:query {
+  includeHistory: true
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna tracking actual e historial de puntos de la ruta", function() {
+    const data = res.getBody().data;
+    expect(res.getBody().success).to.be.true;
+    expect(data.routeHistory).to.be.an('array');
+  });
+}
+

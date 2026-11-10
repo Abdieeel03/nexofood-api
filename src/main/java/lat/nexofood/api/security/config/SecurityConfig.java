@@ -141,13 +141,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenants/slug/**").permitAll()
                         // Store: registro y login contextual de clientes (público)
                         .requestMatchers("/api/v1/store/*/auth/**").permitAll()
-                        // Storefront: menú, categorías y productos públicos para clientes (sin token)
+                        // Storefront: menú, categorías, productos y estimación de cobertura/entrega públicos (sin token)
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/store/*/menu",
                                 "/api/v1/store/*/categories",
                                 "/api/v1/store/*/products",
-                                "/api/v1/store/*/products/*"
+                                "/api/v1/store/*/products/*",
+                                "/api/v1/store/*/delivery-estimate"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
