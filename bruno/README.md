@@ -20,7 +20,7 @@ bruno/
 ├── bruno.json                                                # Configuración de la colección
 ├── environments/
 │   ├── Local.bru                                             # baseUrl = http://localhost:8080 + variables dinámicas
-│   └── Production.bru                                        # baseUrl = https://api.nexofood.lat + variables dinámicas
+│   └── Production.bru                                        # baseUrl = https://api.nexofood-app.com + variables dinámicas
 ├── Identity/
 │   ├── 01 - Registro de Usuario.bru                          # POST   /api/v1/auth/register (201 Created)
 │   ├── 02 - Inicio de Sesion (Login).bru                     # POST   /api/v1/auth/login (200 OK)
