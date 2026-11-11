@@ -29,6 +29,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
 
     List<Subscription> findAllByStatus(SubscriptionStatus status);
 
+    List<Subscription> findAllByStatusAndMpPreapprovalIdIsNotNull(SubscriptionStatus status);
+
     List<Subscription> findAllByStatusInAndEndDateBefore(
             Collection<SubscriptionStatus> statuses,
             OffsetDateTime threshold

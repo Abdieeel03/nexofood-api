@@ -9,12 +9,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -25,6 +28,12 @@ public class MercadoPagoWebhookController {
 
     private final MercadoPagoWebhookSignatureValidator signatureValidator;
     private final MercadoPagoWebhookService webhookService;
+
+    @GetMapping
+    @Operation(summary = "Health check y verificación de endpoint webhook para Mercado Pago")
+    public ResponseEntity<Map<String, String>> verifyWebhookEndpoint() {
+        return ResponseEntity.ok(Map.of("status", "ok", "message", "Mercado Pago webhook endpoint active"));
+    }
 
     @PostMapping
     @Operation(summary = "Recibir notificación Webhook de Mercado Pago (valida firma HMAC-SHA256 x-signature)")
@@ -40,6 +49,8 @@ public class MercadoPagoWebhookController {
         String resolvedDataId = resolveDataId(queryDataId, queryId, body);
         String resolvedType = resolveType(queryType, queryTopic, body);
 
+        log.info("Notificación Webhook de Mercado Pago recibida (type={}, dataId={})", resolvedType, resolvedDataId);
+
         if (!signatureValidator.isValid(xSignature, xRequestId, resolvedDataId)) {
             log.warn("Firma x-signature inválida en webhook de Mercado Pago (type={}, dataId={})",
                     resolvedType, resolvedDataId);
@@ -47,6 +58,7 @@ public class MercadoPagoWebhookController {
         }
 
         webhookService.handleNotification(resolvedType, resolvedDataId);
+        log.info("Notificación Webhook de Mercado Pago procesada con éxito (type={}, dataId={})", resolvedType, resolvedDataId);
         return ResponseEntity.ok().build();
     }
 

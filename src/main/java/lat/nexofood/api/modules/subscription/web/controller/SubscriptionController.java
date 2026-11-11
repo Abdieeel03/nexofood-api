@@ -85,6 +85,19 @@ public class SubscriptionController {
         );
     }
 
+    @PostMapping("/me/sync")
+    @Operation(summary = "Sincronizar el estado de mi suscripción directamente con Mercado Pago (útil tras retornar del checkout)")
+    public ResponseEntity<ApiResponse<SubscriptionResponse>> syncMySubscription() {
+        SubscriptionResponse response = subscriptionBillingService.syncMySubscription();
+        return ResponseEntity.ok(
+                ApiResponse.<SubscriptionResponse>builder()
+                        .success(true)
+                        .message("Suscripción sincronizada con Mercado Pago exitosamente")
+                        .data(response)
+                        .build()
+        );
+    }
+
     @PatchMapping("/me/cancel")
     @Operation(summary = "Cancelar la suscripción vigente (en suscripciones pagadas mantiene el acceso abierto hasta el fin del período)")
     public ResponseEntity<ApiResponse<SubscriptionResponse>> cancelMySubscription() {

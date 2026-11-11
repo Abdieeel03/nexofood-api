@@ -87,7 +87,8 @@ class SubscriptionBillingServiceTest {
                 mercadoPagoClient,
                 properties,
                 frontendProperties,
-                new PaymentMapper()
+                new PaymentMapper(),
+                subscriptionMapper
         );
 
         subscriptionService = new SubscriptionServiceImpl(
