@@ -112,7 +112,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public SubscriptionResponse getMySubscription() {
         User user = currentUserProvider.getCurrentUser();
 
@@ -120,6 +120,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .findFirstByUserIdAndStatusInOrderByCreatedAtDesc(user.getId(), PRIORITY_LOOKUP_STATUSES)
                 .or(() -> subscriptionRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontró ninguna suscripción para el usuario actual"));
+
+        if (subscription.getStatus() == SubscriptionStatus.PENDING
+                && subscription.getMpPreapprovalId() != null
+                && !subscription.getMpPreapprovalId().isBlank()
+                && subscriptionBillingService != null) {
+            try {
+                subscriptionBillingService.processPreapprovalNotification(subscription.getMpPreapprovalId());
+                subscription = subscriptionRepository.findById(subscription.getId()).orElse(subscription);
+            } catch (Exception ex) {
+                log.debug("No se pudo auto-sincronizar suscripción {} en getMySubscription: {}",
+                        subscription.getId(), ex.getMessage());
+            }
+        }
 
         return subscriptionMapper.toResponse(subscription);
     }

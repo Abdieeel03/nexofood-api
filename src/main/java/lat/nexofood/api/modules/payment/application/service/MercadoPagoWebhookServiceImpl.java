@@ -18,16 +18,21 @@ public class MercadoPagoWebhookServiceImpl implements MercadoPagoWebhookService 
     @Override
     public void handleNotification(String type, String dataId) {
         if (type == null || type.isBlank() || dataId == null || dataId.isBlank()) {
-            log.debug("Webhook de Mercado Pago ignorado por falta de type o data.id (type={}, dataId={})", type, dataId);
+            log.warn("Webhook de Mercado Pago ignorado por falta de type o data.id (type={}, dataId={})", type, dataId);
             return;
         }
 
         String normalizedType = type.trim().toLowerCase(Locale.ROOT);
-        switch (normalizedType) {
-            case "order" -> orderPaymentService.processMpOrderNotification(dataId.trim());
-            case "subscription_preapproval" -> subscriptionBillingService.processPreapprovalNotification(dataId.trim());
-            case "subscription_authorized_payment" -> subscriptionBillingService.processAuthorizedPaymentNotification(dataId.trim());
-            default -> log.debug("Tópico de webhook Mercado Pago no manejado: type={}, data.id={}", type, dataId);
+        log.info("Procesando evento de webhook Mercado Pago: type={}, dataId={}", normalizedType, dataId);
+
+        if (normalizedType.equals("order") || normalizedType.contains("merchant_order")) {
+            orderPaymentService.processMpOrderNotification(dataId.trim());
+        } else if (normalizedType.contains("preapproval")) {
+            subscriptionBillingService.processPreapprovalNotification(dataId.trim());
+        } else if (normalizedType.contains("authorized_payment")) {
+            subscriptionBillingService.processAuthorizedPaymentNotification(dataId.trim());
+        } else {
+            log.info("Tópico de webhook Mercado Pago no manejado por la aplicación: type={}, data.id={}", type, dataId);
         }
     }
 }

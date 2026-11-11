@@ -26,6 +26,8 @@ import lat.nexofood.api.modules.subscription.infrastructure.repository.Subscript
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionRepository;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionCheckoutResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentResponse;
+import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionResponse;
+import lat.nexofood.api.modules.subscription.web.mapper.SubscriptionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,7 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
     private final MercadoPagoProperties properties;
     private final FrontendProperties frontendProperties;
     private final PaymentMapper paymentMapper;
+    private final SubscriptionMapper subscriptionMapper;
 
     @Override
     @Transactional
@@ -193,6 +196,8 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
                     subscription.setEndDate(now.plusDays(cycleDays));
                 }
                 reactivateTenantIfLinked(subscription.getId());
+                log.info("Suscripción {} activada con éxito (status=ACTIVE) tras autorización en Mercado Pago (preapprovalId={})",
+                        subscription.getId(), preapprovalId);
             }
             case "paused" -> {
                 if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(now)) {
@@ -329,6 +334,28 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
                 .stream()
                 .map(this::toPaymentResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionResponse syncMySubscription() {
+        User user = currentUserProvider.getCurrentUser();
+        Subscription subscription = subscriptionRepository
+                .findFirstByUserIdAndStatusInOrderByCreatedAtDesc(
+                        user.getId(),
+                        List.of(SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING)
+                )
+                .or(() -> subscriptionRepository.findFirstByUserIdOrderByCreatedAtDesc(user.getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró ninguna suscripción para el usuario"));
+
+        if (subscription.getMpPreapprovalId() != null && !subscription.getMpPreapprovalId().isBlank()) {
+            log.info("Sincronizando suscripción {} manualmente con Mercado Pago (preapprovalId={})",
+                    subscription.getId(), subscription.getMpPreapprovalId());
+            processPreapprovalNotification(subscription.getMpPreapprovalId());
+            subscription = subscriptionRepository.findById(subscription.getId()).orElse(subscription);
+        }
+
+        return subscriptionMapper.toResponse(subscription);
     }
 
     private Subscription resolveOrCreateSubscriptionForCheckout(User user, SubscriptionPlan plan) {
