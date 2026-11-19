@@ -3,7 +3,7 @@
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-11-10  
+> **Última actualización:** 2026-11-18  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -33,11 +33,11 @@ Usuario (User)
               ├── Configuración Tributaria (Taxes: IGV 18%, Exonerado, etc.)
               ├── Miembros (TenantMembers) con roles: OWNER, ADMIN, COCINERO, REPARTIDOR
               ├── Clientes de Tienda (TenantCustomer: puntos de lealtad, bloqueo, notas)
-              ├── Catálogo: Categorías → Productos → Múltiples Precios/Promociones
-              ├── Carritos (1 activo por cliente por restaurante)
+              ├── Catálogo: Categorías → Productos (con stock directo) → Múltiples Precios/Promociones
+              ├── Carritos (1 activo por cliente por restaurante, con validación de stock)
               ├── Pedidos (Orders con RUC, desglose tributario, snapshot histórico inmutable)
               ├── Pagos (Mercado Pago Checkout Pro / Split Payment)
-              └── Inventario (Items, Stock y Movimientos)
+              └── Tracking (Rastreo geoespacial PostGIS y ETA en vivo)
 ```
 
 ### Reglas Clave para el Frontend:
@@ -151,8 +151,7 @@ Todas las respuestas de error (4xx y 5xx) siguen esta estructura:
 | **5. Cart**           | ✅ Activo y testeado | `CartController` (`/api/v1/store/{slug}/cart/**`)                                                                              |
 | **6. Order**          | ✅ Activo y testeado | `StorefrontOrderController`, `OrderController`                                                                                 |
 | **7. Payment**        | ✅ Activo y testeado | `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `MercadoPagoWebhookController`, `StorefrontPaymentController`, `TenantPaymentController` |
-| **8. Inventory**      | ✅ Activo y testeado | `InventoryItemController`, `InventoryStockController`, `InventoryMovementController`, `ProductIngredientController`           |
-| **9. Tracking**       | ✅ Activo y testeado | `DeliveryTrackingController`, `StorefrontTrackingController`                                                                  |
+| **8. Tracking**       | ✅ Activo y testeado | `DeliveryTrackingController`, `StorefrontTrackingController`                                                                  |
 
 ---
 
@@ -1545,30 +1544,31 @@ Ruta base: `/api/v1/tenants/{tenantId}/categories`
 
 Ruta base: `/api/v1/tenants/{tenantId}/products`
 
-Un producto cuenta con un precio base activo obligatorio y puede tener múltiples precios condicionales (`ProductPriceRequest`) para días especiales o rangos de horario. Al crear un producto se valida el límite `maxProducts` del plan de suscripción vigente del restaurante mediante `SubscriptionGuard`.
+Un producto preparado (hamburguesa, pizza, bebida, etc.) cuenta con un precio base activo obligatorio, un stock entero disponible (`stock >= 0`) y puede tener múltiples precios condicionales (`ProductPriceRequest`) para días especiales o rangos de horario. Al crear un producto se valida el límite `maxProducts` del plan de suscripción vigente del restaurante mediante `SubscriptionGuard`.
 
 #### GET `/api/v1/tenants/{tenantId}/products`
 
-> Lista paginada de productos del restaurante con filtros opcionales por categoría y disponibilidad. Retorna `ApiResponse<PageResponse<ProductResponse>>`.
+> Lista paginada de productos del restaurante con filtros opcionales por categoría, disponibilidad y existencias en stock. Retorna `ApiResponse<PageResponse<ProductResponse>>`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`  
 **Query Parameters:**
 
 - `categoryId` (UUID, opcional): filtra por categoría.
 - `availableOnly` (boolean, opcional): si es `true`, retorna solo productos con `isAvailable = true`.
+- `inStockOnly` (boolean, opcional): si es `true`, retorna solo productos con `stock > 0`.
 - `page` (int, default `0`), `size` (int, default `20`), `sort` (string, opcional).
 
 #### GET `/api/v1/tenants/{tenantId}/products/{productId}`
 
-> Obtiene el detalle completo de un producto del restaurante incluyendo todas sus reglas de precio configuradas.
+> Obtiene el detalle completo de un producto del restaurante incluyendo su stock actual y todas sus reglas de precio configuradas.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)
+**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`
 
 #### POST `/api/v1/tenants/{tenantId}/products`
 
-> Crea un nuevo producto en el catálogo validando que la suscripción esté activa y no supere el límite `maxProducts` del plan contratado.
+> Crea un nuevo producto en el catálogo con su stock inicial (`stock`, default `0`), validando que la suscripción esté activa y no supere el límite `maxProducts` del plan contratado.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
@@ -1576,7 +1576,7 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 
 #### PUT `/api/v1/tenants/{tenantId}/products/{productId}`
 
-> Actualiza los datos de un producto y su precio base (si se envía `price`).
+> Actualiza los datos de un producto, su stock (si se envía `stock`) y su precio base (si se envía `price`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
@@ -1589,6 +1589,26 @@ Un producto cuenta con un precio base activo obligatorio y puede tener múltiple
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
 **Content-Type:** `application/json`
+
+#### PATCH `/api/v1/tenants/{tenantId}/products/{productId}/stock`
+
+> Actualiza directamente el stock entero disponible de un producto (`stock >= 0`) aplicando bloqueo pesimista (`SELECT ... FOR UPDATE`) e invalidando la caché pública del menú.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` o `ADMIN` del restaurante (o `SUPERADMIN`)  
+**Content-Type:** `application/json`
+
+##### 📥 Request (`ProductStockRequest`)
+
+```json
+{
+  "stock": 50
+}
+```
+
+##### 📤 Response (200 OK)
+
+Retorna `ApiResponse<ProductResponse>` con el nuevo valor de `stock`.
 
 #### DELETE `/api/v1/tenants/{tenantId}/products/{productId}`
 
@@ -1689,6 +1709,7 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
             "taxName": "IGV 18%",
             "taxRate": 18.00,
             "taxInclusive": true,
+            "stock": 25,
             "isAvailable": true
           }
         ]
@@ -1736,9 +1757,16 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 | `name`        | string                    | Sí        | Máx. 150 caracteres     | Nombre del producto                     |
 | `description` | string                    | No        | —                       | Descripción / ingredientes              |
 | `price`       | BigDecimal                | Sí        | ≥ 0.01                  | Precio base de venta al público         |
-| `imageUrl`    | string                    | No        | URL válida              | Foto del platillo                       |
-| `isAvailable` | boolean                   | No        | Default: `true`         | Disponibilidad en cocina                |
+| `imageUrl`    | string                    | No        | URL válida (máx. 500)   | Foto del producto                       |
+| `stock`       | number (Integer)          | No        | ≥ 0 (default: `0`)      | Unidades disponibles en stock           |
+| `isAvailable` | boolean                   | No        | Default: `true`         | Disponibilidad en catálogo              |
 | `prices`      | List<ProductPriceRequest> | No        | Lista de precios extras | Reglas de precios dinámicos/promociones |
+
+#### 📥 DTO: ProductStockRequest
+
+| Campo   | Tipo             | Requerido | Validación | Descripción                          |
+| ------- | ---------------- | --------- | ---------- | ------------------------------------ |
+| `stock` | number (Integer) | Sí        | ≥ 0        | Nuevo stock entero del producto      |
 
 #### 📥 DTO: ProductPriceRequest
 
@@ -1775,6 +1803,7 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 | `basePrice`    | BigDecimal                 | No       | Precio base sin descuentos o sin impuestos extras     |
 | `prices`       | List<ProductPriceResponse> | No       | Detalle de todas las reglas de precios configuradas   |
 | `imageUrl`     | string                     | Sí       | URL de imagen                                         |
+| `stock`        | number (Integer)           | No       | Unidades disponibles actualmente en stock             |
 | `isAvailable`  | boolean                    | No       | Si se encuentra disponible para ordenar               |
 | `createdAt`    | string                     | No       | ISO 8601                                              |
 | `updatedAt`    | string                     | No       | ISO 8601                                              |
@@ -1800,8 +1829,9 @@ Endpoints públicos para que los comensales consulten la carta digital del resta
 | `taxInclusive`        | boolean    | Sí       | Si el precio ya incluye el impuesto                           |
 | `baseUnitPrice`       | BigDecimal | No       | Valor unitario neto sin impuesto                              |
 | `taxAmount`           | BigDecimal | No       | Monto unitario del impuesto                                   |
-| `finalPrice`          | BigDecimal | No       | Precio final al comensal (`baseUnitPrice + taxAmount`)        |
-| `isAvailable`         | boolean    | No       | Disponibilidad del producto                                   |
+| `finalPrice`          | BigDecimal       | No       | Precio final al comensal (`baseUnitPrice + taxAmount`)        |
+| `stock`               | number (Integer) | No       | Unidades en stock disponibles (`0` indica agotado)            |
+| `isAvailable`         | boolean          | No       | Disponibilidad del producto                                   |
 
 ---
 
@@ -1819,9 +1849,9 @@ Ruta base: `/api/v1/store/{slug}/cart`
 
 | Método   | Ruta                                       | Descripción                                                                                                                   |
 | -------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/v1/store/{slug}/cart`                | Obtiene el carrito del cliente en la tienda (recalcula precios dinámicos vigentes y verifica disponibilidad de cada producto) |
-| `POST`   | `/api/v1/store/{slug}/cart/items`          | Agrega un producto al carrito (si el producto ya existe en el carrito, fusiona la cantidad y actualiza precio/notas)          |
-| `PATCH`  | `/api/v1/store/{slug}/cart/items/{itemId}` | Actualiza la cantidad (`quantity`) y/o las notas (`notes`) de un ítem del carrito                                             |
+| `GET`    | `/api/v1/store/{slug}/cart`                | Obtiene el carrito del cliente en la tienda (recalcula precios dinámicos vigentes, verifica disponibilidad y valida stock vs. cantidad solicitada) |
+| `POST`   | `/api/v1/store/{slug}/cart/items`          | Agrega un producto al carrito validando stock suficiente para la cantidad acumulada (si el producto ya existe en el carrito, fusiona la cantidad y actualiza precio/notas) |
+| `PATCH`  | `/api/v1/store/{slug}/cart/items/{itemId}` | Actualiza la cantidad (`quantity`, validada contra el stock disponible) y/o las notas (`notes`) de un ítem del carrito |
 | `DELETE` | `/api/v1/store/{slug}/cart/items/{itemId}` | Elimina un ítem específico del carrito                                                                                        |
 | `PATCH`  | `/api/v1/store/{slug}/cart/notes`          | Actualiza las notas generales del carrito                                                                                     |
 | `DELETE` | `/api/v1/store/{slug}/cart`                | Vacía todos los ítems del carrito del cliente en la tienda                                                                    |
@@ -1863,8 +1893,8 @@ Ruta base: `/api/v1/store/{slug}/cart`
 | `notes`               | string                 | Sí       | Notas generales del carrito                                       |
 | `items`               | List<CartItemResponse> | No       | Lista de productos agregados                                      |
 | `hasPriceChanges`     | boolean                | No       | Indica si algún ítem cambió de precio respecto al guardado previo |
-| `hasUnavailableItems` | boolean                | No       | Indica si algún producto del carrito dejó de estar disponible     |
-| `warnings`            | List<String>           | No       | Mensajes informativos sobre cambios de precio o disponibilidad    |
+| `hasUnavailableItems` | boolean                | No       | Indica si algún producto del carrito dejó de estar disponible o no tiene stock suficiente |
+| `warnings`            | List<String>           | No       | Mensajes informativos sobre cambios de precio, productos agotados o stock insuficiente    |
 | `createdAt`           | string                 | No       | ISO 8601                                                          |
 | `updatedAt`           | string                 | No       | ISO 8601                                                          |
 
@@ -1879,8 +1909,9 @@ Ruta base: `/api/v1/store/{slug}/cart`
 | `unitPrice`         | BigDecimal | No       | Precio unitario vigente                                      |
 | `previousUnitPrice` | BigDecimal | Sí       | Precio unitario anterior (presente solo si hubo cambio)      |
 | `priceChanged`      | boolean    | No       | Indica si el precio cambió al consultar el carrito           |
-| `productAvailable`  | boolean    | No       | Indica si el producto sigue disponible y en categoría activa |
-| `quantity`          | number     | No       | Cantidad seleccionada                                        |
+| `productAvailable`  | boolean          | No       | Indica si el producto sigue disponible, en categoría activa y con stock suficiente |
+| `productStock`      | number (Integer) | No       | Stock actual disponible del producto en catálogo                                   |
+| `quantity`          | number           | No       | Cantidad seleccionada                                                              |
 | `subtotal`          | BigDecimal | No       | Subtotal (`quantity × unitPrice`)                            |
 | `notes`             | string     | Sí       | Notas de preparación                                         |
 | `createdAt`         | string     | Sí       | ISO 8601                                                     |
@@ -1910,7 +1941,7 @@ Ruta base: `/api/v1/store/{slug}/orders`
 
 > Genera la orden de pago en Mercado Pago mediante la **Orders API v1** (`POST /v1/orders` en modo `online` y captura manual) vinculada a la cuenta del restaurante (100% de los fondos directos al tenant).  
 >
-> ⚠️ **Importante:** La orden (`Order`) en la base de datos **no se genera de inmediato** y el carrito **no se vacía** en esta llamada; se mantiene congelado un snapshot inmutable en `Payment.checkoutSnapshot`. La orden se materializa automáticamente y el carrito se vacía cuando el webhook de Mercado Pago confirma `APPROVED` (`status = processed`).
+> ⚠️ **Importante:** La orden (`Order`) en la base de datos **no se genera de inmediato** y el carrito **no se vacía** en esta llamada; el sistema valida que haya **stock suficiente** por producto, congela un snapshot inmutable en `Payment.checkoutSnapshot` y, cuando el webhook de Mercado Pago confirma `APPROVED` (`status = processed`), descuenta el stock de forma atómica (`SELECT ... FOR UPDATE`), materializa la orden y vacía el carrito. Si el stock se agotó mientras se procesaba el pago, ejecuta automáticamente un reembolso al cliente.
 
 **Request Body:** `OrderCheckoutRequest`
 
@@ -1934,7 +1965,7 @@ Ruta base: `/api/v1/store/{slug}/orders`
 
 #### Detalle de Cancelación con Reembolso (`POST /api/v1/store/{slug}/orders/{id}/cancel`)
 
-> Permite al cliente cancelar su orden y desencadenar un **reembolso total inmediato** en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`), marcando la orden como `CANCELADO` y liberando cualquier stock comprometido.
+> Permite al cliente cancelar su orden y desencadenar un **reembolso total inmediato** en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`), marcando la orden como `CANCELADO` y restaurando automáticamente el stock de los productos de la orden (también se restaura el stock si la cancelación la realiza el staff desde backoffice en `PENDIENTE` o `EN_PREPARACION`).
 
 **Request Body (Opcional):** `OrderCancelRequest`
 
@@ -2564,7 +2595,7 @@ Ruta base: /api/v1/subscriptions
 > 1. **Cobro Directo al Restaurante (OAuth Multi-Tenant):** Cada restaurante vincula su propia cuenta de Mercado Pago mediante OAuth 2.0. El 100% de los ingresos de sus pedidos en línea va directamente a su cuenta, sin intermediación de fondos por la plataforma.
 > 2. **SaaS Recurrente (Preapproval):** El cobro mensual del plan SaaS del restaurante se gestiona mediante suscripciones preaprobadas (`POST /preapproval`) cargadas a la cuenta del usuario.
 > 3. **Checkout Pro vía Orders API v1 (`POST /v1/orders`):** Proporciona la experiencia moderna de Checkout Pro (tarjetas de crédito/débito, Yape, PagoEfectivo, saldo en cuenta). En el checkout se congela el snapshot del carrito (`OrderDraft`) sin crear aún la orden en BD.
-> 4. **Webhooks con Firma Criptográfica (`x-signature`):** Validación HMAC-SHA256 del manifiesto de notificación (`id;request-id;ts`). Al confirmarse el pago (`status = processed` / `APPROVED`), se materializa la orden (`Order` en `PENDIENTE`), se descuenta el stock de recetas y se limpia el carrito.
+> 4. **Webhooks con Firma Criptográfica (`x-signature`):** Validación HMAC-SHA256 del manifiesto de notificación (`id;request-id;ts`). Al confirmarse el pago (`status = processed` / `APPROVED`), se materializa la orden (`Order` en `PENDIENTE`), se descuenta el stock de los productos y se limpia el carrito.
 > 5. **Reembolsos Automáticos:** Cancelación de pedidos en estado `PENDIENTE` con devolución inmediata y total en Mercado Pago (`POST /v1/orders/{mpOrderId}/refund`).
 
 ---
@@ -2762,7 +2793,7 @@ Ruta base: `/api/v1/webhooks/mercadopago`
 >
 > ⚙️ **Procesamiento de Órdenes Online:**
 > - Al recibir un webhook de orden, consulta a la API de Mercado Pago (`GET /v1/orders/{id}`).
-> - Cuando la orden alcanza `status = processed` (`APPROVED`), crea la orden (`Order`) a partir del borrador congelado en `Payment.checkoutSnapshot`, genera el correlativo `ORD-XXXXXX`, descuenta los insumos de receta en el inventario, acumula puntos de lealtad y vacía el carrito del comensal.
+> - Cuando la orden alcanza `status = processed` (`APPROVED`), crea la orden (`Order`) a partir del borrador congelado en `Payment.checkoutSnapshot`, genera el correlativo `ORD-XXXXXX`, descuenta atómicamente el stock de cada producto, acumula puntos de lealtad y vacía el carrito del comensal.
 
 **Autenticación:** Firma criptográfica en cabeceras (`x-signature`, `x-request-id`)  
 **Content-Type:** `application/json`
@@ -2869,411 +2900,7 @@ x-request-id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
 
 ---
 
-## 8. Inventory — Control de Almacén, Kardex y Recetas
-
-> **🏪 Multi-Tenant:** Todos los endpoints de inventario operan en el contexto de un restaurante (`tenantId`) y requieren membresía activa en el equipo del restaurante. El saldo físico (`quantity`) **solo** se modifica mediante movimientos auditables (`InventoryMovement`), nunca directamente en el CRUD de existencias.
-
----
-
-### 📦 8.1 Insumos (`InventoryItemController`)
-
-Ruta base: `/api/v1/tenants/{tenantId}/inventory/items`
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/items`
-
-> Lista los insumos del almacén del restaurante de forma paginada con filtros opcionales.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`
-
-**Query Parameters:**
-
-| Parámetro    | Tipo    | Requerido | Descripción                                    |
-| ------------ | ------- | --------- | ---------------------------------------------- |
-| `activeOnly` | boolean | No        | Si es `true`, retorna solo insumos activos     |
-| `category`   | string  | No        | Filtra por categoría (insensible a mayúsculas) |
-| `unit`       | string  | No        | Filtra por unidad de medida (`UNIT` o `KG`)    |
-| `page`       | number  | No        | Página (0-indexed, default: 0)                 |
-| `size`       | number  | No        | Tamaño de página (default: 20)                 |
-
-##### 📤 Response (200 OK)
-
-Retorna `ApiResponse<PageResponse<InventoryItemResponse>>`.
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
-
-> Obtiene el detalle de un insumo del restaurante por su ID.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-#### POST `/api/v1/tenants/{tenantId}/inventory/items`
-
-> Registra un nuevo insumo en el inventario validando unicidad de nombre y SKU por restaurante.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
-**Content-Type:** `application/json`
-
-##### 📥 Request (`InventoryItemRequest`)
-
-```json
-{
-  "name": "Harina de Trigo 00",
-  "sku": "INS-HAR-01",
-  "description": "Saco de harina italiana para masa madre",
-  "category": "Secos",
-  "unit": "KG",
-  "costPrice": 4.5,
-  "isActive": true
-}
-```
-
-##### 📤 Response (201 Created)
-
-```json
-{
-  "success": true,
-  "message": "Insumo de inventario creado exitosamente",
-  "data": {
-    "id": "50000000-0000-0000-0000-000000000001",
-    "tenantId": "11111111-1111-1111-1111-111111111111",
-    "name": "Harina de Trigo 00",
-    "sku": "INS-HAR-01",
-    "description": "Saco de harina italiana para masa madre",
-    "category": "Secos",
-    "unit": "KG",
-    "costPrice": 4.5,
-    "isActive": true,
-    "createdAt": "2026-11-05T17:00:00Z",
-    "updatedAt": "2026-11-05T17:00:00Z"
-  }
-}
-```
-
----
-
-#### PUT `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
-
-> Actualiza los datos de un insumo existente.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`
-
----
-
-#### PATCH `/api/v1/tenants/{tenantId}/inventory/items/{itemId}/status`
-
-> Activa o desactiva un insumo (`InventoryItemStatusRequest`: `{ "isActive": false }`).
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`
-
----
-
-#### DELETE `/api/v1/tenants/{tenantId}/inventory/items/{itemId}`
-
-> Elimina un insumo siempre que no tenga un registro de stock ni forme parte de una receta de producto.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`
-
----
-
-### 📊 8.2 Existencias de Almacén (`InventoryStockController`)
-
-Ruta base: `/api/v1/tenants/{tenantId}/inventory/stocks`
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/stocks`
-
-> Lista los registros de existencias del restaurante de forma paginada.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/low-stock`
-
-> Obtiene la lista de insumos en alerta de stock crítico (`quantity <= minimumStock`).
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}` y `/item/{itemId}`
-
-> Obtiene el detalle de existencias por `stockId` o por `itemId`.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-#### POST `/api/v1/tenants/{tenantId}/inventory/stocks`
-
-> Inicializa el registro de existencias (`quantity = 0.000`) para un insumo activo del restaurante.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`  
-**Content-Type:** `application/json`
-
-##### 📥 Request (`InventoryStockRequest`)
-
-```json
-{
-  "itemId": "50000000-0000-0000-0000-000000000001",
-  "minimumStock": 10.0,
-  "location": "Almacén Secos - Estante A1",
-  "isActive": true
-}
-```
-
-##### 📤 Response (201 Created)
-
-```json
-{
-  "success": true,
-  "message": "Registro de existencias creado exitosamente",
-  "data": {
-    "id": "51000000-0000-0000-0000-000000000001",
-    "tenantId": "11111111-1111-1111-1111-111111111111",
-    "itemId": "50000000-0000-0000-0000-000000000001",
-    "itemName": "Harina de Trigo 00",
-    "itemSku": "INS-HAR-01",
-    "unit": "KG",
-    "quantity": 0.0,
-    "reservedQuantity": 0.0,
-    "availableQuantity": 0.0,
-    "minimumStock": 10.0,
-    "lowStock": true,
-    "location": "Almacén Secos - Estante A1",
-    "isActive": true,
-    "createdAt": "2026-11-05T17:00:00Z",
-    "updatedAt": "2026-11-05T17:00:00Z"
-  }
-}
-```
-
----
-
-#### PUT `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}`
-
-> Actualiza umbral (`minimumStock`), ubicación física (`location`) o estado (`isActive`) sin alterar `quantity`.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN`
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/stocks/{stockId}/kardex`
-
-> Consulta el Kardex (historial paginado de movimientos ordenado del más reciente al más antiguo) de un registro de stock.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-### 📑 8.3 Movimientos / Kardex (`InventoryMovementController`)
-
-Ruta base: `/api/v1/tenants/{tenantId}/inventory/movements`
-
-#### POST `/api/v1/tenants/{tenantId}/inventory/movements`
-
-> Registra un movimiento de inventario (`ENTRY`, `EXIT`, `ADJUSTMENT`) aplicando bloqueo pesimista (`SELECT ... FOR UPDATE`), validando coherencia `movementType` ↔ `reason`, tomando `performedBy` desde el token JWT e impidiendo saldos negativos.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER`, `ADMIN` o `COCINERO`  
-**Content-Type:** `application/json`
-
-##### 📥 Request (`InventoryMovementRequest`)
-
-| Campo           | Tipo                      | Requerido | Validación                                | Descripción                                    |
-| --------------- | ------------------------- | --------- | ----------------------------------------- | ---------------------------------------------- |
-| `stockId`       | UUID                      | Sí        | UUID válido                               | Registro de stock afectado                     |
-| `movementType`  | `InventoryMovementType`   | Sí        | `ENTRY`, `EXIT`, `ADJUSTMENT`             | Tipo de operación                              |
-| `reason`        | `InventoryMovementReason` | Sí        | Coherente con `movementType`              | Motivo estandarizado del movimiento            |
-| `quantity`      | BigDecimal                | Sí        | `> 0` en ENTRY/EXIT; `!= 0` en ADJUSTMENT | Cantidad del movimiento                        |
-| `reasonDetails` | string                    | Sí        | No en blanco                              | Justificación obligatoria de auditoría         |
-
-```json
-{
-  "stockId": "51000000-0000-0000-0000-000000000001",
-  "movementType": "ENTRY",
-  "reason": "PURCHASE",
-  "quantity": 50.0,
-  "reasonDetails": "Factura proveedor F001-443"
-}
-```
-
-##### 📤 Response (201 Created)
-
-```json
-{
-  "success": true,
-  "message": "Movimiento de inventario registrado exitosamente",
-  "data": {
-    "id": "52000000-0000-0000-0000-000000000001",
-    "tenantId": "11111111-1111-1111-1111-111111111111",
-    "stockId": "51000000-0000-0000-0000-000000000001",
-    "itemId": "50000000-0000-0000-0000-000000000001",
-    "itemName": "Harina de Trigo 00",
-    "itemSku": "INS-HAR-01",
-    "unit": "KG",
-    "movementType": "ENTRY",
-    "reason": "PURCHASE",
-    "quantity": 50.0,
-    "previousQuantity": 0.0,
-    "newQuantity": 50.0,
-    "performedById": "00000000-0000-0000-0000-000000000002",
-    "performedByName": "Mario Rossi",
-    "reasonDetails": "Factura proveedor F001-443",
-    "createdAt": "2026-11-05T17:05:00Z"
-  }
-}
-```
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/inventory/movements`
-
-> Lista paginada de movimientos de inventario del restaurante, filtrable por `movementType` y `reason`.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante
-
----
-
-### 🍕 8.4 Recetas de Productos (`ProductIngredientController`)
-
-Ruta base: `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
-
-Permite configurar los insumos y porciones exactas que consume un producto al venderse.  
-> 🔄 **Descuento y Reversión Automática de Kardex:**
-> - Cuando una orden avanza al estado `EN_PREPARACION` (KDS), el sistema descuenta automáticamente las cantidades de inventario mediante movimientos `EXIT` con motivo `SALE`.
-> - Si un pedido se cancela desde `EN_PREPARACION`, se repone automáticamente el inventario mediante movimientos `ENTRY` con motivo `CUSTOMER_RETURN`.
-
----
-
-#### GET `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
-
-> Lista todos los insumos (receta) configurados para una unidad del producto del restaurante.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** Miembro activo del restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`) o `SUPERADMIN`
-
-##### 📤 Response
-
-**Éxito (200 OK):**
-
-```json
-{
-  "success": true,
-  "message": "Receta del producto obtenida exitosamente",
-  "data": [
-    {
-      "id": "1a2b3c4d-5e6f-7890-abcd-ef1234567890",
-      "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
-      "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "productName": "Hamburguesa Doble Queso",
-      "inventoryItemId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
-      "inventoryItemName": "Carne de Res Molida",
-      "inventoryItemSku": "INS-CARNE-01",
-      "unit": "KG",
-      "quantity": 0.250,
-      "createdAt": "2026-11-05T15:00:00Z",
-      "updatedAt": "2026-11-05T15:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-#### POST `/api/v1/tenants/{tenantId}/products/{productId}/ingredients`
-
-> Agrega o actualiza la cantidad de un insumo requerida para la preparación de una unidad del producto. Si el insumo ya formaba parte de la receta, se actualiza la cantidad asignada.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante  
-**Content-Type:** `application/json`
-
-##### 📥 Request
-
-**Body (JSON) — `ProductIngredientRequest`:**
-
-| Campo             | Tipo       | Requerido | Validación | Descripción                                  |
-| ----------------- | ---------- | --------- | ---------- | -------------------------------------------- |
-| `inventoryItemId` | UUID       | Sí        | UUID       | Identificador del insumo del almacén         |
-| `quantity`        | BigDecimal | Sí        | ≥ 0.001    | Cantidad consumida por unidad de platillo    |
-
-```json
-{
-  "inventoryItemId": "7fa85f64-5717-4562-b3fc-2c963f66afa7",
-  "quantity": 0.250
-}
-```
-
-##### 📤 Response
-
-**Éxito (201 Created):** Retorna `ApiResponse<ProductIngredientResponse>`.
-
----
-
-#### DELETE `/api/v1/tenants/{tenantId}/products/{productId}/ingredients/{ingredientId}`
-
-> Elimina un insumo de la receta del producto. A partir de ese momento, la venta del platillo dejará de descontar existencias de dicho insumo.
-
-**Autenticación:** Requerida (`Bearer <token>`)  
-**Rol requerido:** `OWNER` o `ADMIN` del restaurante
-
-##### 📤 Response
-
-**Éxito (200 OK):**
-
-```json
-{
-  "success": true,
-  "message": "Ingrediente eliminado de la receta exitosamente"
-}
-```
-
----
-
-### 📦 Modelos de Datos / DTOs de Recetas
-
-#### 📥 DTO: ProductIngredientRequest
-
-| Campo             | Tipo       | Requerido | Validación | Descripción                               |
-| ----------------- | ---------- | --------- | ---------- | ----------------------------------------- |
-| `inventoryItemId` | UUID       | Sí        | UUID       | Insumo del inventario                     |
-| `quantity`        | BigDecimal | Sí        | ≥ 0.001    | Cantidad requerida por porción del plato  |
-
-#### 📤 DTO: ProductIngredientResponse
-
-| Campo               | Tipo          | Nullable | Descripción                                      |
-| ------------------- | ------------- | -------- | ------------------------------------------------ |
-| `id`                | UUID          | No       | Identificador del ingrediente en la receta       |
-| `tenantId`          | UUID          | No       | Restaurante                                      |
-| `productId`         | UUID          | No       | Producto al que pertenece la receta              |
-| `productName`       | string        | No       | Nombre del producto                              |
-| `inventoryItemId`   | UUID          | No       | Insumo vinculado                                 |
-| `inventoryItemName` | string        | No       | Nombre del insumo                                |
-| `inventoryItemSku`  | string        | Sí       | Código SKU del insumo                            |
-| `unit`              | InventoryUnit | No       | Unidad de medida (`UNIT`, `KG`, `LT`)            |
-| `quantity`          | BigDecimal    | No       | Cantidad requerida                               |
-| `createdAt`         | string        | No       | ISO 8601                                         |
-| `updatedAt`         | string        | No       | ISO 8601                                         |
-
----
-
-## 9. Tracking — Rastreo Geoespacial (PostGIS) y Tiempo Estimado (ETA)
+## 8. Tracking — Rastreo Geoespacial (PostGIS) y Tiempo Estimado (ETA)
 
 > **Motor Espacial PostGIS (`geometry(Point, 4326)`):** Módulo de cálculo geodésico y monitoreo en tiempo real estilo Rappi o PedidosYa:
 > 1. **Estimación Previa al Checkout:** Calcula distancia ortodrómica (`ST_DistanceSphere`) y distancia vial estimada multiplicada por el factor de ruta (`roadFactor = 1.3`), estimando tiempo de preparación y recorrido (`[minMinutes, maxMinutes]`) antes de ordenar.
@@ -3283,7 +2910,7 @@ Permite configurar los insumos y porciones exactas que consume un producto al ve
 
 ---
 
-### 🌐 9.1 Storefront & Clientes (`StorefrontTrackingController`)
+### 🌐 8.1 Storefront & Clientes (`StorefrontTrackingController`)
 
 Ruta base: `/api/v1/store/{slug}`
 
@@ -3384,7 +3011,7 @@ Ruta base: `/api/v1/store/{slug}`
 
 ---
 
-### 🏍️ 9.2 Repartidor & Backoffice (`DeliveryTrackingController`)
+### 🏍️ 8.2 Repartidor & Backoffice (`DeliveryTrackingController`)
 
 Ruta base: `/api/v1/tenants/{tenantId}`
 

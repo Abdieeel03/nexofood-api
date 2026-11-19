@@ -12,6 +12,8 @@ import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.common.security.TenantAccessService;
 import lat.nexofood.api.common.util.GeoUtils;
 import lat.nexofood.api.modules.catalog.application.service.ProductPricingService;
+import lat.nexofood.api.modules.catalog.application.service.ProductStockService;
+import lat.nexofood.api.modules.catalog.application.service.ProductStockServiceImpl;
 import lat.nexofood.api.modules.catalog.application.service.TaxCalculationResult;
 import lat.nexofood.api.modules.catalog.application.service.TaxCalculationService;
 import lat.nexofood.api.modules.catalog.domain.Product;
@@ -20,7 +22,6 @@ import lat.nexofood.api.modules.catalog.domain.Tax;
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddressRepository;
-import lat.nexofood.api.modules.inventory.application.service.ProductIngredientService;
 import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.application.dto.OrderDraftItem;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
@@ -62,7 +63,9 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -84,7 +87,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentGuard paymentGuard;
     private final TenantAccessService tenantAccessService;
     private final CurrentUserProvider currentUserProvider;
-    private final ProductIngredientService productIngredientService;
+    private final ProductStockService productStockService;
     private final PaymentRefundService paymentRefundService;
     private final SecurityAuditLogger securityAuditLogger;
     private final EtaProvider etaProvider;
@@ -108,7 +111,7 @@ public class OrderServiceImpl implements OrderService {
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
-            ProductIngredientService productIngredientService,
+            @Autowired(required = false) ProductStockService productStockService,
             @Autowired(required = false) PaymentRefundService paymentRefundService,
             @Autowired(required = false) SecurityAuditLogger securityAuditLogger,
             @Autowired(required = false) EtaProvider etaProvider,
@@ -130,7 +133,9 @@ public class OrderServiceImpl implements OrderService {
         this.paymentGuard = paymentGuard;
         this.tenantAccessService = tenantAccessService;
         this.currentUserProvider = currentUserProvider;
-        this.productIngredientService = productIngredientService;
+        this.productStockService = productStockService != null
+                ? productStockService
+                : (productRepository != null ? new ProductStockServiceImpl(productRepository) : null);
         this.paymentRefundService = paymentRefundService;
         this.securityAuditLogger = securityAuditLogger != null ? securityAuditLogger : new SecurityAuditLogger();
         this.etaProvider = etaProvider != null ? etaProvider : new HaversineEtaProvider();
@@ -154,7 +159,7 @@ public class OrderServiceImpl implements OrderService {
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
-            ProductIngredientService productIngredientService,
+            ProductStockService productStockService,
             PaymentRefundService paymentRefundService,
             SecurityAuditLogger securityAuditLogger
     ) {
@@ -175,7 +180,7 @@ public class OrderServiceImpl implements OrderService {
                 paymentGuard,
                 tenantAccessService,
                 currentUserProvider,
-                productIngredientService,
+                productStockService,
                 paymentRefundService,
                 securityAuditLogger,
                 null,
@@ -200,7 +205,7 @@ public class OrderServiceImpl implements OrderService {
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
-            ProductIngredientService productIngredientService,
+            ProductStockService productStockService,
             EtaProvider etaProvider,
             DeliveryTrackingService deliveryTrackingService
     ) {
@@ -221,7 +226,7 @@ public class OrderServiceImpl implements OrderService {
                 paymentGuard,
                 tenantAccessService,
                 currentUserProvider,
-                productIngredientService,
+                productStockService,
                 null,
                 new SecurityAuditLogger(),
                 etaProvider,
@@ -246,7 +251,7 @@ public class OrderServiceImpl implements OrderService {
             PaymentGuard paymentGuard,
             TenantAccessService tenantAccessService,
             CurrentUserProvider currentUserProvider,
-            ProductIngredientService productIngredientService
+            ProductStockService productStockService
     ) {
         this(
                 orderRepository,
@@ -265,7 +270,7 @@ public class OrderServiceImpl implements OrderService {
                 paymentGuard,
                 tenantAccessService,
                 currentUserProvider,
-                productIngredientService,
+                productStockService,
                 null,
                 new SecurityAuditLogger(),
                 null,
@@ -496,6 +501,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal accumulatedSubtotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         BigDecimal accumulatedTaxTotal = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         List<OrderDraftItem> draftItems = new ArrayList<>();
+        Map<UUID, Integer> requestedQuantitiesByProduct = new LinkedHashMap<>();
         LocalDateTime now = LocalDateTime.now();
 
         for (OrderItemRequest itemRequest : request.items()) {
@@ -509,6 +515,16 @@ public class OrderServiceImpl implements OrderService {
             }
             if (product.getCategory() != null && !Boolean.TRUE.equals(product.getCategory().getIsActive())) {
                 throw new BadRequestException("El producto '" + product.getName() + "' pertenece a una categoría inactiva.");
+            }
+
+            int itemQty = itemRequest.quantity() != null ? itemRequest.quantity() : 0;
+            int totalRequestedForProduct = requestedQuantitiesByProduct.merge(product.getId(), itemQty, Integer::sum);
+            if (!product.hasSufficientStock(totalRequestedForProduct)) {
+                int availableStock = product.getStock() != null ? product.getStock() : 0;
+                throw new BadRequestException(
+                        "Stock insuficiente para el producto '" + product.getName() + "'. Disponible: "
+                                + availableStock + ", solicitado: " + totalRequestedForProduct + "."
+                );
             }
 
             BigDecimal sellingPrice = pricingService.calculateCurrentPrice(product);
@@ -601,7 +617,15 @@ public class OrderServiceImpl implements OrderService {
                 .items(new ArrayList<>())
                 .build();
 
-        if (draft.items() != null) {
+        if (draft.items() != null && !draft.items().isEmpty()) {
+            Map<UUID, Integer> quantitiesByProduct = new LinkedHashMap<>();
+            for (OrderDraftItem draftItem : draft.items()) {
+                if (draftItem.productId() != null && draftItem.quantity() != null && draftItem.quantity() > 0) {
+                    quantitiesByProduct.merge(draftItem.productId(), draftItem.quantity(), Integer::sum);
+                }
+            }
+            consumeStockForDraft(tenantId, quantitiesByProduct);
+
             for (OrderDraftItem draftItem : draft.items()) {
                 Product product = draftItem.productId() != null
                         ? productRepository.findByIdAndTenantId(draftItem.productId(), tenantId).orElse(null)
@@ -708,7 +732,10 @@ public class OrderServiceImpl implements OrderService {
             paymentRefundService.refundOrderPayment(order, resolvedReason);
         }
 
+        restoreStockForOrder(order);
         order.setStatus(OrderStatus.CANCELADO);
+        order.setEstimatedDeliveryMinutes(null);
+        order.setEstimatedArrivalAt(null);
         Order savedOrder = orderRepository.save(order);
 
         securityAuditLogger.logEvent(
@@ -861,12 +888,8 @@ public class OrderServiceImpl implements OrderService {
             paymentRefundService.refundOrderPayment(order, "Pedido cancelado desde el restaurante (" + previousStatus + ")");
         }
 
-        if (newStatus == OrderStatus.EN_PREPARACION && productIngredientService != null) {
-            productIngredientService.consumeStockForOrder(order);
-        } else if (newStatus == OrderStatus.CANCELADO
-                && previousStatus == OrderStatus.EN_PREPARACION
-                && productIngredientService != null) {
-            productIngredientService.restoreStockForCanceledOrder(order);
+        if (newStatus == OrderStatus.CANCELADO && previousStatus != OrderStatus.CANCELADO) {
+            restoreStockForOrder(order);
         }
 
         order.setStatus(newStatus);
@@ -906,6 +929,19 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public void cancelPendingOrderFromRefund(Order order) {
+        if (order == null || order.getStatus() != OrderStatus.PENDIENTE) {
+            return;
+        }
+        restoreStockForOrder(order);
+        order.setStatus(OrderStatus.CANCELADO);
+        order.setEstimatedDeliveryMinutes(null);
+        order.setEstimatedArrivalAt(null);
+        orderRepository.save(order);
     }
 
     @Override
@@ -999,6 +1035,30 @@ public class OrderServiceImpl implements OrderService {
         }
         if (subscriptionGuard != null) {
             subscriptionGuard.assertActive(tenant.getId());
+        }
+    }
+
+    private void consumeStockForDraft(UUID tenantId, Map<UUID, Integer> quantitiesByProduct) {
+        if (productStockService == null || quantitiesByProduct == null || quantitiesByProduct.isEmpty()) {
+            return;
+        }
+        productStockService.consumeStock(tenantId, quantitiesByProduct);
+    }
+
+    private void restoreStockForOrder(Order order) {
+        if (productStockService == null || order == null || order.getTenant() == null
+                || order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+        Map<UUID, Integer> quantitiesByProduct = new LinkedHashMap<>();
+        for (OrderItem item : order.getItems()) {
+            if (item.getProduct() != null && item.getProduct().getId() != null
+                    && item.getQuantity() != null && item.getQuantity() > 0) {
+                quantitiesByProduct.merge(item.getProduct().getId(), item.getQuantity(), Integer::sum);
+            }
+        }
+        if (!quantitiesByProduct.isEmpty()) {
+            productStockService.restoreStock(order.getTenant().getId(), quantitiesByProduct);
         }
     }
 

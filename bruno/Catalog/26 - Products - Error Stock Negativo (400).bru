@@ -1,0 +1,35 @@
+meta {
+  name: 26 - Products - Error Stock Negativo (400)
+  type: http
+  seq: 26
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/stock
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "stock": -5
+  }
+}
+
+tests {
+  test("Código de estado es 400 Bad Request", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("Retorna error de validación por stock negativo", function() {
+    expect(res.getBody().status).to.equal(400);
+  });
+}

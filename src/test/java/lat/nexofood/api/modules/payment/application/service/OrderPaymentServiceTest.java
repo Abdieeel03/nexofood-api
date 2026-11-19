@@ -286,4 +286,45 @@ class OrderPaymentServiceTest {
         verify(paymentRefundService).refundPaymentDirectly(eq(payment), any());
         verify(cartRepository, never()).findByTenantIdAndCustomerUserId(any(), any());
     }
+
+    @Test
+    @DisplayName("processMpOrderNotification: webhook refunded sobre orden PENDIENTE delega la cancelación con reposición de stock a OrderService")
+    void webhookRefundedCancelsPendingOrderAndRestoresStock() {
+        UUID paymentId = UUID.randomUUID();
+        Order linkedOrder = Order.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .orderNumber("ORD-000009")
+                .status(OrderStatus.PENDIENTE)
+                .build();
+
+        Payment payment = Payment.builder()
+                .id(paymentId)
+                .tenant(tenant)
+                .customerId(customerUser.getId())
+                .order(linkedOrder)
+                .mpOrderId("ORD-MP-REF")
+                .status(PaymentStatus.APPROVED)
+                .amount(new BigDecimal("65.50"))
+                .checkoutSnapshot(draft)
+                .build();
+
+        when(paymentRepository.findByMpOrderIdForUpdate("ORD-MP-REF")).thenReturn(Optional.of(payment));
+        when(oauthService.getValidAccessToken(tenant)).thenReturn("APP_USR-tenant-token");
+        when(mercadoPagoClient.getOrder("APP_USR-tenant-token", "ORD-MP-REF")).thenReturn(
+                MpOrderResponse.builder()
+                        .id("ORD-MP-REF")
+                        .status("refunded")
+                        .statusDetail("refunded")
+                        .externalReference(paymentId.toString())
+                        .totalAmount(new BigDecimal("65.50"))
+                        .build()
+        );
+
+        orderPaymentService.processMpOrderNotification("ORD-MP-REF");
+
+        assertEquals(PaymentStatus.REFUNDED, payment.getStatus());
+        verify(orderService).cancelPendingOrderFromRefund(linkedOrder);
+        verify(orderRepository, never()).save(any());
+    }
 }

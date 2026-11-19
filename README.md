@@ -5,7 +5,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20PostGIS-336791.svg)](https://postgis.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestión de restaurantes, cocina (KDS), inventario y seguimiento geoespacial de entregas en tiempo real.
+Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestión de restaurantes, cocina (KDS) y seguimiento geoespacial de entregas en tiempo real.
 
 ---
 
@@ -17,9 +17,8 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
   - Cifrado **AES-256-GCM** para credenciales sensibles, bloqueo temporal tras intentos fallidos de inicio de sesión, política de contraseñas y *rate limiting* con **Bucket4j**.
   - Cabeceras de seguridad (`HSTS`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`), auditoría de acciones sensibles (`SecurityAuditLogger`) y roles por restaurante (`OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR`).
 - **Suscripciones y Planes SaaS:** Gestión de planes, periodos de prueba (`trial`), verificación de límites y vigencia con `SubscriptionGuard`, y expiración programada.
-- **Catálogo, Precios Dinámicos e Impuestos:** Categorías ordenables, productos, reglas de precios promocionales por prioridad/vigencia horaria e impuestos configurables con *snapshot* histórico inmutable por orden.
-- **Inventario, Kardex y Recetas:** Control de insumos, existencias con bloqueo pesimista y alertas de stock mínimo, Kardex auditable (`ENTRY`, `EXIT`, `ADJUSTMENT`) y descuento automático de ingredientes al pasar pedidos a cocina.
-- **Carrito, Checkout y KDS:** Carrito persistente por tienda con recálculo en vivo, checkout con validación de cobertura, máquina de estados (`PENDIENTE` → `EN_PREPARACION` → `LISTO_PARA_ENTREGA` → `EN_CAMINO` → `ENTREGADO` / `CANCELADO`) y cola FIFO de cocina.
+- **Catálogo, Stock por Producto, Precios Dinámicos e Impuestos:** Categorías ordenables, productos listos para la venta con stock entero directo (`stock` no negativo con descuento atómico al confirmar pedido y reposición automática al cancelar), reglas de precios promocionales por prioridad/vigencia horaria e impuestos configurables con *snapshot* histórico inmutable por orden.
+- **Carrito, Checkout y KDS:** Carrito persistente por tienda con recálculo en vivo y validación de stock disponible, checkout con validación de cobertura, máquina de estados (`PENDIENTE` → `EN_PREPARACION` → `LISTO_PARA_ENTREGA` → `EN_CAMINO` → `ENTREGADO` / `CANCELADO`) y cola FIFO de cocina.
 - **Geoespacial (PostGIS) y Tracking en Tiempo Real:**
   - Validación de radio de cobertura (`deliveryRadiusKm`) y estimación pública de tarifa/ETA previa al checkout (`/api/v1/store/{slug}/delivery-estimate`).
   - Cálculo automático de ETA al asignar repartidor y recálculo dinámico en vivo con cada ping GPS del motorizado.
@@ -38,7 +37,7 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
 - **Base de Datos y Geoespacial:** PostgreSQL 16 + PostGIS · Hibernate Spatial · JTS Core 1.20.0 (`SRID 4326`)
 - **Seguridad y Calidad:** JJWT 0.12.7 · BCrypt · Bucket4j 8.14.0 · OWASP Dependency-Check 12.1.0
 - **Productividad y Pruebas:** Project Lombok · JUnit 5 · Mockito · MockMvc
-- **Documentación y Testing API:** Springdoc OpenAPI 2.8.5 (Swagger UI) · Colección Bruno (`123` requests)
+- **Documentación y Testing API:** Springdoc OpenAPI 2.8.5 (Swagger UI) · Colección Bruno (`107` requests)
 
 ---
 
@@ -46,7 +45,7 @@ Backend REST multi-tenant para una plataforma SaaS de pedidos en línea, gestió
 
 ```text
 nexofood-api/
-├── bruno/                           # Colección Bruno (123 requests en 9 módulos + entornos)
+├── bruno/                           # Colección Bruno (107 requests en 8 módulos + entornos)
 ├── docs/                            # Documentación técnica, API, guía de estilo y roadmap
 ├── script.sql                       # Esquema SQL completo (PostgreSQL + PostGIS + triggers + RLS)
 ├── script_inserciones.sql           # Datos de prueba multi-tenant
@@ -58,8 +57,7 @@ nexofood-api/
         ├── identity/                # Usuarios, autenticación, direcciones GPS y admin global
         ├── subscription/            # Planes SaaS, suscripciones preaprobadas y expiración automática
         ├── store/                   # Tenants (restaurantes), staff, clientes y storefront público
-        ├── catalog/                 # Impuestos, categorías, productos y reglas de precios
-        ├── inventory/               # Insumos, stocks, Kardex/movimientos y recetas
+        ├── catalog/                 # Impuestos, categorías, productos (con stock) y reglas de precios
         ├── cart/                    # Carrito de compras por tienda
         ├── order/                   # Órdenes, checkout, KDS y máquina de estados
         ├── tracking/                # Rastreo GPS del repartidor, ETA configurable y PostGIS/RLS
@@ -158,7 +156,7 @@ Una vez iniciada la aplicación en `http://localhost:8080`:
 - **Arquitectura del sistema:** [`docs/architecture.md`](docs/architecture.md)
 - **Roadmap de implementación:** [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - **Guía de pruebas en PostgreSQL / pgAdmin:** [`GUIA_PRUEBAS_BD.md`](GUIA_PRUEBAS_BD.md)
-- **Colección Bruno:** [`bruno/README.md`](bruno/README.md) con **123 requests** listos para ejecutar (`Identity`, `Subscription`, `Store`, `Catalog`, `Inventory`, `Cart`, `Order`, `Payment` y `Tracking`) y entornos `Local` / `Production`.
+- **Colección Bruno:** [`bruno/README.md`](bruno/README.md) con **107 requests** listos para ejecutar (`Identity`, `Subscription`, `Store`, `Catalog`, `Cart`, `Order`, `Payment` y `Tracking`) y entornos `Local` / `Production`.
 
 ---
 

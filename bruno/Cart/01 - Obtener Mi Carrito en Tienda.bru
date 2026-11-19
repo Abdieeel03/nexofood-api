@@ -37,5 +37,8 @@ tests {
     expect(data.tenantSlug).to.equal(bru.getEnvVar("tenantSlug"));
     expect(data.items).to.be.an('array');
     expect(data.warnings).to.be.an('array');
+    if (data.items.length > 0) {
+      expect(data.items[0].productStock).to.be.a('number');
+    }
   });
 }

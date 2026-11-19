@@ -48,6 +48,7 @@ public class ProductMapper {
                 .basePrice(pricingService.getBasePrice(product))
                 .prices(prices)
                 .imageUrl(product.getImageUrl())
+                .stock(product.getStock() != null ? product.getStock() : 0)
                 .isAvailable(product.getIsAvailable())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
@@ -70,6 +71,7 @@ public class ProductMapper {
                 .name(request.name())
                 .description(request.description())
                 .imageUrl(request.imageUrl())
+                .stock(request.stock() != null ? request.stock() : 0)
                 .isAvailable(request.isAvailable() != null ? request.isAvailable() : true)
                 .prices(new ArrayList<>())
                 .build();

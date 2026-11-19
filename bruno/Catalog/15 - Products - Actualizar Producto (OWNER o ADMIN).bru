@@ -26,6 +26,7 @@ body:json {
     "description": "Doble carne Angus 200g, queso cheddar inglés, tocino ahumado y huevo frito",
     "price": 28.90,
     "imageUrl": "https://cdn.nexofood.lat/products/royal-angus-especial.png",
+    "stock": 30,
     "isAvailable": true
   }
 }
@@ -35,9 +36,10 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("Actualiza los datos del producto y su precio base", function() {
+  test("Actualiza los datos del producto, su stock y su precio base", function() {
     const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
     expect(data.name).to.equal("Hamburguesa Royal Angus Especial");
+    expect(data.stock).to.equal(30);
   });
 }

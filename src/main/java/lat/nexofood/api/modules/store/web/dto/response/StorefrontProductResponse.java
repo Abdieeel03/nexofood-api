@@ -25,5 +25,6 @@ public record StorefrontProductResponse(
         BigDecimal baseUnitPrice,
         BigDecimal taxAmount,
         BigDecimal finalPrice,
+        Integer stock,
         Boolean isAvailable
 ) {}

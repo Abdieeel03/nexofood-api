@@ -194,17 +194,17 @@ DETAIL: Key (product_id, tenant_id)=(21000000-0000-0000-0000-000000000001, 11111
 
 ---
 
-### Test 6.2: Intento de registrar inventario negativo
-Intentar descontar stock a números negativos:
+### Test 6.2: Intento de registrar stock negativo en producto
+Intentar asignar un stock negativo directamente en `products`:
 
 ```sql
-UPDATE inventory_stocks 
-SET quantity = -5.000 
-WHERE id = '51000000-0000-0000-0000-000000000001';
+UPDATE products 
+SET stock = -5 
+WHERE id = '11000000-0000-0000-0000-000000000001';
 ```
 **Error obtenido de PostgreSQL:**
 ```text
-ERROR: new row for relation "inventory_stocks" violates check constraint "chk_inventory_stocks_quantity_non_negative"
+ERROR: new row for relation "products" violates check constraint "chk_products_stock_non_negative"
 ```
 
 ---

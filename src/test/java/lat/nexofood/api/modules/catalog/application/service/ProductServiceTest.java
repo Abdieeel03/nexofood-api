@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -130,6 +131,7 @@ class ProductServiceTest {
                 .name("Royal Burger")
                 .description("Con huevo y queso")
                 .price(new BigDecimal("24.50"))
+                .stock(25)
                 .isAvailable(true)
                 .build();
 
@@ -139,8 +141,79 @@ class ProductServiceTest {
         assertEquals("Royal Burger", response.name());
         assertEquals(new BigDecimal("24.50"), response.price());
         assertEquals(new BigDecimal("24.50"), response.basePrice());
+        assertEquals(25, response.stock());
         assertEquals("Clásicas", response.categoryName());
         assertEquals("IGV 18%", response.taxName());
+    }
+
+    @Test
+    @DisplayName("create: asigna stock 0 por defecto si no se envía y rechaza stock negativo")
+    void createProductDefaultsStockToZeroAndRejectsNegative() {
+        SubscriptionPlan plan = SubscriptionPlan.builder().maxProducts(50).build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(subscriptionGuard.getLimits(tenantId)).thenReturn(plan);
+        when(productRepository.countByTenantId(tenantId)).thenReturn(0L);
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> {
+            Product p = inv.getArgument(0);
+            p.setId(UUID.randomUUID());
+            return p;
+        });
+
+        ProductRequest defaultStockReq = ProductRequest.builder()
+                .name("Agua Sin Gas")
+                .price(new BigDecimal("5.00"))
+                .build();
+
+        ProductResponse created = productService.create(tenantId, defaultStockReq);
+        assertEquals(0, created.stock());
+
+        ProductRequest negativeStockReq = ProductRequest.builder()
+                .name("Gaseosa")
+                .price(new BigDecimal("6.00"))
+                .stock(-3)
+                .build();
+
+        assertThrows(BadRequestException.class, () -> productService.create(tenantId, negativeStockReq));
+    }
+
+    @Test
+    @DisplayName("update y updateStock: actualizan o preservan el stock y rechazan valores negativos")
+    void updateAndUpdateStockWorkCorrectly() {
+        UUID productId = UUID.randomUUID();
+        Product existing = Product.builder()
+                .id(productId)
+                .tenant(tenant)
+                .name("Pizza Pepperoni")
+                .stock(12)
+                .isAvailable(true)
+                .prices(new ArrayList<>(List.of(
+                        ProductPrice.builder().name("Precio Base").price(new BigDecimal("35.00")).isBase(true).isActive(true).build()
+                )))
+                .build();
+
+        when(productRepository.findByIdAndTenantIdForUpdate(productId, tenantId)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Si no se envía stock en PUT, se preserva el stock actual (12)
+        ProductResponse preserved = productService.update(tenantId, productId, ProductRequest.builder()
+                .name("Pizza Pepperoni Grande")
+                .price(new BigDecimal("38.00"))
+                .build());
+        assertEquals(12, preserved.stock());
+
+        // Si se envía stock en PUT, se actualiza al nuevo valor
+        ProductResponse updated = productService.update(tenantId, productId, ProductRequest.builder()
+                .name("Pizza Pepperoni Grande")
+                .price(new BigDecimal("38.00"))
+                .stock(18)
+                .build());
+        assertEquals(18, updated.stock());
+
+        // Endpoint dedicado PATCH /stock
+        ProductResponse stockUpdated = productService.updateStock(tenantId, productId, 40);
+        assertEquals(40, stockUpdated.stock());
+
+        assertThrows(BadRequestException.class, () -> productService.updateStock(tenantId, productId, -1));
     }
 
     @Test
@@ -195,7 +268,8 @@ class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("findAllByTenant paginado: filtra por categoría y disponibilidad")
+    @SuppressWarnings("unchecked")
+    @DisplayName("findAllByTenant paginado: filtra por categoría, disponibilidad y stock con Specification")
     void findPaginatedProductsWithFilters() {
         UUID categoryId = UUID.randomUUID();
         Pageable pageable = PageRequest.of(0, 10);
@@ -204,16 +278,21 @@ class ProductServiceTest {
                 .id(UUID.randomUUID())
                 .tenant(tenant)
                 .name("Cheeseburger")
+                .stock(15)
                 .isAvailable(true)
                 .prices(List.of(ProductPrice.builder().name("Base").price(new BigDecimal("19.00")).isBase(true).isActive(true).build()))
                 .build();
 
-        when(productRepository.findAllByTenantIdAndCategoryIdAndIsAvailableTrue(tenantId, categoryId, pageable))
+        when(productRepository.findAll(any(Specification.class), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(product), pageable, 1));
 
-        PageResponse<ProductResponse> pageResponse = productService.findAllByTenant(tenantId, categoryId, true, pageable);
+        PageResponse<ProductResponse> pageResponse = productService.findAllByTenant(
+                tenantId, categoryId, true, true, pageable
+        );
 
         assertEquals(1, pageResponse.totalElements());
         assertEquals("Cheeseburger", pageResponse.content().getFirst().name());
+        assertEquals(15, pageResponse.content().getFirst().stock());
+        verify(productRepository).findAll(any(Specification.class), eq(pageable));
     }
 }

@@ -275,11 +275,11 @@ Los endpoints deben organizarse agrupados por módulo de dominio, siguiendo este
 1. **Identity** (Autenticación) — registro, login, refresh, gestión de usuarios, direcciones
 2. **Subscription** (Suscripciones) — planes SaaS, suscripciones
 3. **Tenant** (Restaurantes) — CRUD de tenants, miembros y roles
-4. **Catalog** (Catálogo) — categorías y productos del restaurante
+4. **Catalog** (Catálogo) — categorías, impuestos, productos (incluyendo stock) y reglas de precio del restaurante
 5. **Cart** (Carrito) — carrito de compras por cliente por tenant
 6. **Order** (Pedidos) — creación de pedidos, estados, delivery
 7. **Payment** (Pagos) — transacciones, Mercado Pago, webhooks
-8. **Inventory** (Inventario) — items, stock, movimientos
+8. **Tracking** (Rastreo) — cobertura, ETA y ubicación GPS del repartidor
 
 Dentro de cada grupo, los endpoints se ordenan:
 
@@ -295,7 +295,7 @@ Dentro de cada grupo, los endpoints se ordenan:
 
 NexoFood es una plataforma **SaaS multi-tenant**. Esto afecta al frontend de forma importante:
 
-1. **Cada restaurante es un `Tenant`** con su propio catálogo, pedidos, inventario y staff.
+1. **Cada restaurante es un `Tenant`** con su propio catálogo (incluyendo stock por producto), pedidos y staff.
 2. **Un usuario puede ser dueño de un solo tenant** (relación 1 a 1 estricta).
 3. **Los productos y categorías pertenecen a un tenant específico**.
 4. **Los carritos son únicos por combinación `(tenant, customer)`** — un cliente tiene un carrito por restaurante.

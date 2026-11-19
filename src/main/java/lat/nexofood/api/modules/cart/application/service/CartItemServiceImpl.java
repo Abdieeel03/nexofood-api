@@ -45,6 +45,14 @@ public class CartItemServiceImpl implements CartItemService {
                 ));
 
         validateProductAvailable(product);
+        int existingQty = 0;
+        if (cart.getItems() != null && product.getId() != null) {
+            existingQty = cart.getItems().stream()
+                    .filter(i -> i.getProduct() != null && product.getId().equals(i.getProduct().getId()))
+                    .mapToInt(i -> i.getQuantity() != null ? i.getQuantity() : 0)
+                    .sum();
+        }
+        validateProductStock(product, existingQty + request.quantity());
 
         BigDecimal currentUnitPrice = productPricingService.calculateCurrentPrice(product);
         CartItem item = cart.addItem(product, request.quantity(), currentUnitPrice, request.notes());
@@ -58,6 +66,7 @@ public class CartItemServiceImpl implements CartItemService {
     public CartItem updateItemQuantity(Cart cart, UUID itemId, int quantity) {
         CartItem item = findItemInCartOrThrow(cart, itemId);
         validateProductAvailable(item.getProduct());
+        validateProductStock(item.getProduct(), quantity);
 
         BigDecimal currentUnitPrice = productPricingService.calculateCurrentPrice(item.getProduct());
         item.repriceTo(currentUnitPrice);
@@ -87,6 +96,7 @@ public class CartItemServiceImpl implements CartItemService {
 
         if (request.quantity() != null) {
             validateProductAvailable(item.getProduct());
+            validateProductStock(item.getProduct(), request.quantity());
             BigDecimal currentUnitPrice = productPricingService.calculateCurrentPrice(item.getProduct());
             item.repriceTo(currentUnitPrice);
             item.updateQuantity(request.quantity());
@@ -138,6 +148,22 @@ public class CartItemServiceImpl implements CartItemService {
         }
         if (product.getCategory() != null && !Boolean.TRUE.equals(product.getCategory().getIsActive())) {
             throw new BadRequestException("El producto '" + product.getName() + "' pertenece a una categoría inactiva");
+        }
+    }
+
+    private void validateProductStock(Product product, int requestedQuantity) {
+        int currentStock = product != null && product.getStock() != null ? product.getStock() : 0;
+        String productName = product != null ? product.getName() : "solicitado";
+        if (currentStock <= 0) {
+            throw new BadRequestException(
+                    "El producto '" + productName + "' se encuentra agotado (sin stock disponible)"
+            );
+        }
+        if (currentStock < requestedQuantity) {
+            throw new BadRequestException(
+                    "Stock insuficiente para el producto '" + productName + "'. Disponible: "
+                            + currentStock + ", solicitado: " + requestedQuantity
+            );
         }
     }
 }

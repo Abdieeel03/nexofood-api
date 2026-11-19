@@ -16,6 +16,7 @@ public record CartItemResponse(
         BigDecimal previousUnitPrice,
         Boolean priceChanged,
         Boolean productAvailable,
+        Integer productStock,
         Integer quantity,
         BigDecimal subtotal,
         String notes,

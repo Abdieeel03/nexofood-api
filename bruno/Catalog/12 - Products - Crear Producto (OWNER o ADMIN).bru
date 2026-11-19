@@ -26,6 +26,7 @@ body:json {
     "description": "Doble carne Angus, queso cheddar, tocino y huevo frito",
     "price": 26.90,
     "imageUrl": "https://cdn.nexofood.lat/products/royal-angus.png",
+    "stock": 25,
     "isAvailable": true
   }
 }
@@ -44,10 +45,11 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("Crea el producto con su regla de precio base automática y guarda productId", function() {
+  test("Crea el producto con su regla de precio base automática, stock y guarda productId", function() {
     const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
     expect(data.name).to.equal("Hamburguesa Royal Angus");
+    expect(data.stock).to.equal(25);
     expect(data.prices).to.be.an('array');
   });
 }
