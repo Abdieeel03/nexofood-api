@@ -27,9 +27,12 @@ import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddre
 import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
+import lat.nexofood.api.modules.order.domain.OrderItem;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
 import lat.nexofood.api.modules.order.infrastructure.repository.OrderRepository;
 import lat.nexofood.api.modules.order.web.dto.request.OrderCheckoutRequest;
+import lat.nexofood.api.modules.order.web.dto.request.OrderCreateRequest;
+import lat.nexofood.api.modules.order.web.dto.request.OrderItemRequest;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
 import lat.nexofood.api.modules.order.web.mapper.OrderItemMapper;
 import lat.nexofood.api.modules.order.web.mapper.OrderMapper;
@@ -209,6 +212,7 @@ class OrderServiceTest {
                 .category(activeCategory)
                 .tax(igv)
                 .name("Burger Suprema")
+                .stock(10)
                 .isAvailable(true)
                 .prices(new ArrayList<>(List.of(basePrice)))
                 .build();
@@ -315,6 +319,7 @@ class OrderServiceTest {
         assertEquals(new BigDecimal("6.50"), response.deliveryFee());
         assertEquals(new BigDecimal("65.50"), response.total());
         assertEquals("Tocar intercomunicador 101", response.notes());
+        assertEquals(9, burger.getStock());
     }
 
     @Test
@@ -472,5 +477,97 @@ class OrderServiceTest {
                 "Tu pedido estará en tu casa en ~" + assigned.estimatedDeliveryMinutes() + " min",
                 assigned.etaMessage()
         );
+    }
+
+    @Test
+    @DisplayName("checkout y create: rechazan la orden si el stock del producto es insuficiente")
+    void checkoutAndCreateRejectInsufficientStock() {
+        burger.setStock(1);
+
+        CartItem cartItem = CartItem.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .product(burger)
+                .quantity(2)
+                .unitPrice(new BigDecimal("59.00"))
+                .build();
+        Cart cart = Cart.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .customer(customer)
+                .items(new ArrayList<>(List.of(cartItem)))
+                .build();
+
+        when(currentCustomerResolver.resolveBySlug("burger-bros")).thenReturn(customer);
+        when(cartRepository.findByTenantIdAndCustomerUserId(tenant.getId(), customerUser.getId()))
+                .thenReturn(Optional.of(cart));
+        when(productRepository.findByIdAndTenantId(burger.getId(), tenant.getId()))
+                .thenReturn(Optional.of(burger));
+        when(tenantRepository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
+
+        BadRequestException checkoutEx = assertThrows(BadRequestException.class, () ->
+                checkoutService.createFromCart(
+                        "burger-bros",
+                        OrderCheckoutRequest.builder().deliveryType(DeliveryType.TAKEAWAY).build()
+                )
+        );
+        assertTrue(checkoutEx.getMessage().contains("Stock insuficiente"));
+        verify(orderPaymentService, never()).startCheckout(any(), any());
+
+        BadRequestException createEx = assertThrows(BadRequestException.class, () ->
+                orderService.create(
+                        OrderCreateRequest.builder()
+                                .tenantId(tenant.getId())
+                                .deliveryType(DeliveryType.TAKEAWAY)
+                                .items(List.of(OrderItemRequest.builder().productId(burger.getId()).quantity(2).build()))
+                                .build(),
+                        customerUser.getId()
+                )
+        );
+        assertTrue(createEx.getMessage().contains("Stock insuficiente"));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateStatus: al cancelar desde PENDIENTE o EN_PREPARACION restaura el stock de los productos")
+    void updateStatusToCanceledRestoresProductStock() {
+        UUID orderId = UUID.randomUUID();
+        burger.setStock(5);
+
+        OrderItem orderItem = OrderItem.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .product(burger)
+                .productName(burger.getName())
+                .quantity(2)
+                .unitPrice(new BigDecimal("50.00"))
+                .subtotal(new BigDecimal("100.00"))
+                .build();
+
+        Order order = Order.builder()
+                .id(orderId)
+                .tenant(tenant)
+                .customer(customer)
+                .orderNumber("ORD-000003")
+                .deliveryType(DeliveryType.TAKEAWAY)
+                .status(OrderStatus.EN_PREPARACION)
+                .total(new BigDecimal("100.00"))
+                .items(new ArrayList<>(List.of(orderItem)))
+                .build();
+        orderItem.setOrder(order);
+
+        when(orderRepository.findByIdAndTenantIdForUpdate(orderId, tenant.getId())).thenReturn(Optional.of(order));
+        when(tenantAccessService.isSuperAdmin()).thenReturn(false);
+        when(tenantAccessService.getCurrentUserRoleInTenant(tenant.getId()))
+                .thenReturn(Optional.of(TenantStaffRole.OWNER));
+        when(productRepository.findByIdAndTenantIdForUpdate(burger.getId(), tenant.getId()))
+                .thenReturn(Optional.of(burger));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse canceled = orderService.updateStatus(tenant.getId(), orderId, OrderStatus.CANCELADO);
+
+        assertEquals(OrderStatus.CANCELADO, canceled.status());
+        assertEquals(7, burger.getStock());
     }
 }

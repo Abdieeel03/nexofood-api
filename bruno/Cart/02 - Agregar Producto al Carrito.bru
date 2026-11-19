@@ -50,6 +50,7 @@ tests {
     const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
     expect(data.items).to.be.an('array').that.is.not.empty;
+    expect(data.items[0].productStock).to.be.a('number');
     expect(data.total).to.be.a('number').and.to.be.above(0);
   });
 }

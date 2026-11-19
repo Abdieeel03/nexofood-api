@@ -21,5 +21,9 @@ tests {
     expect(data.tenantSlug).to.equal(bru.getEnvVar("tenantSlug"));
     expect(data.categories).to.be.an('array');
     expect(data.uncategorizedProducts).to.be.an('array');
+    const allProducts = data.categories.flatMap(c => c.products || []).concat(data.uncategorizedProducts || []);
+    if (allProducts.length > 0) {
+      expect(allProducts[0].stock).to.be.a('number');
+    }
   });
 }

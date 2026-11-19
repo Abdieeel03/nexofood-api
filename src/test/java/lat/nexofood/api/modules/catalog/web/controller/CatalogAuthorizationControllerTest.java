@@ -10,6 +10,7 @@ import lat.nexofood.api.modules.catalog.application.service.TaxService;
 import lat.nexofood.api.modules.catalog.web.dto.request.CategoryRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
+import lat.nexofood.api.modules.catalog.web.dto.request.ProductStockRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.TaxRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
@@ -144,7 +145,7 @@ class CatalogAuthorizationControllerTest {
         UUID otherTenantId = UUID.randomUUID();
         when(tenantAccessService.isMember(otherTenantId)).thenReturn(false);
         assertThrows(AccessDeniedException.class, () ->
-                proxiedProductController.getProducts(otherTenantId, null, null, PageRequest.of(0, 20))
+                proxiedProductController.getProducts(otherTenantId, null, null, null, PageRequest.of(0, 20))
         );
     }
 
@@ -229,6 +230,45 @@ class CatalogAuthorizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ProductController PATCH /stock: deniega acceso sin OWNER/ADMIN, valida stock >= 0 y actualiza cuando está autorizado")
+    void productStockEndpointAuthorizationAndValidation() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductController.updateStock(tenantId, productId, new ProductStockRequest(20))
+        );
+        verify(productService, never()).updateStock(any(), any(), anyInt());
+
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"stock\": -1}"))
+                .andExpect(status().isBadRequest());
+
+        when(productService.updateStock(tenantId, productId, 35)).thenReturn(
+                ProductResponse.builder().id(productId).tenantId(tenantId).name("Hamburguesa").stock(35).isAvailable(true).build()
+        );
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"stock\": 35}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.stock").value(35));
     }
 
     @Test

@@ -250,6 +250,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .baseUnitPrice(taxCalc.baseUnitPrice())
                 .taxAmount(taxCalc.taxAmount())
                 .finalPrice(finalPrice)
+                .stock(product.getStock() != null ? product.getStock() : 0)
                 .isAvailable(product.getIsAvailable())
                 .build();
     }

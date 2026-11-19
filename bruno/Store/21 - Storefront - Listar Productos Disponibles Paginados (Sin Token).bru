@@ -36,5 +36,8 @@ tests {
     expect(res.getBody().success).to.be.true;
     expect(data.content).to.be.an('array');
     expect(data.page).to.equal(0);
+    if (data.content.length > 0) {
+      expect(data.content[0].stock).to.be.a('number');
+    }
   });
 }

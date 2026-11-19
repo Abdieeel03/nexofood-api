@@ -19,10 +19,11 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("Retorna el detalle del producto con sus reglas de precio", function() {
+  test("Retorna el detalle del producto con sus reglas de precio y stock", function() {
     const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
     expect(data.id).to.equal(bru.getEnvVar("productId"));
+    expect(data.stock).to.be.a('number');
     expect(data.prices).to.be.an('array');
   });
 }

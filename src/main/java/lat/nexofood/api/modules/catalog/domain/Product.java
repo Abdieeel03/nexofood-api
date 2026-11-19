@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.model.BaseEntity;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.AllArgsConstructor;
@@ -67,6 +68,10 @@ public class Product extends BaseEntity {
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
 
+    @Column(name = "stock", nullable = false)
+    @Builder.Default
+    private Integer stock = 0;
+
     @Column(name = "is_available", nullable = false)
     @Builder.Default
     private Boolean isAvailable = true;
@@ -75,4 +80,37 @@ public class Product extends BaseEntity {
     @Builder.Default
     @ToString.Exclude
     private List<ProductPrice> prices = new ArrayList<>();
+
+    public boolean hasSufficientStock(int requestedQuantity) {
+        return requestedQuantity > 0 && this.stock != null && this.stock >= requestedQuantity;
+    }
+
+    public void decreaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new BadRequestException("La cantidad a descontar del stock debe ser mayor a cero.");
+        }
+        int current = this.stock != null ? this.stock : 0;
+        if (current < quantity) {
+            throw new BadRequestException(
+                    "Stock insuficiente para el producto '" + this.name + "'. Disponible: "
+                            + current + ", solicitado: " + quantity + "."
+            );
+        }
+        this.stock = current - quantity;
+    }
+
+    public void increaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new BadRequestException("La cantidad a restaurar en el stock debe ser mayor a cero.");
+        }
+        int current = this.stock != null ? this.stock : 0;
+        this.stock = current + quantity;
+    }
+
+    public void updateStock(int newStock) {
+        if (newStock < 0) {
+            throw new BadRequestException("El stock del producto no puede ser negativo.");
+        }
+        this.stock = newStock;
+    }
 }

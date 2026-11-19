@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.catalog.application.service;
 
+import jakarta.persistence.criteria.Predicate;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,6 +90,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         validateInitialPrices(request);
+        if (request.stock() != null && request.stock() < 0) {
+            throw new BadRequestException("El stock del producto no puede ser negativo.");
+        }
 
         Product product = productMapper.toEntity(request, tenant, category, tax);
         Product savedProduct = productRepository.save(product);
@@ -98,7 +103,8 @@ public class ProductServiceImpl implements ProductService {
     @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductResponse update(UUID tenantId, UUID productId, ProductRequest request) {
-        Product product = productRepository.findByIdAndTenantId(productId, tenantId)
+        Product product = productRepository.findByIdAndTenantIdForUpdate(productId, tenantId)
+                .or(() -> productRepository.findByIdAndTenantId(productId, tenantId))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + productId));
 
         if (request.categoryId() != null) {
@@ -119,6 +125,9 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.name());
         product.setDescription(request.description());
         product.setImageUrl(request.imageUrl());
+        if (request.stock() != null) {
+            product.updateStock(request.stock());
+        }
         if (request.isAvailable() != null) {
             product.setIsAvailable(request.isAvailable());
         }
@@ -154,21 +163,25 @@ public class ProductServiceImpl implements ProductService {
             UUID tenantId,
             UUID categoryId,
             Boolean availableOnly,
+            Boolean inStockOnly,
             Pageable pageable
     ) {
-        Page<Product> productPage;
-        boolean filterAvailable = Boolean.TRUE.equals(availableOnly);
+        Specification<Product> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("tenant").get("id"), tenantId));
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+            if (Boolean.TRUE.equals(availableOnly)) {
+                predicates.add(cb.isTrue(root.get("isAvailable")));
+            }
+            if (Boolean.TRUE.equals(inStockOnly)) {
+                predicates.add(cb.greaterThan(root.get("stock"), 0));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
 
-        if (categoryId != null && filterAvailable) {
-            productPage = productRepository.findAllByTenantIdAndCategoryIdAndIsAvailableTrue(tenantId, categoryId, pageable);
-        } else if (categoryId != null) {
-            productPage = productRepository.findAllByTenantIdAndCategoryId(tenantId, categoryId, pageable);
-        } else if (filterAvailable) {
-            productPage = productRepository.findAllByTenantIdAndIsAvailableTrue(tenantId, pageable);
-        } else {
-            productPage = productRepository.findAllByTenantId(tenantId, pageable);
-        }
-
+        Page<Product> productPage = productRepository.findAll(spec, pageable);
         Page<ProductResponse> mappedPage = productPage.map(productMapper::toResponse);
         return PageResponse.from(mappedPage);
     }
@@ -181,6 +194,19 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + productId));
 
         product.setIsAvailable(isAvailable);
+        Product updated = productRepository.save(product);
+        return productMapper.toResponse(updated);
+    }
+
+    @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
+    @Transactional
+    public ProductResponse updateStock(UUID tenantId, UUID productId, int stock) {
+        Product product = productRepository.findByIdAndTenantIdForUpdate(productId, tenantId)
+                .or(() -> productRepository.findByIdAndTenantId(productId, tenantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + productId));
+
+        product.updateStock(stock);
         Product updated = productRepository.save(product);
         return productMapper.toResponse(updated);
     }

@@ -1,11 +1,11 @@
 meta {
-  name: 05 - Items - Cambiar Estado Insumo (OWNER o ADMIN)
+  name: 25 - Products - Actualizar Stock (OWNER o ADMIN)
   type: http
-  seq: 5
+  seq: 25
 }
 
 patch {
-  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/inventory/items/{{inventoryItemId}}/status
+  url: {{baseUrl}}/api/v1/tenants/{{tenantId}}/products/{{productId}}/stock
   body: json
   auth: bearer
 }
@@ -20,7 +20,7 @@ headers {
 
 body:json {
   {
-    "isActive": true
+    "stock": 50
   }
 }
 
@@ -29,9 +29,9 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("Actualiza el estado activo del insumo", function() {
+  test("Actualiza el stock del producto correctamente", function() {
+    const data = res.getBody().data;
     expect(res.getBody().success).to.be.true;
-    expect(res.getBody().data.isActive).to.be.true;
+    expect(data.stock).to.equal(50);
   });
 }
-

@@ -15,10 +15,6 @@ CREATE EXTENSION IF NOT EXISTS "postgis";
 -- ------------------------------------------------------------------------------
 -- 2. DROP EXISTING TABLES & FUNCTIONS (Reverse Dependency Order)
 -- ------------------------------------------------------------------------------
-DROP TABLE IF EXISTS product_ingredients CASCADE;
-DROP TABLE IF EXISTS inventory_movements CASCADE;
-DROP TABLE IF EXISTS inventory_stocks CASCADE;
-DROP TABLE IF EXISTS inventory_items CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -349,6 +345,8 @@ CREATE TABLE products (
     name         VARCHAR(150) NOT NULL,
     description  TEXT,
     image_url    TEXT,
+    stock        INTEGER      NOT NULL DEFAULT 0
+        CONSTRAINT chk_products_stock_non_negative CHECK (stock >= 0),
     is_available BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -361,6 +359,7 @@ CREATE INDEX idx_products_tenant_id       ON products(tenant_id);
 CREATE INDEX idx_products_category_id     ON products(category_id);
 CREATE INDEX idx_products_tax_id          ON products(tax_id);
 CREATE INDEX idx_products_tenant_available ON products(tenant_id, is_available);
+CREATE INDEX idx_products_tenant_stock    ON products(tenant_id, stock);
 
 CREATE TRIGGER trg_products_updated_at
 BEFORE UPDATE ON products
@@ -651,141 +650,7 @@ CREATE POLICY tenant_isolation ON payments
     );
 
 -- ==============================================================================
--- 11. MODULE: INVENTORY
--- ==============================================================================
-
--- Table: inventory_items
-CREATE TABLE inventory_items (
-    id          UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    name        VARCHAR(150)   NOT NULL,
-    sku         VARCHAR(50),
-    description TEXT,
-    category    VARCHAR(100),
-    unit        VARCHAR(20)    NOT NULL DEFAULT 'UNIT'
-        CONSTRAINT chk_inventory_items_unit CHECK (unit IN ('UNIT', 'KG')),
-    cost_price  NUMERIC(10, 2) DEFAULT 0.00,
-    is_active   BOOLEAN        NOT NULL DEFAULT TRUE,
-    created_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_inventory_items_tenant_id  ON inventory_items(tenant_id);
-CREATE INDEX idx_inventory_items_tenant_sku ON inventory_items(tenant_id, sku);
-
-CREATE TRIGGER trg_inventory_items_updated_at
-BEFORE UPDATE ON inventory_items
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON inventory_items
-    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
-
--- Table: inventory_stocks
--- CHECKs de no-negatividad: garantizan que el stock nunca caiga bajo cero.
-CREATE TABLE inventory_stocks (
-    id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id         UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    inventory_item_id UUID           NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
-    quantity          NUMERIC(12, 3) NOT NULL DEFAULT 0.000
-        CONSTRAINT chk_inventory_stocks_quantity_non_negative CHECK (quantity >= 0),
-    reserved_quantity NUMERIC(12, 3) NOT NULL DEFAULT 0.000
-        CONSTRAINT chk_inventory_stocks_reserved_non_negative CHECK (reserved_quantity >= 0),
-    minimum_stock     NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
-    location          VARCHAR(150),
-    is_active         BOOLEAN        NOT NULL DEFAULT TRUE,
-    created_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_inventory_stocks_tenant_item UNIQUE (tenant_id, inventory_item_id)
-);
-
-CREATE INDEX idx_inventory_stocks_tenant_id ON inventory_stocks(tenant_id);
-CREATE INDEX idx_inventory_stocks_item_id   ON inventory_stocks(inventory_item_id);
-
-CREATE TRIGGER trg_inventory_stocks_updated_at
-BEFORE UPDATE ON inventory_stocks
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-ALTER TABLE inventory_stocks ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON inventory_stocks
-    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
-
--- Table: inventory_movements
--- performed_by_name: fotografía histórica del operador (audit snapshot).
--- CHECK de consistencia: new_quantity = previous_quantity ± quantity.
-CREATE TABLE inventory_movements (
-    id                  UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id           UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    inventory_stock_id  UUID           NOT NULL REFERENCES inventory_stocks(id) ON DELETE CASCADE,
-    inventory_item_id   UUID           NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
-    movement_type       VARCHAR(50)    NOT NULL
-        CONSTRAINT chk_inventory_movements_type CHECK (movement_type IN ('ENTRY', 'EXIT', 'ADJUSTMENT')),
-    reason              VARCHAR(50)    NOT NULL
-        CONSTRAINT chk_inventory_movements_reason CHECK (reason IN (
-            'PURCHASE', 'INITIAL_STOCK', 'CUSTOMER_RETURN', 'TRANSFER_IN',
-            'KITCHEN_CONSUMPTION_OR_WASTE', 'EXPIRED_OR_SPOILAGE', 'DAMAGED_OR_LOSS',
-            'SALE', 'INTERNAL_CONSUMPTION', 'SUPPLIER_RETURN', 'TRANSFER_OUT',
-            'PHYSICAL_COUNT', 'CORRECTION', 'OTHER'
-        )),
-    quantity            NUMERIC(12, 3) NOT NULL,
-    previous_quantity   NUMERIC(12, 3) NOT NULL,
-    new_quantity        NUMERIC(12, 3) NOT NULL,
-    performed_by_id     UUID           NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    performed_by_name   VARCHAR(150),
-    reason_details      TEXT           NOT NULL,
-    created_at          TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_inventory_movements_quantity_consistency
-        CHECK (
-            (movement_type = 'ENTRY'      AND new_quantity = previous_quantity + quantity) OR
-            (movement_type = 'EXIT'       AND new_quantity = previous_quantity - quantity) OR
-            (movement_type = 'ADJUSTMENT')
-        )
-);
-
-CREATE INDEX idx_inventory_movements_tenant_id    ON inventory_movements(tenant_id);
-CREATE INDEX idx_inventory_movements_stock_id     ON inventory_movements(inventory_stock_id);
-CREATE INDEX idx_inventory_movements_item_id      ON inventory_movements(inventory_item_id);
-CREATE INDEX idx_inventory_movements_performed_by ON inventory_movements(performed_by_id);
-CREATE INDEX idx_inventory_movements_created_at   ON inventory_movements(tenant_id, created_at DESC);
-
-CREATE TRIGGER trg_inventory_movements_updated_at
-BEFORE UPDATE ON inventory_movements
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON inventory_movements
-    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
-
-
--- Table: product_ingredients (Recetas de productos y descuento automático de inventario)
-CREATE TABLE IF NOT EXISTS product_ingredients (
-    id                UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id         UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    product_id        UUID           NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    inventory_item_id UUID           NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
-    quantity          NUMERIC(12, 3) NOT NULL
-        CONSTRAINT chk_product_ingredients_quantity_positive CHECK (quantity > 0),
-    created_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_product_ingredients_product_item UNIQUE (product_id, inventory_item_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_product_ingredients_tenant_id  ON product_ingredients(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_product_ingredients_product_id ON product_ingredients(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_ingredients_item_id    ON product_ingredients(inventory_item_id);
-
-CREATE TRIGGER trg_product_ingredients_updated_at
-BEFORE UPDATE ON product_ingredients
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-ALTER TABLE product_ingredients ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON product_ingredients
-    USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
-
-
--- ==============================================================================
--- 12. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
+-- 11. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
 -- ==============================================================================
 
 -- Forzar Row Level Security incluso para el propietario de las tablas
@@ -799,10 +664,6 @@ ALTER TABLE cart_items          FORCE ROW LEVEL SECURITY;
 ALTER TABLE orders              FORCE ROW LEVEL SECURITY;
 ALTER TABLE order_items         FORCE ROW LEVEL SECURITY;
 ALTER TABLE payments            FORCE ROW LEVEL SECURITY;
-ALTER TABLE inventory_items     FORCE ROW LEVEL SECURITY;
-ALTER TABLE inventory_stocks    FORCE ROW LEVEL SECURITY;
-ALTER TABLE inventory_movements FORCE ROW LEVEL SECURITY;
-ALTER TABLE product_ingredients FORCE ROW LEVEL SECURITY;
 
 -- Rol de aplicación sin privilegios de superusuario ni evasión de RLS (NOBYPASSRLS)
 DO $$

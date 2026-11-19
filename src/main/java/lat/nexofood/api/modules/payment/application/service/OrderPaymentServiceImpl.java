@@ -270,8 +270,7 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
                 }
                 Order linkedOrder = payment.getOrder();
                 if (linkedOrder != null && linkedOrder.getStatus() == OrderStatus.PENDIENTE) {
-                    linkedOrder.setStatus(OrderStatus.CANCELADO);
-                    orderRepository.save(linkedOrder);
+                    orderService.cancelPendingOrderFromRefund(linkedOrder);
                 }
             } else if (payment.getStatus() != PaymentStatus.APPROVED && payment.getStatus() != PaymentStatus.REFUNDED) {
                 payment.setStatus(newStatus);

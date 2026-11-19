@@ -38,13 +38,13 @@ flowchart LR
 | **subscription** | ✅ | ✅ | ✅ | ✅ `SubscriptionServiceImpl`, `SubscriptionBillingServiceImpl` | ✅ `SubscriptionController`, `SubscriptionPlanController` | ✅ |
 | **catalog** – Tax | ✅ | ✅ | ✅ | ✅ `TaxServiceImpl` | ✅ `TaxController` | ✅ |
 | **catalog** – Category | ✅ | ✅ | ✅ | ✅ `CategoryServiceImpl` | ✅ `CategoryController` | ✅ |
-| **catalog** – Product | ✅ | ✅ | ✅ | ✅ `ProductServiceImpl` | ✅ `ProductController` | ✅ |
+| **catalog** – Product | ✅ | ✅ | ✅ | ✅ `ProductServiceImpl`, `ProductStockServiceImpl` | ✅ `ProductController` (incluye `stock`) | ✅ |
 | **catalog** – ProductPrice | ✅ | ✅ | ✅ | ✅ `ProductPriceServiceImpl` | ✅ `ProductPriceController` | ✅ |
 | **store** – Storefront Menu | ✅ | ✅ | ✅ | ✅ `StorefrontMenuServiceImpl` | ✅ `StorefrontCatalogController` | ✅ |
 | **cart** (Cart + CartItem) | ✅ | ✅ | ✅ | ✅ `CartServiceImpl`, `CartItemServiceImpl` | ✅ `CartController` | ✅ |
 | **order** | ✅ | ✅ | ✅ | ✅ `OrderServiceImpl`, `CheckoutServiceImpl`, `OrderStateMachine` | ✅ `OrderController`, `StorefrontOrderController` | ✅ |
 | **payment** | ✅ | ✅ | ✅ | ✅ `OrderPaymentServiceImpl`, `PaymentRefundServiceImpl`, `MercadoPagoOAuthServiceImpl`, `MercadoPagoWebhookServiceImpl` | ✅ `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `MercadoPagoWebhookController`, `StorefrontPaymentController`, `TenantPaymentController` | ✅ |
-| **inventory** | ✅ | ✅ | ✅ | ✅ InventoryItemServiceImpl, InventoryStockServiceImpl, InventoryMovementServiceImpl, ProductIngredientServiceImpl | ✅ InventoryItemController, InventoryStockController, InventoryMovementController, ProductIngredientController | ✅ |
+| **inventory** | 🗑️ Eliminado | — | — | Reemplazado por stock entero directo en `Product` (`catalog`) | — | — |
 
 ### 1.2 Hallazgos críticos detectados
 
@@ -351,32 +351,16 @@ flowchart TD
 
 ---
 
-## Fase 8 — Inventario 📊
+## Fase 8 — Control de Stock Directo en Catálogo (antes Inventario) 📦
 
-> **Depende de:** F4 (catálogo, para la receta opcional), F6 (ventas).
-> Orden interno: **Item → Stock → Movement**, porque el stock referencia al item y el movimiento referencia al stock.
+> **Nota de evolución de arquitectura:** El módulo separado de `inventory` (insumos, existencias, Kardex y recetas) fue **eliminado** y reemplazado por gestión directa de stock entero en la entidad `Product` (`products.stock`), adaptada a productos preparados listos para la venta.
 
-### 8.1 DTOs y mappers
-- [x] Crear `InventoryItemRequest/Response`, `InventoryStockRequest/Response`, `InventoryMovementRequest/Response` + mappers (el módulo no tiene capa `web`).
+- [x] Eliminar módulo `inventory` y tablas `inventory_items`, `inventory_stocks`, `inventory_movements`, `product_ingredients`.
+- [x] Agregar `stock` entero no negativo (`CHECK (stock >= 0)`) en `Product`, `ProductRequest/Response`, `StorefrontProductResponse` y `CartItemResponse.productStock`.
+- [x] Endpoint `PATCH /api/v1/tenants/{tenantId}/products/{productId}/stock` y filtro `inStockOnly` en `GET /products`.
+- [x] Validación de stock en carrito/checkout, descuento atómico con bloqueo pesimista (`FOR UPDATE` ordenado por UUID) en `ProductStockService` al persistir orden aprobada y reposición automática en cancelaciones.
 
-### 8.2 Insumos (`InventoryItem`)
-- [x] `InventoryItemService`: CRUD, SKU único por tenant, activar/desactivar.
-- [x] Controller: `/api/v1/tenants/{tenantId}/inventory/items`.
-
-### 8.3 Existencias (`InventoryStock`)
-- [x] `InventoryStockService`: crear stock por item/ubicación, actualizar `minimumStock`, alertas de stock bajo.
-- [x] Controller: `/api/v1/tenants/{tenantId}/inventory/stocks`.
-
-### 8.4 Movimientos / Kardex (`InventoryMovement`)
-- [x] `InventoryMovementService.register(...)`: **única vía** para modificar `quantity`. Bloqueo pesimista (`SELECT … FOR UPDATE`), calcula `previousQuantity`/`newQuantity`, `performedBy` desde el token, valida stock no negativo.
-- [x] Validar coherencia `movementType` ↔ `reason` (ej. `PURCHASE` solo `ENTRY`).
-- [x] Controller: `POST /inventory/movements`, `GET /inventory/stocks/{id}/kardex` (paginado).
-
-### 8.5 (Opcional) Recetas y descuento automático
-- [x] Nueva tabla `product_ingredients (product_id, inventory_item_id, quantity)` + entidad.
-- [x] Al pasar la orden a `EN_PREPARACION`, registrar movimientos `EXIT / SALE` por cada ingrediente; al cancelar, `ENTRY / CUSTOMER_RETURN`.
-
-**✅ Definición de Hecho F8:** el stock solo cambia mediante movimientos auditables y nunca queda negativo bajo concurrencia.
+**✅ Definición de Hecho F8:** el stock por producto nunca queda negativo bajo concurrencia y se sincroniza automáticamente con órdenes y cancelaciones.
 
 ---
 
@@ -421,7 +405,7 @@ flowchart TD
 
 - [ ] Tests de integración con **Testcontainers** (imagen `postgis/postgis`).
 - [ ] Cobertura mínima (JaCoCo) por módulo.
-- [ ] Colecciones Bruno por módulo (`Store`, `Catalog`, `Cart`, `Order`, `Payment`, `Inventory`, `Subscription`).
+- [ ] Colecciones Bruno por módulo (`Identity`, `Subscription`, `Store`, `Catalog`, `Cart`, `Order`, `Payment`, `Tracking`).
 - [ ] Actualizar `docs/API_DOCUMENTATION.md` y anotaciones OpenAPI de cada controlador nuevo.
 - [ ] `Dockerfile` multi-stage + `docker-compose.yml` (API + PostGIS).
 - [ ] Pipeline CI (GitHub Actions): build, tests, dependency-check.
@@ -440,6 +424,6 @@ flowchart TD
 | 5 | Carrito | CartItem → Cart → `CartController` | 6 |
 | 6 | Órdenes | Checkout, estados, roles, cobertura PostGIS | 7, 8 |
 | 7 | Pagos | OAuth MP, preferencia, webhook, anti-fraude | 9 |
-| 8 | Inventario | Item → Stock → Movement (Kardex) | 9 |
+| 8 | Stock en Catálogo | Stock entero en `Product` + bloqueo pesimista (reemplaza módulo `Inventory`) | 9 |
 | 9 | Hardening | RLS activo, rate limit, JWT robusto | 10 |
 | 10 | Calidad | Testcontainers, CI, Docker, docs | — |

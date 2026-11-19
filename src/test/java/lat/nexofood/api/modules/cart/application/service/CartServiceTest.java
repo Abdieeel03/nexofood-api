@@ -129,6 +129,7 @@ class CartServiceTest {
                 .tenant(tenant)
                 .category(activeCategory)
                 .name("Burger Royal")
+                .stock(10)
                 .isAvailable(true)
                 .prices(new ArrayList<>(List.of(basePrice)))
                 .build();
@@ -315,5 +316,91 @@ class CartServiceTest {
         assertTrue(cleared.items().isEmpty());
         assertEquals(new BigDecimal("0.00"), cleared.total());
         verify(cartItemRepository).deleteAllByCartId(existingCart.getId());
+    }
+
+    @Test
+    @DisplayName("addItem y updateItem: rechazan productos sin stock o cuando la cantidad solicitada supera el stock")
+    void addAndUpdateItemEnforceStockLimits() {
+        UUID itemId = UUID.randomUUID();
+        burger.setStock(3);
+
+        CartItem existingItem = CartItem.builder()
+                .id(itemId)
+                .tenant(tenant)
+                .product(burger)
+                .quantity(2)
+                .unitPrice(new BigDecimal("25.00"))
+                .subtotal(new BigDecimal("50.00"))
+                .build();
+        Cart existingCart = Cart.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .customer(customer)
+                .items(new ArrayList<>(List.of(existingItem)))
+                .build();
+        existingItem.setCart(existingCart);
+
+        when(currentCustomerResolver.resolveBySlug("burger-bros")).thenReturn(customer);
+        when(cartRepository.findByTenantIdAndCustomerUserId(tenant.getId(), user.getId()))
+                .thenReturn(Optional.of(existingCart));
+        when(productRepository.findByIdAndTenantId(burger.getId(), tenant.getId()))
+                .thenReturn(Optional.of(burger));
+
+        // Ya tiene 2 en carrito y quiere sumar 2 más (total 4 > stock 3)
+        BadRequestException addEx = assertThrows(BadRequestException.class, () ->
+                cartService.addItem("burger-bros", CartItemRequest.builder().productId(burger.getId()).quantity(2).build())
+        );
+        assertTrue(addEx.getMessage().contains("Stock insuficiente"));
+
+        // Intentar actualizar cantidad a 4 (> stock 3)
+        BadRequestException updEx = assertThrows(BadRequestException.class, () ->
+                cartService.updateItem("burger-bros", itemId, CartItemUpdateRequest.builder().quantity(4).build())
+        );
+        assertTrue(updEx.getMessage().contains("Stock insuficiente"));
+
+        // Si el stock llega a 0, rechaza agregar como agotado
+        burger.setStock(0);
+        BadRequestException emptyEx = assertThrows(BadRequestException.class, () ->
+                cartService.addItem("burger-bros", CartItemRequest.builder().productId(burger.getId()).quantity(1).build())
+        );
+        assertTrue(emptyEx.getMessage().contains("agotado"));
+    }
+
+    @Test
+    @DisplayName("getMyCart: marca hasUnavailableItems y genera warnings si el stock cayó por debajo de la cantidad o a 0")
+    void getMyCartReportsStockWarnings() {
+        burger.setStock(1);
+        CartItem item = CartItem.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .product(burger)
+                .quantity(3)
+                .unitPrice(new BigDecimal("25.00"))
+                .subtotal(new BigDecimal("75.00"))
+                .build();
+        Cart existingCart = Cart.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .customer(customer)
+                .items(new ArrayList<>(List.of(item)))
+                .build();
+        item.setCart(existingCart);
+
+        when(currentCustomerResolver.resolveBySlug("burger-bros")).thenReturn(customer);
+        when(cartRepository.findByTenantIdAndCustomerUserId(tenant.getId(), user.getId()))
+                .thenReturn(Optional.of(existingCart));
+
+        CartResponse responseInsufficient = cartService.getMyCart("burger-bros");
+        assertTrue(responseInsufficient.hasUnavailableItems());
+        assertFalse(responseInsufficient.items().getFirst().productAvailable());
+        assertEquals(1, responseInsufficient.items().getFirst().productStock());
+        assertTrue(responseInsufficient.warnings().stream().anyMatch(w -> w.contains("Stock insuficiente")));
+
+        burger.setStock(0);
+        CartResponse responseZero = cartService.getMyCart("burger-bros");
+        assertTrue(responseZero.hasUnavailableItems());
+        assertFalse(responseZero.items().getFirst().productAvailable());
+        assertEquals(0, responseZero.items().getFirst().productStock());
+        assertTrue(responseZero.warnings().stream().anyMatch(w -> w.contains("agotado")));
     }
 }
