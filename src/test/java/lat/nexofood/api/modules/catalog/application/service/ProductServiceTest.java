@@ -295,4 +295,31 @@ class ProductServiceTest {
         assertEquals(15, pageResponse.content().getFirst().stock());
         verify(productRepository).findAll(any(Specification.class), eq(pageable));
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("findAllByTenant paginado: cuando ordena por price, despoja el sort de Pageable para evitar PropertyReferenceException")
+    void findPaginatedProductsSortedByPriceStripsPriceSortFromPageable() {
+        Pageable requestedPageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.by("price").ascending());
+        Pageable expectedPageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.unsorted());
+
+        Product product = Product.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .name("Cheeseburger")
+                .stock(15)
+                .isAvailable(true)
+                .prices(List.of(ProductPrice.builder().name("Base").price(new BigDecimal("19.00")).isBase(true).isActive(true).build()))
+                .build();
+
+        when(productRepository.findAll(any(Specification.class), eq(expectedPageable)))
+                .thenReturn(new PageImpl<>(List.of(product), expectedPageable, 1));
+
+        PageResponse<ProductResponse> pageResponse = productService.findAllByTenant(
+                tenantId, null, null, null, requestedPageable
+        );
+
+        assertEquals(1, pageResponse.totalElements());
+        verify(productRepository).findAll(any(Specification.class), eq(expectedPageable));
+    }
 }
