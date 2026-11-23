@@ -1,0 +1,36 @@
+meta {
+  name: 24 - Admin - Listar Todas las Tiendas (SUPERADMIN)
+  type: http
+  seq: 24
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/tenants?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+  ~isActive: true
+  ~isOpen: true
+  ~search: pizzeria
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK (SUPERADMIN)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna PageResponse de todas las tiendas", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.content).to.be.an('array');
+    expect(body.data.totalElements).to.be.a('number');
+  });
+}

@@ -2,6 +2,7 @@ package lat.nexofood.api.modules.store.infrastructure.repository;
 
 import lat.nexofood.api.modules.store.domain.Tenant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
@@ -10,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface TenantRepository extends JpaRepository<Tenant, UUID> {
+public interface TenantRepository extends JpaRepository<Tenant, UUID>, JpaSpecificationExecutor<Tenant> {
 
     Optional<Tenant> findBySlug(String slug);
 
@@ -25,4 +26,6 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     Optional<Tenant> findByMpUserId(String mpUserId);
 
     List<Tenant> findAllByMpRefreshTokenIsNotNullAndMpTokenExpiresAtBefore(OffsetDateTime threshold);
+
+    List<Tenant> findAllByIsActiveTrueAndOpeningTimeIsNotNullAndClosingTimeIsNotNull();
 }

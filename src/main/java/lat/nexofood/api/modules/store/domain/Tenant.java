@@ -24,6 +24,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.locationtech.jts.geom.Point;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -115,7 +116,42 @@ public class Tenant extends BaseEntity {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "opening_time")
+    private LocalTime openingTime;
+
+    @Column(name = "closing_time")
+    private LocalTime closingTime;
+
+    @Column(name = "is_open", nullable = false)
+    @Builder.Default
+    private Boolean isOpen = true;
+
     public boolean isMercadoPagoConnected() {
         return mpAccessToken != null && !mpAccessToken.isBlank();
+    }
+
+    public boolean isWithinOperatingHours(LocalTime currentTime) {
+        if (Boolean.FALSE.equals(isActive)) {
+            return false;
+        }
+        if (openingTime == null || closingTime == null || currentTime == null) {
+            return !Boolean.FALSE.equals(isOpen);
+        }
+        if (openingTime.equals(closingTime)) {
+            return true;
+        }
+        if (openingTime.isBefore(closingTime)) {
+            return !currentTime.isBefore(openingTime) && currentTime.isBefore(closingTime);
+        }
+        return !currentTime.isBefore(openingTime) || currentTime.isBefore(closingTime);
+    }
+
+    public boolean syncOpenStatusWithSchedule(LocalTime currentTime) {
+        boolean shouldBeOpen = isWithinOperatingHours(currentTime);
+        if (!Boolean.valueOf(shouldBeOpen).equals(isOpen)) {
+            this.isOpen = shouldBeOpen;
+            return true;
+        }
+        return false;
     }
 }

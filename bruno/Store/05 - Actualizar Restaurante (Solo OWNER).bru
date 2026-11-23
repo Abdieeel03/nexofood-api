@@ -29,7 +29,9 @@ body:json {
     "longitude": -77.0290,
     "deliveryRadiusKm": 6.50,
     "defaultDeliveryFee": 5.00,
-    "isActive": true
+    "isActive": true,
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00"
   }
 }
 
@@ -41,5 +43,7 @@ tests {
   test("Datos del restaurante actualizados", function() {
     const data = res.getBody().data;
     expect(data.name).to.equal("Pizzería Don Mario - Sede Principal");
+    expect(data.openingTime).to.include("09:00");
+    expect(data.closingTime).to.include("23:00");
   });
 }

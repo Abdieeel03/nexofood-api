@@ -4,7 +4,8 @@ import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
 import lat.nexofood.api.modules.catalog.domain.Product;
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
+import lat.nexofood.api.modules.notification.application.service.NotificationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,10 +16,23 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class ProductStockServiceImpl implements ProductStockService {
 
     private final ProductRepository productRepository;
+    private final NotificationService notificationService;
+
+    @Autowired
+    public ProductStockServiceImpl(
+            ProductRepository productRepository,
+            @Autowired(required = false) NotificationService notificationService
+    ) {
+        this.productRepository = productRepository;
+        this.notificationService = notificationService;
+    }
+
+    public ProductStockServiceImpl(ProductRepository productRepository) {
+        this(productRepository, null);
+    }
 
     @Override
     @CacheEvict(value = "storefront_menu", allEntries = true)
@@ -47,7 +61,10 @@ public class ProductStockServiceImpl implements ProductStockService {
             }
 
             product.decreaseStock(quantity);
-            productRepository.save(product);
+            Product savedProduct = productRepository.save(product);
+            if (notificationService != null) {
+                notificationService.checkAndNotifyProductStock(savedProduct != null ? savedProduct : product);
+            }
         }
     }
 

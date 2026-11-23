@@ -3,7 +3,7 @@
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial · Caffeine Cache · Bucket4j  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-11-18  
+> **Última actualización:** 2026-11-22  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -26,14 +26,15 @@
 
 ## 🏪 Arquitectura Multi-Tenant
 
-NexoFood es una plataforma **SaaS multi-tenant** donde cada restaurante es un **Tenant** independiente con su propia marca, catálogo, stock, configuración tributaria, staff, clientes, pedidos, pagos y rastreo geoespacial:
+NexoFood es una plataforma **SaaS multi-tenant** donde cada restaurante es un **Tenant** independiente con su propia marca, horarios de atención, catálogo, stock, configuración tributaria, staff, clientes, pedidos, pagos y rastreo geoespacial:
 
 ```text
 Usuario (User)
+  ├── Notificaciones (Notifications: invitaciones, alertas de stock/horarios/suscripción y pedidos)
   └── Suscripción (Subscription) ← vinculada a un Plan SaaS (SubscriptionPlan)
-        └── Tenant (Restaurante) ← relación 1:1 con suscripción y propietario (owner)
+        └── Tenant (Restaurante) ← relación 1:1 con suscripción y propietario (owner) + horario (openingTime/closingTime, isOpen)
               ├── Impuestos (Taxes: IGV 18%, Exonerado 0%, inclusivos o exclusivos)
-              ├── Equipo / Staff (TenantMembers: OWNER, ADMIN, COCINERO, REPARTIDOR)
+              ├── Equipo / Staff (TenantMembers + TenantInvitations por correo: OWNER, ADMIN, COCINERO, REPARTIDOR)
               ├── Clientes de Tienda (TenantCustomer: puntos de lealtad, bloqueo, notas)
               ├── Catálogo: Categorías → Productos (stock directo) → Reglas de Precio/Promociones
               ├── Carritos (1 único carrito por combinación tenant + customer)
@@ -44,12 +45,14 @@ Usuario (User)
 
 ### Reglas Multi-Tenant Clave para el Frontend
 
-1. **Cada restaurante es un `Tenant`** con su propio catálogo (incluyendo stock por producto), pedidos, pagos y staff.
+1. **Cada restaurante es un `Tenant`** con su propio catálogo (incluyendo stock por producto), horarios, pedidos, pagos y staff.
 2. **Un usuario puede ser dueño (`OWNER`) de un solo tenant** (relación 1 a 1 estricta) y requiere una suscripción vigente (`TRIAL` o `ACTIVE`) para crearlo.
 3. **Los productos, categorías e impuestos pertenecen a un tenant específico.** Los endpoints de backoffice operan bajo `/api/v1/tenants/{tenantId}/...`, mientras que el storefront público y de comensales opera bajo `/api/v1/store/{slug}/...`.
 4. **Los carritos son únicos por combinación `(tenant, customer)`** — un cliente tiene un carrito independiente por cada restaurante.
 5. **Los pedidos `DELIVERY` validan cobertura geoespacial (PostGIS WGS84 / SRID 4326)** — si la dirección del cliente excede `deliveryRadiusKm` del restaurante, el servidor rechaza el checkout con `400 Bad Request`.
 6. **Guardia Anti-Fraude en Cocina:** Un pedido no puede pasar de `PENDIENTE` a `EN_PREPARACION` sin un pago confirmado (`APPROVED`).
+7. **Horarios de Atención y Cierre Automático:** Un restaurante puede definir `openingTime` y `closingTime`; el scheduler automático actualiza `isOpen` y emite alertas previas (`STORE_OPENING_SOON`, `STORE_CLOSING_SOON`). Si el local está cerrado (`isOpen = false` o fuera de horario), cualquier intento de checkout o creación de pedido se rechaza con `400 Bad Request`.
+8. **Invitaciones por Correo y Notificaciones Cross-Tenant:** Invitar personal por `email` crea una `TenantInvitation` en estado `PENDING` y notifica al usuario (`STAFF_INVITATION`); la membresía `TenantMember` se crea únicamente cuando el usuario responde `ACCEPT`. Las notificaciones e invitaciones del usuario se consultan de forma global entre tiendas bajo `/api/v1/notifications` y `/api/v1/invitations`.
 
 ---
 
@@ -171,17 +174,18 @@ Todos los módulos principales de la v1 se encuentran **activos y operativos**:
 | --- | --- | --- | --- |
 | 1 | **Identity** | ✅ Activo | `AuthController`, `UserController`, `CustomerAddressController`, `AdminUserController` |
 | 2 | **Subscription** | ✅ Activo | `SubscriptionPlanController`, `AdminSubscriptionPlanController`, `SubscriptionController` |
-| 3 | **Tenant / Store** | ✅ Activo | `TenantController`, `TenantMemberController`, `TenantCustomerController`, `StoreAuthController` |
+| 3 | **Tenant / Store** | ✅ Activo | `TenantController`, `AdminTenantController`, `TenantMemberController`, `TenantInvitationController`, `TenantCustomerController`, `StoreAuthController` |
 | 4 | **Catalog** | ✅ Activo | `TaxController`, `CategoryController`, `ProductController`, `ProductPriceController`, `StorefrontCatalogController` |
 | 5 | **Cart** | ✅ Activo | `CartController` |
 | 6 | **Order** | ✅ Activo | `StorefrontOrderController`, `OrderController` |
 | 7 | **Payment** | ✅ Activo | `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `StorefrontPaymentController`, `TenantPaymentController`, `MercadoPagoWebhookController` |
 | 8 | **Tracking** | ✅ Activo | `StorefrontTrackingController`, `DeliveryTrackingController` |
+| 9 | **Notification** | ✅ Activo | `NotificationController` |
 
 > **🔮 Preparados internamente / No expuestos como endpoints REST aún:**
 > - **Creación directa de órdenes sin carrito (`OrderCreateRequest` / `OrderItemRequest`):** Existen en el código para uso interno del flujo de checkout y pruebas, pero el flujo público de compra se realiza exclusivamente vía `POST /api/v1/store/{slug}/orders/checkout`.
 > - **Actualización combinada de cliente (`TenantCustomerUpdateRequest`):** Existe en el paquete DTO del módulo `store`, pero actualmente las mutaciones se exponen separadas en `/block`, `/notes` y `/points`.
-> - **Búsqueda global / marketplace de restaurantes:** No existe listado público de todos los tenants; el acceso al storefront es directo por `slug`.
+> - **Búsqueda global pública / marketplace de restaurantes:** El listado paginado de todas las tiendas (`GET /api/v1/admin/tenants` o `/api/v1/admin/stores`) es exclusivo para `SUPERADMIN`; en el storefront público el acceso sigue siendo directo por `slug`.
 
 ---
 
@@ -1693,9 +1697,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
-## 3. Tenant / Store — Restaurantes, Staff, Clientes y Storefront Auth
+## 3. Tenant / Store — Restaurantes, Staff, Invitaciones, Clientes y Storefront Auth
 
-> **🏪 Multi-Tenant:** Este módulo administra cada restaurante (`Tenant`), su equipo operativo (`TenantMember`), sus clientes fidelizados (`TenantCustomer`) y la autenticación contextual del storefront (`/api/v1/store/{tenantSlug}/auth/**`). El `tenantId` se obtiene desde `GET /api/v1/tenants/me` o desde `staffMemberships` del login.
+> **🏪 Multi-Tenant:** Este módulo administra cada restaurante (`Tenant`) con sus horarios de atención (`openingTime`, `closingTime`, `isOpen`), el listado global para `SUPERADMIN` (`AdminTenantController`), el equipo operativo (`TenantMemberController`), las invitaciones por correo (`TenantInvitationController`), sus clientes fidelizados (`TenantCustomerController`) y la autenticación contextual del storefront (`StoreAuthController`). El `tenantId` se obtiene desde `GET /api/v1/tenants/me` o desde `staffMemberships` del login.
 
 ---
 
@@ -1736,8 +1740,11 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "mpConnectedAt": null,
     "mpTokenExpiresAt": null,
     "isActive": true,
-    "createdAt": "2026-11-18T14:00:00Z",
-    "updatedAt": "2026-11-18T14:00:00Z"
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
+    "createdAt": "2026-11-22T14:00:00Z",
+    "updatedAt": "2026-11-22T14:00:00Z"
   }
 }
 ```
@@ -1748,7 +1755,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "No tienes ninguna tienda asociada",
   "error": "NOT_FOUND",
   "status": 404,
-  "timestamp": "2026-11-18T14:00:00",
+  "timestamp": "2026-11-22T14:00:00",
   "path": "/api/v1/tenants/me",
   "method": "GET"
 }
@@ -1799,8 +1806,11 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "mpConnectedAt": "2026-11-10T10:00:00Z",
     "mpTokenExpiresAt": "2027-05-09T10:00:00Z",
     "isActive": true,
-    "createdAt": "2026-11-18T14:00:00Z",
-    "updatedAt": "2026-11-18T14:00:00Z"
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
+    "createdAt": "2026-11-22T14:00:00Z",
+    "updatedAt": "2026-11-22T14:00:00Z"
   }
 }
 ```
@@ -1811,7 +1821,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "Restaurante no encontrado",
   "error": "NOT_FOUND",
   "status": 404,
-  "timestamp": "2026-11-18T14:00:00",
+  "timestamp": "2026-11-22T14:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890",
   "method": "GET"
 }
@@ -1821,7 +1831,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### GET `/api/v1/tenants/slug/{slug}`
 
-> Obtiene la información pública de un restaurante mediante su `slug` único (usado por el storefront para cargar cabecera, ubicación, radio de entrega y disponibilidad de pagos online).
+> Obtiene la información pública de un restaurante mediante su `slug` único (usado por el storefront para cargar cabecera, ubicación, radio de entrega, horario, estado abierto/cerrado `isOpen` y disponibilidad de pagos online).
 
 **Autenticación:** No requerida (Público)  
 **Rol requerido:** Ninguno  
@@ -1862,8 +1872,11 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "mpConnectedAt": "2026-11-10T10:00:00Z",
     "mpTokenExpiresAt": "2027-05-09T10:00:00Z",
     "isActive": true,
-    "createdAt": "2026-11-18T14:00:00Z",
-    "updatedAt": "2026-11-18T14:00:00Z"
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
+    "createdAt": "2026-11-22T14:00:00Z",
+    "updatedAt": "2026-11-22T14:00:00Z"
   }
 }
 ```
@@ -1874,7 +1887,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "Restaurante no encontrado con slug: burger-bros",
   "error": "NOT_FOUND",
   "status": 404,
-  "timestamp": "2026-11-18T14:00:00",
+  "timestamp": "2026-11-22T14:00:00",
   "path": "/api/v1/tenants/slug/burger-bros",
   "method": "GET"
 }
@@ -1884,7 +1897,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### POST `/api/v1/tenants`
 
-> Registra un nuevo restaurante asignando como propietario (`OWNER`) al usuario autenticado y creando automáticamente su membresía de staff. Si se omite `subscriptionId`, vincula automáticamente la suscripción vigente (`TRIAL` o `ACTIVE`) del usuario.
+> Registra un nuevo restaurante asignando como propietario (`OWNER`) al usuario autenticado y creando automáticamente su membresía de staff. Si se omite `subscriptionId`, vincula automáticamente la suscripción vigente (`TRIAL` o `ACTIVE`) del usuario. Si se configuran `openingTime` y `closingTime`, el estado inicial `isOpen` se calcula automáticamente según la hora actual (incluyendo horarios nocturnos como `18:00:00`–`02:00:00` o `24h` cuando `openingTime == closingTime`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Cualquiera autenticado con suscripción vigente (`TRIAL` o `ACTIVE`) y sin restaurante propio  
@@ -1907,6 +1920,8 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `longitude` | Double | No | `-180.0` a `180.0` | Longitud del local (WGS84) |
 | `deliveryRadiusKm` | BigDecimal | No | `0.00` a `100.00` (default: `5.00`) | Radio máximo de cobertura en km |
 | `defaultDeliveryFee` | BigDecimal | No | `0.00` a `1000.00` (default: `0.00`) | Costo estándar de delivery |
+| `openingTime` | string (`LocalTime`) | No | Formato ISO `HH:mm:ss` o `HH:mm` | Hora de apertura del restaurante |
+| `closingTime` | string (`LocalTime`) | No | Formato ISO `HH:mm:ss` o `HH:mm` | Hora de cierre del restaurante (puede ser menor a `openingTime` para horario nocturno) |
 
 **Ejemplo de request:**
 ```json
@@ -1920,7 +1935,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "latitude": -12.121543,
   "longitude": -77.028941,
   "deliveryRadiusKm": 6.50,
-  "defaultDeliveryFee": 5.00
+  "defaultDeliveryFee": 5.00,
+  "openingTime": "09:00:00",
+  "closingTime": "23:00:00"
 }
 ```
 
@@ -1951,8 +1968,11 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "mpConnectedAt": null,
     "mpTokenExpiresAt": null,
     "isActive": true,
-    "createdAt": "2026-11-18T14:00:00Z",
-    "updatedAt": "2026-11-18T14:00:00Z"
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
+    "createdAt": "2026-11-22T14:00:00Z",
+    "updatedAt": "2026-11-22T14:00:00Z"
   }
 }
 ```
@@ -1963,7 +1983,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "No cuentas con una suscripción vigente para crear un restaurante",
   "error": "BAD_REQUEST",
   "status": 400,
-  "timestamp": "2026-11-18T14:00:00",
+  "timestamp": "2026-11-22T14:00:00",
   "path": "/api/v1/tenants",
   "method": "POST"
 }
@@ -1973,7 +1993,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### PUT `/api/v1/tenants/{id}`
 
-> Actualiza los datos comerciales y operativos del restaurante. Solo sobrescribe los campos enviados no nulos (las coordenadas solo se actualizan si se envían `latitude` y `longitude` juntos). Invalida las cachés del storefront.
+> Actualiza los datos comerciales, horarios y estado abierto/cerrado del restaurante. Solo sobrescribe los campos enviados no nulos (las coordenadas solo se actualizan si se envían `latitude` y `longitude` juntos). Si tiene horario configurado (`openingTime` y `closingTime`) y se omite `isOpen`, sincroniza automáticamente `isOpen` con la hora actual (y si está fuera de horario, fuerza `isOpen = false`). Invalida las cachés `storefront_menu` y `storefront_categories`.
+>
+> **⏰ Automatización (`StoreScheduleScheduler`):** Cada minuto (`app.store.schedule-cron`, default `0 * * * * *`), el backend evalúa las tiendas activas con horario configurado: marca `isOpen = false` automáticamente al pasar `closingTime` (emitiendo `STORE_AUTO_CLOSED` a `OWNER` y `ADMIN`), marca `isOpen = true` al iniciar `openingTime` (emitiendo `STORE_AUTO_OPENED` a `OWNER` y `ADMIN`) y envía avisos preventivos (`STORE_OPENING_SOON` / `STORE_CLOSING_SOON`) con `15` minutos de anticipación por defecto (`app.notifications.store-schedule-warning-minutes`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER` del restaurante o `SUPERADMIN`  
@@ -2001,13 +2023,18 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `deliveryRadiusKm` | BigDecimal | No | `0.00` a `100.00` | Radio de cobertura (km) |
 | `defaultDeliveryFee` | BigDecimal | No | `0.00` a `1000.00` | Tarifa estándar de envío |
 | `isActive` | boolean | No | — | Estado operativo |
+| `openingTime` | string (`LocalTime`) | No | Formato ISO `HH:mm:ss` o `HH:mm` | Hora de apertura |
+| `closingTime` | string (`LocalTime`) | No | Formato ISO `HH:mm:ss` o `HH:mm` | Hora de cierre |
+| `isOpen` | boolean | No | — | Estado abierto/cerrado manual (si hay horario y está fuera de rango, el servidor fuerza `false`) |
 
 **Ejemplo de request:**
 ```json
 {
   "name": "Burger Bros Gourmet",
   "deliveryRadiusKm": 7.00,
-  "defaultDeliveryFee": 6.00
+  "defaultDeliveryFee": 6.00,
+  "openingTime": "09:00:00",
+  "closingTime": "23:00:00"
 }
 ```
 
@@ -2038,8 +2065,11 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "mpConnectedAt": null,
     "mpTokenExpiresAt": null,
     "isActive": true,
-    "createdAt": "2026-11-18T14:00:00Z",
-    "updatedAt": "2026-11-18T15:00:00Z"
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
+    "createdAt": "2026-11-22T14:00:00Z",
+    "updatedAt": "2026-11-22T15:00:00Z"
   }
 }
 ```
@@ -2050,7 +2080,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "Acceso denegado: no tiene permisos para realizar esta operación",
   "error": "FORBIDDEN",
   "status": 403,
-  "timestamp": "2026-11-18T15:00:00",
+  "timestamp": "2026-11-22T15:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890",
   "method": null
 }
@@ -2104,7 +2134,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "Restaurante no encontrado",
   "error": "NOT_FOUND",
   "status": 404,
-  "timestamp": "2026-11-18T15:00:00",
+  "timestamp": "2026-11-22T15:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/status",
   "method": "PATCH"
 }
@@ -2112,9 +2142,92 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
+### 🛡️ Administración Global de Restaurantes (`AdminTenantController`)
+
+#### GET `/api/v1/admin/tenants` *(alias: `/api/v1/admin/stores`)*
+
+> Lista de forma paginada todos los restaurantes registrados en la plataforma para supervisión global de `SUPERADMIN`. Permite filtrar por estado activo (`isActive`), estado efectivo abierto/cerrado (`isOpen`, considerando horarios configurados) y búsqueda parcial insensible a mayúsculas en `name` o `slug`.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `isActive` | boolean | No | Filtra por tiendas activas (`true`) o inactivas (`false`) |
+| `isOpen` | boolean | No | Filtra por estado efectivo abierto (`true`) o cerrado (`false`) evaluando `isActive`, `openingTime`/`closingTime` (o `isOpen` si no hay horario) |
+| `search` | string | No | Coincidencia parcial case-insensitive en `name` o `slug` |
+| `page` | integer | No | Número de página 0-indexed (default: `0`) |
+| `size` | integer | No | Elementos por página (default: `20`) |
+| `sort` | string | No | Ordenamiento (ej. `createdAt,desc` o `name,asc`) |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<PageResponse<TenantResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Tiendas obtenidas exitosamente",
+  "data": {
+    "content": [
+      {
+        "id": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+        "subscriptionId": "d1a2c3d4-e5f6-7890-abcd-ef1234567890",
+        "ownerId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "name": "Burger Bros",
+        "slug": "burger-bros",
+        "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
+        "bannerUrl": "https://storage.nexofood.lat/banners/burger.png",
+        "phone": "+51987654321",
+        "address": "Av. Larco 456, Miraflores",
+        "latitude": -12.121543,
+        "longitude": -77.028941,
+        "deliveryRadiusKm": 6.50,
+        "defaultDeliveryFee": 5.00,
+        "isMpConnected": true,
+        "onlinePaymentsEnabled": true,
+        "mpUserId": "123456789",
+        "mpConnectedAt": "2026-11-10T10:00:00Z",
+        "mpTokenExpiresAt": "2027-05-09T10:00:00Z",
+        "isActive": true,
+        "openingTime": "09:00:00",
+        "closingTime": "23:00:00",
+        "isOpen": true,
+        "createdAt": "2026-11-22T14:00:00Z",
+        "updatedAt": "2026-11-22T14:00:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true
+  }
+}
+```
+
+**Error (`401` | `403`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "Acceso denegado: no tiene permisos para realizar esta operación",
+  "error": "FORBIDDEN",
+  "status": 403,
+  "timestamp": "2026-11-22T14:00:00",
+  "path": "/api/v1/admin/tenants",
+  "method": null
+}
+```
+
+---
+
 ### 👥 Equipo / Staff (`TenantMemberController`)
 
-> **🏪 Multi-Tenant:** Estos endpoints operan en el contexto de un restaurante específico (`tenantId`). Solo `OWNER` (o `SUPERADMIN`) puede agregar, modificar o desvincular administradores (`ADMIN`). Nadie puede modificar ni desvincular al `OWNER`.
+> **🏪 Multi-Tenant:** Estos endpoints operan en el contexto de un restaurante específico (`tenantId`). Solo `OWNER` (o `SUPERADMIN`) puede invitar, modificar o desvincular administradores (`ADMIN`). Nadie puede modificar ni desvincular al `OWNER`. Invitar a un miembro crea una invitación pendiente (`PENDING`) por correo electrónico y envía una notificación `STAFF_INVITATION`; la membresía `TenantMember` se crea únicamente cuando el usuario invitado acepta la invitación.
 
 #### GET `/api/v1/tenants/{tenantId}/members`
 
@@ -2148,8 +2261,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
       "userEmail": "carlos@ejemplo.com",
       "role": "OWNER",
       "isActive": true,
-      "createdAt": "2026-11-18T14:00:00Z",
-      "updatedAt": "2026-11-18T14:00:00Z"
+      "createdAt": "2026-11-22T14:00:00Z",
+      "updatedAt": "2026-11-22T14:00:00Z",
+      "invitationStatus": null
     }
   ]
 }
@@ -2161,7 +2275,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "Restaurante no encontrado",
   "error": "NOT_FOUND",
   "status": 404,
-  "timestamp": "2026-11-18T14:00:00",
+  "timestamp": "2026-11-22T14:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/members",
   "method": "GET"
 }
@@ -2169,9 +2283,69 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
+#### GET `/api/v1/tenants/{tenantId}/members/invitations`
+
+> Lista las invitaciones enviadas por el restaurante, con filtro opcional por estado (`PENDING`, `ACCEPTED`, `REJECTED`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `tenantId` | UUID | Sí | ID del restaurante |
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `status` | string (`TenantInvitationStatus`) | No | Filtra por `PENDING`, `ACCEPTED` o `REJECTED` |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<List<TenantMemberResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Invitaciones obtenidas exitosamente",
+  "data": [
+    {
+      "id": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+      "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+      "userFullName": "Ana Gómez",
+      "userEmail": "ana@ejemplo.com",
+      "role": "COCINERO",
+      "isActive": false,
+      "createdAt": "2026-11-22T14:30:00Z",
+      "updatedAt": "2026-11-22T14:30:00Z",
+      "invitationStatus": "PENDING"
+    }
+  ]
+}
+```
+
+**Error (`400` | `401` | `403`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "Acceso denegado: no tiene permisos para realizar esta operación",
+  "error": "FORBIDDEN",
+  "status": 403,
+  "timestamp": "2026-11-22T14:30:00",
+  "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/members/invitations",
+  "method": null
+}
+```
+
+---
+
 #### POST `/api/v1/tenants/{tenantId}/members`
 
-> Agrega un usuario global existente como empleado del restaurante con un rol operativo.
+> Envía una invitación a un usuario global registrado buscándolo por su correo electrónico (`email`, cualquier correo válido sin restricción de dominio/proveedor) para unirse al staff con un rol operativo. Crea una `TenantInvitation` en estado `PENDING` **sin** agregar todavía al `TenantMember` y genera una notificación accionable `STAFF_INVITATION` para que el usuario invitado responda `ACCEPT` o `REJECT`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER`, `ADMIN` (solo para `COCINERO`/`REPARTIDOR`) o `SUPERADMIN`  
@@ -2189,13 +2363,13 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 | Campo | Tipo | Requerido | Validación | Descripción |
 | --- | --- | --- | --- | --- |
-| `userId` | UUID | Sí | `@NotNull` | ID del usuario global existente |
-| `role` | string | Sí | `OWNER` *(solo SUPERADMIN)*, `ADMIN`, `COCINERO`, `REPARTIDOR` | Rol asignado en el restaurante |
+| `email` | string | Sí | `@NotBlank("El correo electrónico del usuario es obligatorio")`, `@Email("Debe proporcionar un correo electrónico válido")` | Correo electrónico del usuario registrado a invitar |
+| `role` | string | Sí | `@NotNull`, `OWNER` *(solo SUPERADMIN)*, `ADMIN` *(solo OWNER/SUPERADMIN)*, `COCINERO`, `REPARTIDOR` | Rol ofrecido en el restaurante |
 
 **Ejemplo de request:**
 ```json
 {
-  "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "email": "ana@ejemplo.com",
   "role": "COCINERO"
 }
 ```
@@ -2206,17 +2380,18 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 ```json
 {
   "success": true,
-  "message": "Miembro agregado exitosamente",
+  "message": "Invitación enviada exitosamente",
   "data": {
-    "id": "f2a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "id": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
     "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
     "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
     "userFullName": "Ana Gómez",
     "userEmail": "ana@ejemplo.com",
     "role": "COCINERO",
-    "isActive": true,
-    "createdAt": "2026-11-18T14:30:00Z",
-    "updatedAt": "2026-11-18T14:30:00Z"
+    "isActive": false,
+    "createdAt": "2026-11-22T14:30:00Z",
+    "updatedAt": "2026-11-22T14:30:00Z",
+    "invitationStatus": "PENDING"
   }
 }
 ```
@@ -2224,10 +2399,10 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 **Error (`400` | `401` | `403` | `404` | `409`) — Envelope `ErrorResponse`:**
 ```json
 {
-  "message": "El usuario ya es miembro de este restaurante",
+  "message": "Ya existe una invitación pendiente para este usuario en este restaurante",
   "error": "CONFLICT",
   "status": 409,
-  "timestamp": "2026-11-18T14:30:00",
+  "timestamp": "2026-11-22T14:30:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/members",
   "method": "POST"
 }
@@ -2280,8 +2455,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "userEmail": "ana@ejemplo.com",
     "role": "ADMIN",
     "isActive": true,
-    "createdAt": "2026-11-18T14:30:00Z",
-    "updatedAt": "2026-11-18T15:00:00Z"
+    "createdAt": "2026-11-22T14:30:00Z",
+    "updatedAt": "2026-11-22T15:00:00Z",
+    "invitationStatus": null
   }
 }
 ```
@@ -2292,7 +2468,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "No se puede modificar el rol del propietario (OWNER) del restaurante",
   "error": "FORBIDDEN",
   "status": 403,
-  "timestamp": "2026-11-18T15:00:00",
+  "timestamp": "2026-11-22T15:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/members/f1a2c3d4-e5f6-7890-abcd-ef1234567890/role",
   "method": "PATCH"
 }
@@ -2334,9 +2510,128 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "message": "El propietario (OWNER) no puede ser desvinculado del restaurante",
   "error": "FORBIDDEN",
   "status": 403,
-  "timestamp": "2026-11-18T15:00:00",
+  "timestamp": "2026-11-22T15:00:00",
   "path": "/api/v1/tenants/e1a2c3d4-e5f6-7890-abcd-ef1234567890/members/f1a2c3d4-e5f6-7890-abcd-ef1234567890",
   "method": "DELETE"
+}
+```
+
+---
+
+### ✉️ Invitaciones del Usuario Autenticado (`TenantInvitationController`)
+
+> Permite al usuario autenticado consultar sus invitaciones pendientes de staff entre múltiples restaurantes y aceptarlas o rechazarlas directamente por `invitationId` (alternativa equivalente a responder desde `POST /api/v1/notifications/{id}/respond`; ambos flujos sincronizan el estado de la invitación y la notificación).
+
+#### GET `/api/v1/invitations`
+
+> Lista las invitaciones en estado `PENDING` recibidas por el usuario autenticado, ordenadas de más reciente a más antigua.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type:** `application/json`
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<List<TenantMemberResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Invitaciones obtenidas exitosamente",
+  "data": [
+    {
+      "id": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+      "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+      "userFullName": "Ana Gómez",
+      "userEmail": "ana@ejemplo.com",
+      "role": "COCINERO",
+      "isActive": false,
+      "createdAt": "2026-11-22T14:30:00Z",
+      "updatedAt": "2026-11-22T14:30:00Z",
+      "invitationStatus": "PENDING"
+    }
+  ]
+}
+```
+
+**Error (`401`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "No autorizado: token inválido, expirado o ausente",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-22T14:30:00",
+  "path": "/api/v1/invitations",
+  "method": null
+}
+```
+
+---
+
+#### POST `/api/v1/invitations/{invitationId}/respond` *(alias: `PATCH /api/v1/invitations/{invitationId}/respond`)*
+
+> Acepta o rechaza una invitación pendiente del usuario autenticado usando únicamente `"ACCEPT"` o `"REJECT"`.
+> - Si `decision == "ACCEPT"`: marca la invitación como `ACCEPTED`, registra al usuario como `TenantMember` activo (`isActive = true`), sincroniza la notificación `STAFF_INVITATION` asociada y envía una notificación `INVITATION_ACCEPTED` al propietario (`OWNER`) del restaurante.
+> - Si `decision == "REJECT"`: marca la invitación como `REJECTED` sin crear `TenantMember`, sincroniza la notificación `STAFF_INVITATION` asociada y envía una notificación `INVITATION_REJECTED` al propietario (`OWNER`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Usuario destinatario de la invitación  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `invitationId` | UUID | Sí | ID de la invitación (`TenantInvitation.id`) |
+
+**Body (JSON) — `NotificationInvitationDecisionRequest`:**
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `decision` | string (`InvitationActionType`) | Sí | `@NotNull`, únicamente `"ACCEPT"` o `"REJECT"` | Decisión sobre la invitación |
+
+**Ejemplo de request:**
+```json
+{
+  "decision": "ACCEPT"
+}
+```
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<TenantMemberResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Invitación aceptada exitosamente",
+  "data": {
+    "id": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "userId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "userFullName": "Ana Gómez",
+    "userEmail": "ana@ejemplo.com",
+    "role": "COCINERO",
+    "isActive": true,
+    "createdAt": "2026-11-22T14:30:00Z",
+    "updatedAt": "2026-11-22T14:35:00Z",
+    "invitationStatus": "ACCEPTED"
+  }
+}
+```
+
+*(Cuando `decision` es `"REJECT"`, `message` será `"Invitación rechazada exitosamente"`, `isActive` será `false` y `invitationStatus` será `"REJECTED"`.)*
+
+**Error (`400` | `401` | `403` | `404` | `409`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "Esta invitación ya fue respondida",
+  "error": "CONFLICT",
+  "status": 409,
+  "timestamp": "2026-11-22T14:36:00",
+  "path": "/api/v1/invitations/a2b3c4d5-e6f7-8901-abcd-ef1234567890/respond",
+  "method": "POST"
 }
 ```
 
@@ -2877,10 +3172,12 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 ```
 
 > **📝 Notas para el Frontend (Tenant / Store):**
-> - Todos los IDs son **UUID** y las fechas llegan en **ISO 8601**.
+> - Todos los IDs son **UUID** y las fechas llegan en **ISO 8601**. Los horarios de tienda (`openingTime`, `closingTime`) usan `LocalTime` en formato `HH:mm:ss` (ej. `"09:00:00"`).
 > - `GET /api/v1/tenants/me` devuelve `404` cuando un usuario recién registrado aún no crea su restaurante; capturar ese `404` para dirigirlo al flujo de onboarding.
 > - En `GET /api/v1/admin/tenants/{tenantId}/customers`, el objeto `data` usa el formato `Page` de Spring Data (`number`, `size`, `totalElements`, `totalPages`, `content`, `first`, `last`), a diferencia de los demás endpoints paginados que usan `PageResponse` (`page` en lugar de `number`).
-> - Al consumir `GET /api/v1/tenants/slug/{slug}`, verificar el campo `isActive` antes de permitir compras en el storefront.
+> - En `GET /api/v1/admin/tenants` (o `/api/v1/admin/stores`), sí se utiliza `PageResponse<TenantResponse>`.
+> - Al consumir `GET /api/v1/tenants/slug/{slug}`, verificar tanto `isActive` como `isOpen` (y mostrar `openingTime`–`closingTime`) antes de permitir compras en el storefront.
+> - Para invitar personal al restaurante (`POST /api/v1/tenants/{tenantId}/members`), enviar el `email` del usuario registrado; el endpoint devuelve la invitación con `isActive: false` e `invitationStatus: "PENDING"` hasta que el invitado responda `ACCEPT`.
 
 ---
 
@@ -3766,7 +4063,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### POST `/api/v1/tenants/{tenantId}/products`
 
-> Crea un nuevo producto con su stock inicial (`stock`, default `0`) y precio base. Valida que la suscripción esté activa y no supere el límite `maxProducts` del plan contratado. Debe definirse **exactamente un precio base activo** (ya sea con el campo `price` o con un elemento `isBase: true` en `prices`).
+> Crea un nuevo producto con su stock inicial (`stock`, default `0`) y precio base. Valida que la suscripción esté activa y no supere el límite `maxProducts` del plan contratado. Debe definirse **exactamente un precio base activo** (ya sea con el campo `price` o con un elemento `isBase: true` en `prices`). Al guardar el producto, evalúa proactivamente el stock: si `stock == 0` dispara `OUT_OF_STOCK` o si `0 < stock <= lowStockThreshold` (`5` por defecto) dispara `LOW_STOCK` hacia `OWNER`, `ADMIN` y `COCINERO`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
@@ -3850,7 +4147,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### PUT `/api/v1/tenants/{tenantId}/products/{productId}`
 
-> Actualiza un producto con bloqueo pesimista (`FOR UPDATE`). Enviar `categoryId: null` o `taxId: null` desasocia la categoría/impuesto. Si se envía `price`, actualiza el precio base. **Nota:** El arreglo `prices` no se procesa en `PUT` (usar `ProductPriceController`).
+> Actualiza un producto con bloqueo pesimista (`FOR UPDATE`). Enviar `categoryId: null` o `taxId: null` desasocia la categoría/impuesto. Si se envía `price`, actualiza el precio base. Si tras guardar el stock es `<= lowStockThreshold` (`5` por defecto), dispara alertas `LOW_STOCK` u `OUT_OF_STOCK` al staff operativo (`OWNER`, `ADMIN`, `COCINERO`). **Nota:** El arreglo `prices` no se procesa en `PUT` (usar `ProductPriceController`).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
@@ -3965,7 +4262,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### PATCH `/api/v1/tenants/{tenantId}/products/{productId}/stock`
 
-> Establece directamente el stock entero disponible de un producto (`stock >= 0`) con bloqueo pesimista (`SELECT ... FOR UPDATE`) e invalida `storefront_menu`.
+> Establece directamente el stock entero disponible de un producto (`stock >= 0`) con bloqueo pesimista (`SELECT ... FOR UPDATE`), invalida `storefront_menu` y evalúa alertas proactivas de inventario (`OUT_OF_STOCK` si `stock == 0`, `LOW_STOCK` si `0 < stock <= lowStockThreshold`, configurado en `5` por defecto).
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
@@ -4352,7 +4649,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### GET `/api/v1/store/{slug}/menu`
 
-> Retorna el menú completo del restaurante activo: categorías activas ordenadas por `sortOrder` con sus productos disponibles, productos sin categoría (`uncategorizedProducts`), precio vigente evaluado en tiempo real, desglose tributario y bandera `onlinePaymentsEnabled`.
+> Retorna el menú completo del restaurante activo: categorías activas ordenadas por `sortOrder` con sus productos disponibles, productos sin categoría (`uncategorizedProducts`), precio vigente evaluado en tiempo real, desglose tributario, horario (`openingTime`, `closingTime`), estado efectivo `isOpen` y bandera `onlinePaymentsEnabled`.
 
 **Autenticación:** No requerida (Público)  
 **Rol requerido:** Ninguno  
@@ -4376,6 +4673,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
     "bannerUrl": "https://storage.nexofood.lat/banners/burger.png",
     "onlinePaymentsEnabled": true,
+    "openingTime": "09:00:00",
+    "closingTime": "23:00:00",
+    "isOpen": true,
     "categories": [
       {
         "id": "c1a2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -4611,8 +4911,10 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 > **📝 Notas para el Frontend (Catalog):**
 > - Todos los IDs son **UUID** y las fechas llegan en **ISO 8601** (`startDate`/`endDate` en `YYYY-MM-DD`, `startTime`/`endTime` en `HH:mm:ss`).
+> - En `StorefrontMenuResponse`, revisar `isOpen` (junto con `openingTime` y `closingTime`) para indicar al cliente si el local está recibiendo pedidos en ese momento.
 > - En `StorefrontProductResponse`, mostrar `finalPrice` al comensal; si `activePromotionName != null` o `price < basePrice`, tachar `basePrice` y resaltar el descuento.
 > - Si `stock === 0`, deshabilitar el botón de agregar al carrito y mostrar la etiqueta "Agotado".
+> - Al crear/actualizar un producto o ajustar su stock, y también al consumirse inventario en pedidos confirmados, el backend dispara automáticamente alertas `LOW_STOCK` / `OUT_OF_STOCK` (`stock <= 5` por defecto).
 > - Al actualizar un producto con `PUT /api/v1/tenants/{tenantId}/products/{productId}`, enviar `categoryId` y `taxId` actuales si no se desean limpiar; gestionar reglas promocionales siempre a través de `/prices`.
 
 ---
@@ -4974,7 +5276,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ## 6. Order — Pedidos, Checkout, KDS y Reparto
 
-> **🏪 Multi-Tenant:** Este módulo gestiona el ciclo de vida de pedidos por restaurante con numeración secuencial (`ORD-000001`), validación de cobertura geográfica (`deliveryRadiusKm`), snapshot tributario inmutable, consumo y reposición atómica de stock (`SELECT ... FOR UPDATE`), máquina de estados por rol (`OrderStateMachine`) y acumulación automática de puntos de lealtad al entregar (`ENTREGADO`).
+> **🏪 Multi-Tenant:** Este módulo gestiona el ciclo de vida de pedidos por restaurante con numeración secuencial (`ORD-000001`), validación de estado abierto/horario de atención (`isOpen`, `openingTime`–`closingTime`), cobertura geográfica (`deliveryRadiusKm`), snapshot tributario inmutable, consumo y reposición atómica de stock (`SELECT ... FOR UPDATE`), máquina de estados por rol (`OrderStateMachine`), notificaciones automáticas (`NEW_ORDER_RECEIVED` y `ORDER_STATUS_CHANGED`) y acumulación automática de puntos de lealtad al entregar (`ENTREGADO`).
 
 ---
 
@@ -5115,9 +5417,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### POST `/api/v1/store/{slug}/orders/checkout`
 
-> Inicia el checkout del carrito activo del cliente en Mercado Pago (Orders API v1 / Checkout Pro). Valida suscripción del restaurante, estado no bloqueado del cliente, cobertura geográfica (`DELIVERY`), disponibilidad y stock suficiente. Congela un borrador (`OrderDraft`) en `Payment` y retorna `checkoutUrl`.
+> Inicia el checkout del carrito activo del cliente en Mercado Pago (Orders API v1 / Checkout Pro). Valida que el restaurante esté activo (`isActive = true`), **abierto** (`isOpen != false` y dentro de `openingTime`–`closingTime` cuando tiene horario configurado; si está cerrado responde `400 Bad Request`), suscripción vigente, estado no bloqueado del cliente, cobertura geográfica (`DELIVERY`), disponibilidad y stock suficiente. Congela un borrador (`OrderDraft`) en `Payment` y retorna `checkoutUrl`.
 >
-> **⚠️ Importante:** La orden (`Order`) NO se persiste ni se vacía el carrito en esta llamada; ambos se ejecutan atómicamente al confirmarse el pago (`APPROVED`) vía webhook o reconciliación. Si el stock se agota durante el pago, se emite reembolso automático.
+> **⚠️ Importante:** La orden (`Order`) NO se persiste ni se vacía el carrito en esta llamada; ambos se ejecutan atómicamente al confirmarse el pago (`APPROVED`) vía webhook o reconciliación. Al persistirse la orden, se consume stock (disparando alertas `LOW_STOCK`/`OUT_OF_STOCK` si corresponde) y se envía automáticamente la notificación `NEW_ORDER_RECEIVED` a `OWNER`, `ADMIN` y `COCINERO`. Si el stock se agota durante el pago, se emite reembolso automático.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Cliente autenticado no bloqueado con carrito no vacío  
@@ -5184,7 +5486,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 #### POST `/api/v1/store/{slug}/orders/{id}/cancel`
 
-> Cancela una orden propia del cliente, ejecuta el reembolso total inmediato en Mercado Pago y restaura el stock de todos los productos. **Solo permitido cuando la orden está en estado `PENDIENTE`**; en cualquier otro estado responde `409 Conflict`.
+> Cancela una orden propia del cliente, ejecuta el reembolso total inmediato en Mercado Pago, restaura el stock de todos los productos y envía una notificación `ORDER_STATUS_CHANGED` al cliente. **Solo permitido cuando la orden está en estado `PENDIENTE`**; en cualquier otro estado responde `409 Conflict`.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Cliente dueño de la orden  
@@ -5427,6 +5729,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 > - `-> EN_CAMINO`: registra `dispatchedAt`, calcula ETA e inicializa `DeliveryTracking`.
 > - `-> ENTREGADO`: registra `deliveredAt`, cierra tracking y suma puntos de lealtad (`max(1, floor(total))`).
 > - `-> CANCELADO`: ejecuta reembolso en Mercado Pago, restaura stock y cierra tracking.
+> - **Notificación al cliente:** Toda transición exitosa envía automáticamente `ORDER_STATUS_CHANGED` al usuario cliente de la orden.
 
 **Autenticación:** Requerida (`Bearer <token>`)  
 **Rol requerido:** Miembro del restaurante autorizado para la transición (`OrderStateMachine`) o `SUPERADMIN`  
@@ -5553,6 +5856,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 > **📝 Notas para el Frontend (Order):**
 > - Todos los IDs son **UUID** y las fechas llegan en **ISO 8601**.
+> - Antes de habilitar el botón de checkout, validar que el restaurante esté abierto (`isOpen === true` en `TenantResponse` / `StorefrontMenuResponse`); si el restaurante cierra o queda fuera de horario antes de confirmar, `POST /checkout` responderá `400 Bad Request` con `"El restaurante '<nombre>' se encuentra cerrado en este momento"`.
 > - En `POST /checkout`, redirigir al usuario a `data.checkoutUrl` y guardar `data.paymentId` para consultar `GET /api/v1/store/{slug}/payments/{paymentId}` al regresar a `/store/{slug}/checkout/result`.
 > - Mostrar el botón de cancelar pedido al cliente **únicamente** cuando `order.status === "PENDIENTE"`.
 > - Las cancelaciones desde backoffice solo están habilitadas en `PENDIENTE` o `EN_PREPARACION`.
@@ -6302,6 +6606,342 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
+## 9. Notification — Notificaciones e Invitaciones Proactivas
+
+> **🔔 Notificaciones Cross-Tenant:** A diferencia de los recursos operativos de un restaurante (`Tenant`), las notificaciones pertenecen directamente al usuario (`recipient_user_id`), por lo que el usuario recibe en un único buzón centralizado (`/api/v1/notifications`) tanto sus invitaciones a distintos restaurantes como alertas operativas (stock, horarios, suscripciones) y actualizaciones de pedidos en los que participa.
+
+---
+
+### 📬 Bandeja de Notificaciones (`NotificationController`)
+
+#### GET `/api/v1/notifications`
+
+> Lista de forma paginada las notificaciones del usuario autenticado, ordenadas de más reciente a más antigua (`createdAt DESC`). Permite filtrar por notificaciones no leídas (`unreadOnly`) y por tipo (`type`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `unreadOnly` | boolean | No | Si es `true`, retorna únicamente las notificaciones con `isRead = false` |
+| `type` | string (`NotificationType`) | No | Filtra por tipo de notificación (ej. `STAFF_INVITATION`, `LOW_STOCK`, `ORDER_STATUS_CHANGED`) |
+| `page` | integer | No | Número de página 0-indexed (default: `0`) |
+| `size` | integer | No | Elementos por página (default: `20`) |
+| `sort` | string | No | Parámetro estándar de paginación Spring |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<PageResponse<NotificationResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Notificaciones obtenidas exitosamente",
+  "data": {
+    "content": [
+      {
+        "id": "9a1b2c3d-4e5f-6789-abcd-ef1234567890",
+        "recipientUserId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+        "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+        "tenantName": "Burger Bros",
+        "type": "STAFF_INVITATION",
+        "title": "Invitación al equipo de Burger Bros",
+        "message": "Has sido invitado a unirte al restaurante 'Burger Bros' con el rol COCINERO. Puedes aceptar o rechazar esta invitación.",
+        "actionRequired": true,
+        "actionStatus": "PENDING",
+        "allowedActions": [
+          "ACCEPT",
+          "REJECT"
+        ],
+        "referenceId": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+        "metadata": {
+          "invitationId": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+          "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+          "tenantName": "Burger Bros",
+          "role": "COCINERO",
+          "allowedActions": [
+            "ACCEPT",
+            "REJECT"
+          ]
+        },
+        "isRead": false,
+        "readAt": null,
+        "respondedAt": null,
+        "createdAt": "2026-11-22T14:30:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true
+  }
+}
+```
+
+**Error (`400` | `401`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "No autorizado: token inválido, expirado o ausente",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-22T14:30:00",
+  "path": "/api/v1/notifications",
+  "method": null
+}
+```
+
+---
+
+#### GET `/api/v1/notifications/unread-count`
+
+> Obtiene el conteo total de notificaciones no leídas (`isRead = false`) del usuario autenticado para badges en la barra de navegación.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type:** `application/json`
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<UnreadNotificationCountResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Contador de notificaciones obtenido exitosamente",
+  "data": {
+    "unreadCount": 3
+  }
+}
+```
+
+**Error (`401`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "No autorizado: token inválido, expirado o ausente",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-22T14:30:00",
+  "path": "/api/v1/notifications/unread-count",
+  "method": null
+}
+```
+
+---
+
+#### PATCH `/api/v1/notifications/{id}/read`
+
+> Marca como leída una notificación perteneciente al usuario autenticado (`isRead = true` y asigna `readAt`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Usuario destinatario de la notificación  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | ID de la notificación |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<NotificationResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Notificación marcada como leída",
+  "data": {
+    "id": "9a1b2c3d-4e5f-6789-abcd-ef1234567890",
+    "recipientUserId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tenantName": "Burger Bros",
+    "type": "LOW_STOCK",
+    "title": "Stock bajo: Hamburguesa Doble Queso",
+    "message": "El producto 'Hamburguesa Doble Queso' en 'Burger Bros' tiene stock bajo (3 unidades restantes).",
+    "actionRequired": false,
+    "actionStatus": "NONE",
+    "allowedActions": [],
+    "referenceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "metadata": {
+      "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "productName": "Hamburguesa Doble Queso",
+      "stock": 3,
+      "threshold": 5
+    },
+    "isRead": true,
+    "readAt": "2026-11-22T14:35:00Z",
+    "respondedAt": null,
+    "createdAt": "2026-11-22T14:30:00Z"
+  }
+}
+```
+
+**Error (`401` | `404`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "Notificación no encontrada",
+  "error": "NOT_FOUND",
+  "status": 404,
+  "timestamp": "2026-11-22T14:35:00",
+  "path": "/api/v1/notifications/9a1b2c3d-4e5f-6789-abcd-ef1234567890/read",
+  "method": "PATCH"
+}
+```
+
+---
+
+#### PATCH `/api/v1/notifications/read-all`
+
+> Marca todas las notificaciones no leídas (`isRead = false`) del usuario autenticado como leídas y retorna el número de registros actualizados.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type:** `application/json`
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<Map<String, Integer>>`:**
+```json
+{
+  "success": true,
+  "message": "Notificaciones marcadas como leídas",
+  "data": {
+    "updatedCount": 4
+  }
+}
+```
+
+**Error (`401`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "No autorizado: token inválido, expirado o ausente",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-22T14:36:00",
+  "path": "/api/v1/notifications/read-all",
+  "method": null
+}
+```
+
+---
+
+#### POST `/api/v1/notifications/{id}/respond` *(alias: `PATCH /api/v1/notifications/{id}/respond`)*
+
+> Responde a una notificación accionable de tipo `STAFF_INVITATION` (`actionRequired = true`, `actionStatus = "PENDING"`). Acepta **únicamente** `decision: "ACCEPT"` o `decision: "REJECT"` (`InvitationActionType`).
+> - Al enviar `"ACCEPT"`: delega en `TenantInvitationDecisionService`, crea el `TenantMember` activo en la tienda, actualiza la notificación a `actionStatus = "ACCEPTED"`, `allowedActions = []`, `isRead = true`, `respondedAt = now`, y envía `INVITATION_ACCEPTED` al propietario (`OWNER`).
+> - Al enviar `"REJECT"`: rechaza la invitación sin agregar al usuario al staff, actualiza la notificación a `actionStatus = "REJECTED"`, `allowedActions = []`, `isRead = true`, `respondedAt = now`, y envía `INVITATION_REJECTED` al propietario (`OWNER`).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Usuario destinatario de la notificación  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | ID de la notificación `STAFF_INVITATION` |
+
+**Body (JSON) — `NotificationInvitationDecisionRequest`:**
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `decision` | string (`InvitationActionType`) | Sí | `@NotNull("La decisión (ACCEPT o REJECT) es obligatoria")`, valores permitidos: `"ACCEPT"`, `"REJECT"` | Decisión del usuario sobre la invitación |
+
+**Ejemplo de request:**
+```json
+{
+  "decision": "ACCEPT"
+}
+```
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<NotificationResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Invitación aceptada exitosamente",
+  "data": {
+    "id": "9a1b2c3d-4e5f-6789-abcd-ef1234567890",
+    "recipientUserId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "tenantName": "Burger Bros",
+    "type": "STAFF_INVITATION",
+    "title": "Invitación al equipo de Burger Bros",
+    "message": "Has sido invitado a unirte al restaurante 'Burger Bros' con el rol COCINERO. Puedes aceptar o rechazar esta invitación.",
+    "actionRequired": true,
+    "actionStatus": "ACCEPTED",
+    "allowedActions": [],
+    "referenceId": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+    "metadata": {
+      "invitationId": "a2b3c4d5-e6f7-8901-abcd-ef1234567890",
+      "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+      "tenantName": "Burger Bros",
+      "role": "COCINERO",
+      "allowedActions": [
+        "ACCEPT",
+        "REJECT"
+      ]
+    },
+    "isRead": true,
+    "readAt": "2026-11-22T14:40:00Z",
+    "respondedAt": "2026-11-22T14:40:00Z",
+    "createdAt": "2026-11-22T14:30:00Z"
+  }
+}
+```
+
+*(Si `decision` es `"REJECT"`, `message` será `"Invitación rechazada exitosamente"` y `actionStatus` será `"REJECTED"`.)*
+
+**Error (`400` | `401` | `403` | `404` | `409`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "Esta invitación ya fue respondida",
+  "error": "CONFLICT",
+  "status": 409,
+  "timestamp": "2026-11-22T14:41:00",
+  "path": "/api/v1/notifications/9a1b2c3d-4e5f-6789-abcd-ef1234567890/respond",
+  "method": "POST"
+}
+```
+
+---
+
+### 🔔 Catálogo de Notificaciones Proactivas y Deduplicación
+
+El sistema genera automáticamente notificaciones ante eventos de negocio y tareas programadas (`@Scheduled`), evitando duplicados por usuario mediante `dedupKey` (`existsByRecipientIdAndDedupKey`):
+
+| `NotificationType` | Disparador | Destinatarios | `actionRequired` | Estrategia de Deduplicación (`dedupKey`) |
+| --- | --- | --- | --- | --- |
+| `STAFF_INVITATION` | `POST /api/v1/tenants/{tenantId}/members` | Usuario invitado | `true` (`allowedActions: ["ACCEPT", "REJECT"]`) | `STAFF_INVITATION:{invitationId}` |
+| `INVITATION_ACCEPTED` | Usuario acepta invitación (`ACCEPT`) | `OWNER` del tenant *(o `inviter`)* | `false` | `INVITATION_ACCEPTED:{invitationId}` |
+| `INVITATION_REJECTED` | Usuario rechaza invitación (`REJECT`) | `OWNER` del tenant *(o `inviter`)* | `false` | `INVITATION_REJECTED:{invitationId}` |
+| `LOW_STOCK` | `0 < stock <= 5` *(umbral `app.notifications.low-stock-threshold`)* al crear/actualizar/consumir stock o job diario (`08:00`) | `OWNER`, `ADMIN`, `COCINERO` | `false` | `LOW_STOCK:{productId}:{fecha}:{stock}` |
+| `OUT_OF_STOCK` | `stock == 0` al crear/actualizar/consumir stock o job diario (`08:00`) | `OWNER`, `ADMIN`, `COCINERO` | `false` | `OUT_OF_STOCK:{productId}:{fecha}` |
+| `STORE_OPENING_SOON` | `StoreScheduleScheduler` (cada min): faltan `<= 15` min para `openingTime` | `OWNER`, `ADMIN`, `COCINERO` | `false` | `STORE_OPENING_SOON:{tenantId}:{fecha}:{openingTime}` |
+| `STORE_CLOSING_SOON` | `StoreScheduleScheduler` (cada min): faltan `<= 15` min para `closingTime` | `OWNER`, `ADMIN`, `COCINERO` | `false` | `STORE_CLOSING_SOON:{tenantId}:{fecha}:{closingTime}` |
+| `STORE_AUTO_CLOSED` | `StoreScheduleScheduler`: pasó `closingTime` y marcó `isOpen = false` | `OWNER`, `ADMIN` | `false` | `STORE_AUTO_CLOSED:{tenantId}:{fecha}:{closingTime}` |
+| `STORE_AUTO_OPENED` | `StoreScheduleScheduler`: llegó `openingTime` y marcó `isOpen = true` | `OWNER`, `ADMIN` | `false` | `STORE_AUTO_OPENED:{tenantId}:{fecha}:{openingTime}` |
+| `SUBSCRIPTION_EXPIRING_SOON` | `ProactiveNotificationScheduler` (`app.notifications.daily-check-cron`, default `08:00`): suscripción `TRIAL` o `ACTIVE` vence en `<= 3` días | `OWNER` de la tienda *(o titular)* | `false` | `SUB_EXPIRING:{subscriptionId}:{fecha}` |
+| `NEW_ORDER_RECEIVED` | Nueva orden persistida (`persistFromDraft` / pago `APPROVED`) | `OWNER`, `ADMIN`, `COCINERO` | `false` | `NEW_ORDER:{orderId}` |
+| `ORDER_STATUS_CHANGED` | Cambio de estado de orden o cancelación por cliente | Cliente del pedido (`order.customer.user`) | `false` | `null` *(notifica cada transición)* |
+
+> **📝 Notas para el Frontend (Notification):**
+> - Todos los IDs son **UUID** y las fechas (`readAt`, `respondedAt`, `createdAt`) llegan en **ISO 8601**.
+> - Mostrar botones de acción en una notificación **únicamente** cuando `notification.actionRequired === true && notification.actionStatus === "PENDING"` y renderizar exactamente las opciones listadas en `notification.allowedActions` (`["ACCEPT", "REJECT"]`).
+> - Al responder la notificación (`POST /api/v1/notifications/{id}/respond`) o la invitación (`POST /api/v1/invitations/{invitationId}/respond`), ambos estados quedan sincronizados automáticamente y el servidor devuelve `allowedActions: []`.
+> - Hacer polling ligero a `GET /api/v1/notifications/unread-count` para actualizar el badge de notificaciones sin traer el listado completo.
+
+---
+
 # 📦 Modelos de Datos / DTOs
 
 > **📝 Nota sobre IDs:** Todos los IDs en NexoFood son de tipo **UUID** (formato: `3fa85f64-5717-4562-b3fc-2c963f66afa6`). El frontend debe tratarlos siempre como `string`.
@@ -6318,9 +6958,13 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `SubscriptionStatus` | `PENDING`, `TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`, `EXPIRED` |
 | `SubscriptionPaymentStatus` | `PENDING`, `APPROVED`, `REJECTED`, `REFUNDED` |
 | `TenantStaffRole` | `OWNER`, `ADMIN`, `COCINERO`, `REPARTIDOR` |
+| `TenantInvitationStatus` | `PENDING`, `ACCEPTED`, `REJECTED` |
 | `DeliveryType` | `DELIVERY`, `TAKEAWAY`, `DINE_IN` |
 | `OrderStatus` | `PENDIENTE`, `EN_PREPARACION`, `LISTO_PARA_ENTREGA`, `EN_CAMINO`, `ENTREGADO`, `CANCELADO` |
 | `PaymentStatus` | `PENDING`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `CANCELED`, `EXPIRED`, `REFUND_PENDING`, `REFUNDED`, `CHARGED_BACK` |
+| `NotificationType` | `STAFF_INVITATION`, `INVITATION_ACCEPTED`, `INVITATION_REJECTED`, `LOW_STOCK`, `OUT_OF_STOCK`, `STORE_OPENING_SOON`, `STORE_CLOSING_SOON`, `STORE_AUTO_CLOSED`, `STORE_AUTO_OPENED`, `SUBSCRIPTION_EXPIRING_SOON`, `NEW_ORDER_RECEIVED`, `ORDER_STATUS_CHANGED` |
+| `NotificationActionStatus` | `NONE`, `PENDING`, `ACCEPTED`, `REJECTED` |
+| `InvitationActionType` | `ACCEPT`, `REJECT` |
 
 ---
 
@@ -6537,6 +7181,8 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `longitude` | Double | No | `-180.0` a `180.0` | Longitud del local |
 | `deliveryRadiusKm` | BigDecimal | No | `0.00` a `100.00` (default `5.00`) | Radio de reparto (km) |
 | `defaultDeliveryFee` | BigDecimal | No | `0.00` a `1000.00` (default `0.00`) | Costo estándar de delivery |
+| `openingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de apertura |
+| `closingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de cierre |
 
 ### 📥 DTO: TenantUpdateRequest
 
@@ -6552,6 +7198,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `deliveryRadiusKm` | BigDecimal | No | `0.00` a `100.00` | Radio de reparto |
 | `defaultDeliveryFee` | BigDecimal | No | `0.00` a `1000.00` | Tarifa estándar de delivery |
 | `isActive` | boolean | No | — | Estado operativo |
+| `openingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de apertura |
+| `closingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de cierre |
+| `isOpen` | boolean | No | — | Estado abierto/cerrado |
 
 ### 📥 DTO: TenantStatusRequest
 
@@ -6563,7 +7212,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 | Campo | Tipo | Requerido | Validación | Descripción |
 | --- | --- | --- | --- | --- |
-| `userId` | UUID | Sí | `@NotNull` | ID del usuario global |
+| `email` | string | Sí | `@NotBlank("El correo electrónico del usuario es obligatorio")`, `@Email("Debe proporcionar un correo electrónico válido")` | Correo electrónico del usuario registrado a invitar |
 | `role` | `TenantStaffRole` | Sí | `@NotNull` | Rol asignado |
 
 ### 📥 DTO: MemberRoleUpdateRequest
@@ -6629,6 +7278,9 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 | `mpConnectedAt` | string | Sí | Fecha de conexión MP (ISO 8601) |
 | `mpTokenExpiresAt` | string | Sí | Expiración token OAuth MP (ISO 8601) |
 | `isActive` | boolean | No | Estado activo |
+| `openingTime` | string (`LocalTime`) | Sí | Hora de apertura (`HH:mm:ss`) |
+| `closingTime` | string (`LocalTime`) | Sí | Hora de cierre (`HH:mm:ss`) |
+| `isOpen` | boolean | No | Estado efectivo abierto/cerrado (evalúa `openingTime`/`closingTime` cuando están configurados) |
 | `createdAt` | string | No | ISO 8601 |
 | `updatedAt` | string | No | ISO 8601 |
 
@@ -6636,15 +7288,16 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 | Campo | Tipo | Nullable | Descripción |
 | --- | --- | --- | --- |
-| `id` | UUID (string) | No | ID de la membresía |
+| `id` | UUID (string) | No | ID de la membresía (`TenantMember`) o de la invitación (`TenantInvitation`) |
 | `tenantId` | UUID (string) | No | ID del restaurante |
 | `userId` | UUID (string) | No | ID del usuario |
-| `userFullName` | string | No | Nombre completo del empleado |
-| `userEmail` | string | No | Correo electrónico del empleado |
-| `role` | `TenantStaffRole` | No | Rol asignado |
-| `isActive` | boolean | No | Estado activo |
+| `userFullName` | string | No | Nombre completo del empleado/invitado |
+| `userEmail` | string | No | Correo electrónico del empleado/invitado |
+| `role` | `TenantStaffRole` | No | Rol asignado/ofrecido |
+| `isActive` | boolean | No | Estado activo (`true` para miembros activos o invitaciones aceptadas; `false` en invitaciones `PENDING`/`REJECTED`) |
 | `createdAt` | string | No | ISO 8601 |
 | `updatedAt` | string | No | ISO 8601 |
+| `invitationStatus` | `TenantInvitationStatus` | Sí | Estado de invitación (`PENDING`, `ACCEPTED`, `REJECTED`), o `null` cuando proviene de `TenantMember` |
 
 ### 📤 DTO: TenantCustomerResponse
 
@@ -6833,7 +7486,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ### 📤 DTO: StorefrontMenuResponse / StorefrontCategoryResponse / StorefrontProductResponse
 
-- **`StorefrontMenuResponse`**: `tenantId` (UUID), `tenantName` (string), `tenantSlug` (string), `logoUrl` (string, nullable), `bannerUrl` (string, nullable), `onlinePaymentsEnabled` (boolean), `categories` (`List<StorefrontCategoryResponse>`), `uncategorizedProducts` (`List<StorefrontProductResponse>`).
+- **`StorefrontMenuResponse`**: `tenantId` (UUID), `tenantName` (string), `tenantSlug` (string), `logoUrl` (string, nullable), `bannerUrl` (string, nullable), `onlinePaymentsEnabled` (boolean), `openingTime` (`LocalTime`, nullable), `closingTime` (`LocalTime`, nullable), `isOpen` (boolean), `categories` (`List<StorefrontCategoryResponse>`), `uncategorizedProducts` (`List<StorefrontProductResponse>`).
 - **`StorefrontCategoryResponse`**: `id` (UUID), `name` (string), `description` (string, nullable), `sortOrder` (integer), `products` (`List<StorefrontProductResponse>`).
 - **`StorefrontProductResponse`**:
 
@@ -7163,18 +7816,55 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
+## DTOs — 9. Notification
+
+### 📥 DTO: NotificationInvitationDecisionRequest
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `decision` | `InvitationActionType` | Sí | `@NotNull("La decisión (ACCEPT o REJECT) es obligatoria")`, valores: `"ACCEPT"` o `"REJECT"` | Acción sobre la invitación |
+
+### 📤 DTO: NotificationResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID (string) | No | ID de la notificación |
+| `recipientUserId` | UUID (string) | No | ID del usuario destinatario |
+| `tenantId` | UUID (string) | Sí | ID del restaurante relacionado |
+| `tenantName` | string | Sí | Nombre del restaurante relacionado |
+| `type` | `NotificationType` | No | Tipo de notificación (`STAFF_INVITATION`, `LOW_STOCK`, etc.) |
+| `title` | string | No | Título corto (máx. 200 caracteres) |
+| `message` | string | No | Cuerpo descriptivo de la notificación |
+| `actionRequired` | boolean | No | Si requiere acción explícita del usuario (`true` solo para `STAFF_INVITATION`) |
+| `actionStatus` | `NotificationActionStatus` | No | `NONE`, `PENDING`, `ACCEPTED` o `REJECTED` |
+| `allowedActions` | `List<string>` | No | `["ACCEPT", "REJECT"]` cuando `actionRequired && actionStatus == "PENDING"`; `[]` en caso contrario |
+| `referenceId` | UUID (string) | Sí | ID de la entidad referenciada (ej. `invitationId`, `productId`, `orderId`, `tenantId`, `subscriptionId`) |
+| `metadata` | `Map<string, Object>` | Sí | Metadatos contextuales JSONB (varían según el `type`) |
+| `isRead` | boolean | No | Si fue leída |
+| `readAt` | string | Sí | Fecha/hora de lectura (ISO 8601) |
+| `respondedAt` | string | Sí | Fecha/hora de respuesta a invitación (ISO 8601) |
+| `createdAt` | string | No | Fecha/hora de creación (ISO 8601) |
+
+### 📤 DTO: UnreadNotificationCountResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `unreadCount` | number (long) | No | Cantidad de notificaciones no leídas del usuario autenticado |
+
+---
+
 # ❌ Códigos de Estado HTTP y Manejo de Errores
 
 | Código | Error | Cuándo se retorna |
 | --- | --- | --- |
-| `200` | OK | Operación exitosa (lectura, actualización, login, refresh, logout, delete lógico/físico) |
-| `201` | Created | Recurso creado exitosamente (registro, plan, suscripción, restaurante, catálogo, checkout) |
+| `200` | OK | Operación exitosa (lectura, actualización, login, refresh, logout, respuesta a invitación, delete lógico/físico) |
+| `201` | Created | Recurso creado exitosamente (registro, plan, suscripción, restaurante, invitación de staff, catálogo, checkout) |
 | `302` | Found | Redirección al frontend tras el callback OAuth de Mercado Pago cuando el cliente es un navegador (`Accept: text/html`) |
-| `400` | Bad Request | Error de validación de campos (`MethodArgumentNotValidException`), propiedades JSON desconocidas, parámetros inválidos o reglas de negocio infringidas |
+| `400` | Bad Request | Error de validación de campos (`MethodArgumentNotValidException`), propiedades JSON desconocidas, parámetros/enums inválidos (incl. decisión distinta de `ACCEPT`/`REJECT`), restaurante cerrado en checkout o reglas de negocio infringidas |
 | `401` | Unauthorized | Token ausente, inválido o expirado; credenciales incorrectas; cuenta bloqueada; firma de webhook inválida |
-| `403` | Forbidden | Sin permisos suficientes, cuenta desactivada o cliente bloqueado en el comercio |
+| `403` | Forbidden | Sin permisos suficientes, cuenta desactivada, invitación de otro usuario o cliente bloqueado en el comercio |
 | `404` | Not Found | Recurso no encontrado o tienda/producto inactivo en storefront |
-| `409` | Conflict | Recurso duplicado (email, slug, plan, categoría), relación 1:1 ya existente, solapamiento de reglas de precio o transición de orden/cancelación inválida |
+| `409` | Conflict | Recurso duplicado (email, slug, plan, categoría), invitación pendiente duplicada, invitación ya respondida, relación 1:1 ya existente, solapamiento de reglas de precio o transición de orden/cancelación inválida |
 | `429` | Too Many Requests | Límite de tasa excedido en endpoints de autenticación (`10 req / 60s` por IP + grupo; revisar header `Retry-After`) |
 | `500` | Internal Server Error | Error interno no controlado en el servidor |
 | `502` | Bad Gateway | Fallo de comunicación o respuesta inválida al invocar la pasarela externa de Mercado Pago (`PaymentGatewayException`) |
@@ -7228,9 +7918,10 @@ El backend rechaza propiedades desconocidas en los cuerpos JSON (`fail-on-unknow
 
 1. **Tokens en Headers:** Enviar siempre `Authorization: Bearer <accessToken>` en las peticiones autenticadas; **no** se utilizan cookies ni query params para credenciales.
 2. **UUIDs como Strings:** Todos los identificadores son cadenas UUID de 36 caracteres. No intentar parsearlos como números.
-3. **Fechas ISO 8601:** Todas las fechas y horas viajan en formato ISO 8601 (`OffsetDateTime` con zona horaria en DTOs de dominio, `LocalDateTime` en `ErrorResponse.timestamp`). Formatear localmente en el cliente con `Intl.DateTimeFormat` o `date-fns`.
+3. **Fechas ISO 8601 y Horarios `LocalTime`:** Todas las fechas y horas viajan en formato ISO 8601 (`OffsetDateTime` con zona horaria en DTOs de dominio, `LocalDateTime` en `ErrorResponse.timestamp`). Los horarios de tienda (`openingTime`, `closingTime`) y reglas de precio (`startTime`, `endTime`) usan `LocalTime` (`HH:mm:ss`). Formatear localmente en el cliente con `Intl.DateTimeFormat` o `date-fns`.
 4. **JSON Estricto:** No enviar campos extra ni propiedades no documentadas en los payloads de request para evitar errores `400 Bad Request`.
 5. **Coordenadas WGS84 (SRID 4326):** Enviar siempre `latitude` (`-90.0` a `90.0`) y `longitude` (`-180.0` a `180.0`) como números (`Double`).
 6. **CORS:** En desarrollo local están permitidos `http://localhost:3000` y `http://localhost:5173` con `allowCredentials = true`, exponiendo el header `Authorization`. En producción se controla mediante la variable de entorno `CORS_ALLOWED_ORIGINS`.
 7. **Swagger UI:** Disponible en `http://localhost:8080/swagger-ui/index.html` únicamente en el perfil `dev` para explorar y probar endpoints interactivamente.
 8. **Paginación:** Todos los endpoints paginados retornan `PageResponse<T>` (`page`, `size`, `totalElements`, `totalPages`, `first`, `last`, `content`), excepto `GET /api/v1/admin/tenants/{tenantId}/customers`, que retorna directamente `Page<TenantCustomerResponse>` de Spring Data (`number` en lugar de `page`).
+9. **Notificaciones Accionables:** Para `STAFF_INVITATION`, renderizar únicamente las acciones devueltas en `allowedActions` (`["ACCEPT", "REJECT"]`) mientras `actionRequired === true && actionStatus === "PENDING"`.
