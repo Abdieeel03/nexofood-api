@@ -570,4 +570,42 @@ class OrderServiceTest {
         assertEquals(OrderStatus.CANCELADO, canceled.status());
         assertEquals(7, burger.getStock());
     }
+
+    @Test
+    @DisplayName("updateStatus: REPARTIDOR no puede cambiar estado de un pedido sin repartidor asignado ni de otro repartidor")
+    void updateStatusRejectsRepartidorOnUnassignedOrOtherDriverOrder() {
+        UUID orderId = UUID.randomUUID();
+        UUID actorDriverId = UUID.randomUUID();
+        User otherDriver = User.builder().id(UUID.randomUUID()).fullName("Otro Repartidor").build();
+
+        Order order = Order.builder()
+                .id(orderId)
+                .tenant(tenant)
+                .customer(customer)
+                .deliveryStaff(null)
+                .orderNumber("ORD-000004")
+                .deliveryType(DeliveryType.DELIVERY)
+                .status(OrderStatus.LISTO_PARA_ENTREGA)
+                .items(new ArrayList<>())
+                .build();
+
+        when(orderRepository.findByIdAndTenantId(orderId, tenant.getId())).thenReturn(Optional.of(order));
+        when(tenantAccessService.isSuperAdmin()).thenReturn(false);
+        when(tenantAccessService.getCurrentUserRoleInTenant(tenant.getId()))
+                .thenReturn(Optional.of(TenantStaffRole.REPARTIDOR));
+        when(currentUserProvider.getCurrentUserId()).thenReturn(actorDriverId);
+
+        ForbiddenException unassignedEx = assertThrows(ForbiddenException.class, () ->
+                orderService.updateStatus(tenant.getId(), orderId, OrderStatus.EN_CAMINO)
+        );
+        assertEquals("Solo el repartidor asignado a este pedido puede cambiar su estado", unassignedEx.getMessage());
+
+        order.setDeliveryStaff(otherDriver);
+        ForbiddenException otherDriverEx = assertThrows(ForbiddenException.class, () ->
+                orderService.updateStatus(tenant.getId(), orderId, OrderStatus.EN_CAMINO)
+        );
+        assertEquals("Solo el repartidor asignado a este pedido puede cambiar su estado", otherDriverEx.getMessage());
+
+        verify(orderRepository, never()).save(any());
+    }
 }

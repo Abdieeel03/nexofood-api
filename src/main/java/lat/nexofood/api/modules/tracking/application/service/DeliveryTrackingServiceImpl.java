@@ -152,7 +152,6 @@ public class DeliveryTrackingServiceImpl implements DeliveryTrackingService {
         DeliveryTracking tracking = existing != null
                 ? existing
                 : DeliveryTracking.builder()
-                        .orderId(order.getId())
                         .order(order)
                         .tenant(order.getTenant())
                         .build();
@@ -192,13 +191,38 @@ public class DeliveryTrackingServiceImpl implements DeliveryTrackingService {
             UUID orderId,
             boolean includeHistory
     ) {
+        Order order = loadDeliveryOrder(tenantId, orderId);
+        return mapStaffTrackingResponse(tenantId, orderId, order, includeHistory);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DeliveryTrackingResponse getOrderTrackingForDriver(
+            UUID tenantId,
+            UUID orderId,
+            boolean includeHistory
+    ) {
+        Order order = loadDeliveryOrder(tenantId, orderId);
+        validateDriverPermission(tenantId, order);
+        return mapStaffTrackingResponse(tenantId, orderId, order, includeHistory);
+    }
+
+    private Order loadDeliveryOrder(UUID tenantId, UUID orderId) {
         Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + orderId));
 
         if (order.getDeliveryType() != DeliveryType.DELIVERY) {
             throw new BadRequestException("Este pedido no es de modalidad DELIVERY");
         }
+        return order;
+    }
 
+    private DeliveryTrackingResponse mapStaffTrackingResponse(
+            UUID tenantId,
+            UUID orderId,
+            Order order,
+            boolean includeHistory
+    ) {
         DeliveryTracking tracking = trackingRepository.findByOrderIdAndTenantId(orderId, tenantId).orElse(null);
         List<DeliveryLocationHistory> history = includeHistory
                 ? historyRepository.findAllByOrderIdAndTenantIdOrderByRecordedAtAsc(orderId, tenantId)
@@ -317,7 +341,6 @@ public class DeliveryTrackingServiceImpl implements DeliveryTrackingService {
         DeliveryTracking tracking = trackingRepository
                 .findByOrderIdAndTenantId(order.getId(), tenant.getId())
                 .orElseGet(() -> DeliveryTracking.builder()
-                        .orderId(order.getId())
                         .order(order)
                         .tenant(tenant)
                         .location(initialLocation)
@@ -355,19 +378,6 @@ public class DeliveryTrackingServiceImpl implements DeliveryTrackingService {
     }
 
     private void validateDriverPermission(UUID tenantId, Order order) {
-        if (currentUserProvider == null) {
-            return;
-        }
-        UUID actorUserId;
-        try {
-            actorUserId = currentUserProvider.getCurrentUserId();
-        } catch (Exception e) {
-            return;
-        }
-        if (actorUserId == null) {
-            return;
-        }
-
         boolean isSuperAdmin = tenantAccessService != null && tenantAccessService.isSuperAdmin();
         if (isSuperAdmin) {
             return;
@@ -381,8 +391,18 @@ public class DeliveryTrackingServiceImpl implements DeliveryTrackingService {
             return;
         }
 
-        if (!actorUserId.equals(order.getDeliveryStaff().getId())) {
-            throw new ForbiddenException("Solo el repartidor asignado a este pedido puede actualizar su ubicación");
+        UUID actorUserId = null;
+        if (currentUserProvider != null) {
+            try {
+                actorUserId = currentUserProvider.getCurrentUserId();
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (order.getDeliveryStaff() == null
+                || actorUserId == null
+                || !actorUserId.equals(order.getDeliveryStaff().getId())) {
+            throw new ForbiddenException("Solo el repartidor asignado a este pedido puede acceder o actualizar su ubicación");
         }
     }
 }

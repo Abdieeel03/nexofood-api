@@ -208,7 +208,7 @@ public class MercadoPagoOAuthServiceImpl implements MercadoPagoOAuthService {
     private boolean isTestCredentialsMode() {
         boolean missingSecret = properties.getClientSecret() == null || properties.getClientSecret().isBlank();
         boolean hasPlatformToken = properties.getPlatformAccessToken() != null && !properties.getPlatformAccessToken().isBlank();
-        return missingSecret && hasPlatformToken;
+        return properties.isAllowTestMode() && missingSecret && hasPlatformToken;
     }
 
     private Long extractUserIdFromToken(String accessToken) {

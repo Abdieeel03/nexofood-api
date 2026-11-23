@@ -105,11 +105,11 @@ public class OrderStateMachine {
                             "El rol REPARTIDOR solo puede cambiar el estado a EN_CAMINO o ENTREGADO"
                     );
                 }
-                if (order.getDeliveryStaff() != null
-                        && actorUserId != null
-                        && !actorUserId.equals(order.getDeliveryStaff().getId())) {
+                if (order.getDeliveryStaff() == null
+                        || actorUserId == null
+                        || !actorUserId.equals(order.getDeliveryStaff().getId())) {
                     throw new ForbiddenException(
-                            "Este pedido está asignado a otro repartidor"
+                            "Solo el repartidor asignado a este pedido puede cambiar su estado"
                     );
                 }
             }

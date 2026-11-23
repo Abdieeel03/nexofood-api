@@ -34,6 +34,9 @@ public class MercadoPagoProperties {
     private String webhookSecret;
 
     @Builder.Default
+    private boolean allowTestMode = false;
+
+    @Builder.Default
     private OAuth oauth = new OAuth();
 
     @Builder.Default

@@ -4,6 +4,7 @@ import jakarta.persistence.LockModeType;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
+import lat.nexofood.api.modules.payment.domain.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +15,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,6 +68,52 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
             UUID tenantId,
             UUID deliveryStaffId,
             OrderStatus status
+    );
+
+    List<Order> findAllByTenantIdAndDeliveryStaffIdAndStatusInOrderByCreatedAtAsc(
+            UUID tenantId,
+            UUID deliveryStaffId,
+            Collection<OrderStatus> statuses
+    );
+
+    @Query("""
+            SELECT o FROM Order o
+            WHERE o.tenant.id = :tenantId
+              AND (
+                o.status = :inPreparationStatus
+                OR (
+                  o.status = :pendingStatus
+                  AND EXISTS (
+                    SELECT p.id FROM Payment p
+                    WHERE p.order.id = o.id
+                      AND p.status = :approvedPaymentStatus
+                  )
+                )
+              )
+            ORDER BY o.createdAt ASC
+            """)
+    List<Order> findKitchenQueueOrders(
+            @Param("tenantId") UUID tenantId,
+            @Param("pendingStatus") OrderStatus pendingStatus,
+            @Param("inPreparationStatus") OrderStatus inPreparationStatus,
+            @Param("approvedPaymentStatus") PaymentStatus approvedPaymentStatus
+    );
+
+    @Query("""
+            SELECT o FROM Order o
+            WHERE o.tenant.id = :tenantId
+              AND o.status = :status
+              AND EXISTS (
+                SELECT p.id FROM Payment p
+                WHERE p.order.id = o.id
+                  AND p.status = :approvedPaymentStatus
+              )
+            ORDER BY o.createdAt ASC
+            """)
+    List<Order> findPaidOrdersByTenantIdAndStatusOrderByCreatedAtAsc(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") OrderStatus status,
+            @Param("approvedPaymentStatus") PaymentStatus approvedPaymentStatus
     );
 
     @Query("""

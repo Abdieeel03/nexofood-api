@@ -47,8 +47,8 @@ public class TenantPaymentController {
     }
 
     @GetMapping("/orders/{orderId}/payment")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener el detalle del pago asociado a una orden del restaurante (Miembro)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener el detalle del pago asociado a una orden del restaurante (OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<PaymentResponse>> getPaymentByOrder(
             @PathVariable UUID tenantId,
             @PathVariable UUID orderId
