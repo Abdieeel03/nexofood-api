@@ -1,6 +1,6 @@
 # Colección Bruno - NexoFood API
 
-Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints vigentes (**107 requests** en 8 módulos + entornos).
+Esta carpeta contiene la colección de peticiones y pruebas automatizadas de **NexoFood API** lista para usar con [Bruno](https://www.usebruno.com/), actualizada con los cambios y endpoints vigentes (**112 requests** en 9 módulos + entornos).
 
 ---
 
@@ -74,7 +74,13 @@ bruno/
 │   ├── 20 - Storefront - Listar Categorias Activas de Tienda (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/categories (200 OK)
 │   ├── 21 - Storefront - Listar Productos Disponibles Paginados (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products (200 OK)
 │   ├── 22 - Storefront - Obtener Detalle Publico de Producto (Sin Token).bru # GET /api/v1/store/{{tenantSlug}}/products/{{productId}} (200 OK)
-│   └── 23 - Error Crear Restaurante Sin Suscripcion (400).bru # POST /api/v1/tenants (400 Bad Request)
+│   ├── 23 - Error Crear Restaurante Sin Suscripcion (400).bru # POST /api/v1/tenants (400 Bad Request)
+│   └── 24 - Admin - Listar Todas las Tiendas (SUPERADMIN).bru # GET /api/v1/admin/tenants (200 OK)
+├── Notification/
+│   ├── 01 - Listar Mis Notificaciones.bru                    # GET   /api/v1/notifications (200 OK)
+│   ├── 02 - Contador de Notificaciones No Leidas.bru         # GET   /api/v1/notifications/unread-count (200 OK)
+│   ├── 03 - Responder Invitacion (ACCEPT or REJECT).bru      # POST  /api/v1/notifications/{{notificationId}}/respond (200 OK)
+│   └── 04 - Marcar Notificacion como Leida.bru               # PATCH /api/v1/notifications/{{notificationId}}/read (200 OK)
 ├── Catalog/
 │   ├── 01 - Taxes - Crear Impuesto (OWNER o ADMIN).bru         # POST   /api/v1/tenants/{{tenantId}}/taxes (201 Created)
 │   ├── 02 - Taxes - Listar Impuestos (Miembro).bru             # GET    /api/v1/tenants/{{tenantId}}/taxes (200 OK)
@@ -146,7 +152,8 @@ bruno/
 * **Direcciones (`10 - Crear Direccion`):** guarda automáticamente `addressId` para usarlo en actualización (`12`) y eliminación (`13`).
 * **Suscripciones (`01 - Listar Planes` / `02 - Crear Plan` / `07 - Iniciar Trial`):** guardan automáticamente `planId` y `subscriptionId`.
 * **Restaurantes (`01 - Crear Restaurante` / `02 - Obtener Mi Restaurante`):** guardan `tenantId` y `tenantSlug` (y resuelven la suscripción vigente automáticamente sin pedir `subscriptionId` en el body).
-* **Equipo y Clientes (`08 - Agregar Miembro` / `11-12 - Store Auth`):** guardan `memberId` y `customerId` para las rutas de administración de staff y clientes.
+* **Equipo y Clientes (`08 - Agregar Miembro` / `11-12 - Store Auth`):** guardan `invitationId` y `customerId` para las rutas de invitación y clientes.
+* **Notificaciones (`Notification/01`):** guarda automáticamente `notificationId` para marcar como leída o responder invitaciones (`ACCEPT` / `REJECT`).
 * **Catálogo e Impuestos (`Catalog/01..18` y `Store/20..21`):** guardan automáticamente `taxId`, `categoryId`, `productId` y `priceId` en el entorno activo tanto al crear como al listar recursos.
 * **Carrito de Compras (`Cart/01..02`):** guardan automáticamente `cartId` y `cartItemId` al consultar el carrito o agregar un producto.
 * **Pedidos y Cocina (`Order/01..04`):** guardan automáticamente `orderId` al ejecutar el checkout o al listar pedidos.

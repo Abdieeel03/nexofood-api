@@ -1,0 +1,44 @@
+meta {
+  name: 01 - Listar Mis Notificaciones
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/notifications?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page: 0
+  size: 20
+  ~unreadOnly: true
+  ~type: STAFF_INVITATION
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const data = res.getBody().data;
+    if (data && Array.isArray(data.content) && data.content.length > 0 && data.content[0].id) {
+      bru.setEnvVar("notificationId", data.content[0].id);
+    }
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Retorna PageResponse de notificaciones del usuario", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.content).to.be.an('array');
+    expect(body.data.totalElements).to.be.a('number');
+  });
+}

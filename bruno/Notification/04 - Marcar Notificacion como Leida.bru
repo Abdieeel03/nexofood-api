@@ -1,0 +1,28 @@
+meta {
+  name: 04 - Marcar Notificacion como Leida
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/notifications/{{notificationId}}/read
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Notificación marcada como leída", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(body.data.isRead).to.be.true;
+    expect(body.data.readAt).to.be.a('string');
+  });
+}

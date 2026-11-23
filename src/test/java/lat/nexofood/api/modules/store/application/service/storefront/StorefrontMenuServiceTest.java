@@ -30,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -75,6 +76,9 @@ class StorefrontMenuServiceTest {
                 .name("Burger Bros")
                 .slug("burger-bros")
                 .isActive(true)
+                .openingTime(LocalTime.of(0, 0))
+                .closingTime(LocalTime.of(0, 0))
+                .isOpen(true)
                 .build();
     }
 
@@ -126,6 +130,9 @@ class StorefrontMenuServiceTest {
         StorefrontMenuResponse menu = storefrontMenuService.getMenuBySlug("burger-bros");
 
         assertEquals("Burger Bros", menu.tenantName());
+        assertEquals(LocalTime.of(0, 0), menu.openingTime());
+        assertEquals(LocalTime.of(0, 0), menu.closingTime());
+        assertTrue(menu.isOpen());
         assertEquals(1, menu.categories().size());
         assertEquals("Hamburguesas", menu.categories().getFirst().name());
         assertEquals(1, menu.categories().getFirst().products().size());

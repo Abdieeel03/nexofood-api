@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.store.web.dto.response;
 
+import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lombok.Builder;
 
@@ -16,5 +17,6 @@ public record TenantMemberResponse(
         TenantStaffRole role,
         Boolean isActive,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        TenantInvitationStatus invitationStatus
 ) {}

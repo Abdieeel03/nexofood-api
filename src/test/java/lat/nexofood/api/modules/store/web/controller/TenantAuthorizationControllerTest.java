@@ -8,13 +8,16 @@ import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
 import lat.nexofood.api.modules.store.application.service.customer.TenantCustomerService;
 import lat.nexofood.api.modules.store.application.service.storefront.StorefrontMenuService;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
+import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.request.CustomerBlockRequest;
 import lat.nexofood.api.modules.store.web.dto.request.MemberRoleUpdateRequest;
+import lat.nexofood.api.modules.store.web.dto.request.TenantMemberRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.response.StorefrontMenuResponse;
 import lat.nexofood.api.modules.store.web.dto.response.StorefrontProductResponse;
 import lat.nexofood.api.modules.store.web.dto.response.TenantCustomerResponse;
+import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -296,6 +300,49 @@ class TenantAuthorizationControllerTest {
                 .andExpect(jsonPath("$.message").value("Restaurante del usuario obtenido exitosamente"))
                 .andExpect(jsonPath("$.data.id").value(tenantId.toString()))
                 .andExpect(jsonPath("$.data.name").value("Mi Pizzería"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/tenants/{tenantId}/members invita por email válido y rechaza email inválido con 400")
+    void addMemberValidatesEmailAndInvites() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID invitationId = UUID.randomUUID();
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+        when(tenantService.addMember(eq(tenantId), any())).thenReturn(
+                TenantMemberResponse.builder()
+                        .id(invitationId)
+                        .tenantId(tenantId)
+                        .userEmail("cocinero@gmail.com")
+                        .role(TenantStaffRole.COCINERO)
+                        .isActive(false)
+                        .invitationStatus(TenantInvitationStatus.PENDING)
+                        .build()
+        );
+
+        TenantMemberRequest validRequest = TenantMemberRequest.builder()
+                .email("cocinero@gmail.com")
+                .role(TenantStaffRole.COCINERO)
+                .build();
+
+        mockMvc.perform(post("/api/v1/tenants/" + tenantId + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userEmail").value("cocinero@gmail.com"))
+                .andExpect(jsonPath("$.data.invitationStatus").value("PENDING"));
+
+        mockMvc.perform(post("/api/v1/tenants/" + tenantId + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"correo-invalido\",\"role\":\"COCINERO\"}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/tenants/" + tenantId + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"COCINERO\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Error de validación: email: El correo electrónico del usuario es obligatorio"));
     }
 
     @Test

@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +118,10 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .map(p -> toStorefrontProduct(p, now))
                 .toList();
 
+        boolean effectiveIsOpen = (tenant.getOpeningTime() != null && tenant.getClosingTime() != null)
+                ? tenant.isWithinOperatingHours(LocalTime.now())
+                : Boolean.TRUE.equals(tenant.getIsActive()) && !Boolean.FALSE.equals(tenant.getIsOpen());
+
         return StorefrontMenuResponse.builder()
                 .tenantId(tenant.getId())
                 .tenantName(tenant.getName())
@@ -124,6 +129,9 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .logoUrl(tenant.getLogoUrl())
                 .bannerUrl(tenant.getBannerUrl())
                 .onlinePaymentsEnabled(tenant.isMercadoPagoConnected())
+                .openingTime(tenant.getOpeningTime())
+                .closingTime(tenant.getClosingTime())
+                .isOpen(effectiveIsOpen)
                 .categories(categoryResponses)
                 .uncategorizedProducts(uncategorized)
                 .build();

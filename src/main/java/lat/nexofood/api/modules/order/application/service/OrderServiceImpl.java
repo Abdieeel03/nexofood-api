@@ -22,6 +22,7 @@ import lat.nexofood.api.modules.catalog.domain.Tax;
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.identity.domain.CustomerAddress;
 import lat.nexofood.api.modules.identity.infrastructure.repository.CustomerAddressRepository;
+import lat.nexofood.api.modules.notification.application.service.NotificationService;
 import lat.nexofood.api.modules.order.application.dto.OrderDraft;
 import lat.nexofood.api.modules.order.application.dto.OrderDraftItem;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
@@ -61,6 +62,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -92,6 +94,7 @@ public class OrderServiceImpl implements OrderService {
     private final SecurityAuditLogger securityAuditLogger;
     private final EtaProvider etaProvider;
     private final DeliveryTrackingService deliveryTrackingService;
+    private final NotificationService notificationService;
 
     @Autowired
     public OrderServiceImpl(
@@ -115,7 +118,8 @@ public class OrderServiceImpl implements OrderService {
             @Autowired(required = false) PaymentRefundService paymentRefundService,
             @Autowired(required = false) SecurityAuditLogger securityAuditLogger,
             @Autowired(required = false) EtaProvider etaProvider,
-            @Autowired(required = false) DeliveryTrackingService deliveryTrackingService
+            @Autowired(required = false) DeliveryTrackingService deliveryTrackingService,
+            @Autowired(required = false) NotificationService notificationService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -140,6 +144,56 @@ public class OrderServiceImpl implements OrderService {
         this.securityAuditLogger = securityAuditLogger != null ? securityAuditLogger : new SecurityAuditLogger();
         this.etaProvider = etaProvider != null ? etaProvider : new HaversineEtaProvider();
         this.deliveryTrackingService = deliveryTrackingService;
+        this.notificationService = notificationService;
+    }
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            TenantCustomerRepository tenantCustomerRepository,
+            TenantMemberRepository tenantMemberRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ProductPricingService pricingService,
+            TaxCalculationService taxCalculationService,
+            OrderMapper orderMapper,
+            OrderItemMapper orderItemMapper,
+            CurrentCustomerResolver currentCustomerResolver,
+            SubscriptionGuard subscriptionGuard,
+            OrderStateMachine orderStateMachine,
+            PaymentGuard paymentGuard,
+            TenantAccessService tenantAccessService,
+            CurrentUserProvider currentUserProvider,
+            ProductStockService productStockService,
+            PaymentRefundService paymentRefundService,
+            SecurityAuditLogger securityAuditLogger,
+            EtaProvider etaProvider,
+            DeliveryTrackingService deliveryTrackingService
+    ) {
+        this(
+                orderRepository,
+                productRepository,
+                tenantRepository,
+                tenantCustomerRepository,
+                tenantMemberRepository,
+                customerAddressRepository,
+                pricingService,
+                taxCalculationService,
+                orderMapper,
+                orderItemMapper,
+                currentCustomerResolver,
+                subscriptionGuard,
+                orderStateMachine,
+                paymentGuard,
+                tenantAccessService,
+                currentUserProvider,
+                productStockService,
+                paymentRefundService,
+                securityAuditLogger,
+                etaProvider,
+                deliveryTrackingService,
+                null
+        );
     }
 
     public OrderServiceImpl(
@@ -664,7 +718,11 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        if (notificationService != null) {
+            notificationService.notifyNewOrder(savedOrder != null ? savedOrder : order);
+        }
+        return savedOrder;
     }
 
     @Override
@@ -737,6 +795,10 @@ public class OrderServiceImpl implements OrderService {
         order.setEstimatedDeliveryMinutes(null);
         order.setEstimatedArrivalAt(null);
         Order savedOrder = orderRepository.save(order);
+
+        if (notificationService != null) {
+            notificationService.notifyOrderStatusChanged(savedOrder != null ? savedOrder : order);
+        }
 
         securityAuditLogger.logEvent(
                 AuditAction.ORDER_CANCELLATION,
@@ -928,6 +990,10 @@ public class OrderServiceImpl implements OrderService {
             awardLoyaltyPoints(savedOrder);
         }
 
+        if (notificationService != null) {
+            notificationService.notifyOrderStatusChanged(savedOrder != null ? savedOrder : order);
+        }
+
         return orderMapper.toResponse(savedOrder);
     }
 
@@ -1032,6 +1098,11 @@ public class OrderServiceImpl implements OrderService {
     private void validateTenantActiveAndSubscribed(Tenant tenant) {
         if (Boolean.FALSE.equals(tenant.getIsActive())) {
             throw new BadRequestException("El restaurante '" + tenant.getName() + "' no se encuentra activo actualmente");
+        }
+        if (Boolean.FALSE.equals(tenant.getIsOpen())
+                || (tenant.getOpeningTime() != null && tenant.getClosingTime() != null
+                        && !tenant.isWithinOperatingHours(LocalTime.now()))) {
+            throw new BadRequestException("El restaurante '" + tenant.getName() + "' se encuentra cerrado en este momento");
         }
         if (subscriptionGuard != null) {
             subscriptionGuard.assertActive(tenant.getId());
