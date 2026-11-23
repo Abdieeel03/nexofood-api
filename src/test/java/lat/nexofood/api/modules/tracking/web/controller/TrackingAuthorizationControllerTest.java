@@ -90,8 +90,8 @@ class TrackingAuthorizationControllerTest {
     }
 
     @Test
-    @DisplayName("DeliveryTrackingController: protege actualización GPS, consulta de orden y mapa activo según rol del staff")
-    void trackingControllerEnforcesRoleAuthorization() throws Exception {
+    @DisplayName("DeliveryTrackingController: restringe consulta, actualización GPS y mapa activo solo a OWNER o ADMIN")
+    void trackingControllerEnforcesOwnerOrAdminOnly() throws Exception {
         UUID tenantId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
 
@@ -101,25 +101,30 @@ class TrackingAuthorizationControllerTest {
                 .speedKmh(25.0)
                 .build();
 
-        // 1. COCINERO no puede enviar pings GPS (solo OWNER, ADMIN o REPARTIDOR)
-        when(tenantAccessService.hasAnyRole(
-                tenantId,
-                TenantStaffRole.OWNER,
-                TenantStaffRole.ADMIN,
-                TenantStaffRole.REPARTIDOR
-        )).thenReturn(false);
-
-        assertThrows(AccessDeniedException.class, () ->
-                proxiedTrackingController.updateDriverLocation(tenantId, orderId, ping)
-        );
-
-        // 2. REPARTIDOR autorizado sí puede enviar ping GPS
+        // 1. COCINERO o REPARTIDOR (isMember=true / hasAnyRole(..., REPARTIDOR)=true, pero sin OWNER/ADMIN) son rechazados en backoffice tracking
+        when(tenantAccessService.isMember(tenantId)).thenReturn(true);
         when(tenantAccessService.hasAnyRole(
                 tenantId,
                 TenantStaffRole.OWNER,
                 TenantStaffRole.ADMIN,
                 TenantStaffRole.REPARTIDOR
         )).thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTrackingController.updateDriverLocation(tenantId, orderId, ping)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTrackingController.getOrderTracking(tenantId, orderId, false)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTrackingController.getActiveDeliveries(tenantId)
+        );
+
+        // 2. OWNER o ADMIN sí tienen acceso a los 3 endpoints de tracking backoffice
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
 
         DeliveryTrackingResponse trackingResp = DeliveryTrackingResponse.builder()
                 .orderId(orderId)
@@ -134,6 +139,8 @@ class TrackingAuthorizationControllerTest {
                 .build();
 
         when(trackingService.updateDriverLocation(eq(tenantId), eq(orderId), any())).thenReturn(trackingResp);
+        when(trackingService.getOrderTrackingForStaff(tenantId, orderId, false)).thenReturn(trackingResp);
+        when(trackingService.getActiveTrackingsByTenant(tenantId)).thenReturn(List.of(trackingResp));
 
         mockMvc.perform(put("/api/v1/tenants/" + tenantId + "/orders/" + orderId + "/tracking/location")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,16 +149,9 @@ class TrackingAuthorizationControllerTest {
                 .andExpect(jsonPath("$.data.etaMinutes").value(11))
                 .andExpect(jsonPath("$.data.etaMessage").value("Tu pedido estará en tu casa en ~11 min"));
 
-        // 3. Mapa de repartidores activos solo accesible para OWNER o ADMIN
-        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
-                .thenReturn(false);
-        assertThrows(AccessDeniedException.class, () ->
-                proxiedTrackingController.getActiveDeliveries(tenantId)
-        );
-
-        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
-                .thenReturn(true);
-        when(trackingService.getActiveTrackingsByTenant(tenantId)).thenReturn(List.of(trackingResp));
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders/" + orderId + "/tracking"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNumber").value("ORD-000015"));
 
         mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/tracking/active"))
                 .andExpect(status().isOk())

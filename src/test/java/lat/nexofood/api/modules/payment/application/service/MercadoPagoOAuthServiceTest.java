@@ -118,4 +118,71 @@ class MercadoPagoOAuthServiceTest {
         assertNull(tenant.getMpUserId());
         verify(tenantRepository).save(tenant);
     }
+
+    @Test
+    @DisplayName("buildAuthorizationUrl y handleCallback: con allowTestMode=false y clientSecret vacío, NO activa modo prueba TG-TEST-")
+    void doesNotActivateTestModeWhenAllowTestModeIsFalseEvenWithBlankClientSecret() {
+        MercadoPagoProperties strictProperties = MercadoPagoProperties.builder()
+                .allowTestMode(false)
+                .authBaseUrl("https://auth.mercadopago.com.pe")
+                .clientId("mp-client-123")
+                .clientSecret("")
+                .platformAccessToken("APP_USR-platform-token-123456")
+                .build();
+        MercadoPagoOAuthServiceImpl strictService = new MercadoPagoOAuthServiceImpl(
+                tenantRepository,
+                mercadoPagoClient,
+                strictProperties,
+                new FrontendProperties(),
+                currentUserProvider
+        );
+
+        when(tenantRepository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
+        when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+
+        MercadoPagoConnectResponse connectResp = strictService.buildAuthorizationUrl(tenant.getId());
+        assertTrue(connectResp.authorizationUrl().startsWith("https://auth.mercadopago.com.pe/authorization?"));
+        assertFalse(connectResp.authorizationUrl().contains("TG-TEST-"));
+
+        String state = strictService.generateStateToken(tenant.getId(), userId);
+        when(mercadoPagoClient.exchangeAuthorizationCode("TG-real-code-999")).thenReturn(
+                MpOAuthTokenResponse.builder()
+                        .accessToken("APP_USR-real-oauth-token")
+                        .refreshToken("TG-real-refresh")
+                        .userId(778899L)
+                        .expiresIn(15552000L)
+                        .build()
+        );
+
+        String redirectUrl = strictService.handleCallback("TG-real-code-999", state, null);
+        assertTrue(redirectUrl.endsWith("/dashboard/settings/payments?mp=connected"));
+        verify(mercadoPagoClient).exchangeAuthorizationCode("TG-real-code-999");
+        assertEquals("APP_USR-real-oauth-token", tenant.getMpAccessToken());
+        assertEquals("TG-real-refresh", tenant.getMpRefreshToken());
+    }
+
+    @Test
+    @DisplayName("buildAuthorizationUrl: con allowTestMode=true, clientSecret vacío y platformAccessToken presente, genera código TG-TEST-")
+    void activatesTestModeWhenAllowTestModeIsTrueWithBlankClientSecretAndPlatformToken() {
+        MercadoPagoProperties devProperties = MercadoPagoProperties.builder()
+                .allowTestMode(true)
+                .authBaseUrl("https://auth.mercadopago.com.pe")
+                .clientId("mp-client-123")
+                .clientSecret("")
+                .platformAccessToken("APP_USR-platform-token-123456")
+                .build();
+        MercadoPagoOAuthServiceImpl devService = new MercadoPagoOAuthServiceImpl(
+                tenantRepository,
+                mercadoPagoClient,
+                devProperties,
+                new FrontendProperties(),
+                currentUserProvider
+        );
+
+        when(tenantRepository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
+        when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+
+        MercadoPagoConnectResponse connectResp = devService.buildAuthorizationUrl(tenant.getId());
+        assertTrue(connectResp.authorizationUrl().contains("code=TG-TEST-" + tenant.getId()));
+    }
 }

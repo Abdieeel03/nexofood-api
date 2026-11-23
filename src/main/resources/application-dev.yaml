@@ -28,3 +28,6 @@ app:
     exposed-headers: Authorization
     allow-credentials: true
     max-age: 3600
+
+mercadopago:
+  allow-test-mode: ${MP_ALLOW_TEST_MODE:true}

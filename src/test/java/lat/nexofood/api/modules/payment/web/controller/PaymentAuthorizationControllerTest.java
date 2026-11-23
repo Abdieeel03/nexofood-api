@@ -10,7 +10,9 @@ import lat.nexofood.api.modules.payment.domain.PaymentStatus;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.MercadoPagoProperties;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.MercadoPagoWebhookSignatureValidator;
 import lat.nexofood.api.modules.payment.web.dto.response.MercadoPagoConnectResponse;
+import lat.nexofood.api.modules.payment.web.dto.response.PaymentResponse;
 import lat.nexofood.api.modules.payment.web.dto.response.PaymentStatusResponse;
+import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,7 @@ class PaymentAuthorizationControllerTest {
     private MercadoPagoWebhookSignatureValidator signatureValidator;
 
     private MercadoPagoConnectionController proxiedConnectionController;
+    private TenantPaymentController proxiedTenantPaymentController;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -83,9 +86,14 @@ class PaymentAuthorizationControllerTest {
                 new MercadoPagoConnectionController(oauthService),
                 interceptor
         );
+        proxiedTenantPaymentController = createSecuredProxy(
+                new TenantPaymentController(orderPaymentService),
+                interceptor
+        );
 
         mockMvc = MockMvcBuilders.standaloneSetup(
                         proxiedConnectionController,
+                        proxiedTenantPaymentController,
                         new MercadoPagoOAuthCallbackController(oauthService),
                         new MercadoPagoWebhookController(signatureValidator, webhookService),
                         new StorefrontPaymentController(orderPaymentService)
@@ -204,5 +212,42 @@ class PaymentAuthorizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.orderId").value(orderId.toString()));
+    }
+
+    @Test
+    @DisplayName("TenantPaymentController: restringe /orders/{orderId}/payment y /payments solo a OWNER o ADMIN")
+    void tenantPaymentControllerRequiresOwnerOrAdmin() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+
+        when(tenantAccessService.isMember(tenantId)).thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTenantPaymentController.getPaymentByOrder(tenantId, orderId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTenantPaymentController.getTenantPayments(tenantId, null, null)
+        );
+
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+        when(orderPaymentService.findByOrderIdAndTenant(orderId, tenantId)).thenReturn(
+                PaymentResponse.builder()
+                        .id(paymentId)
+                        .orderId(orderId)
+                        .tenantId(tenantId)
+                        .status(PaymentStatus.APPROVED)
+                        .amount(new BigDecimal("65.50"))
+                        .currency("PEN")
+                        .build()
+        );
+
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders/" + orderId + "/payment"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(paymentId.toString()))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
     }
 }

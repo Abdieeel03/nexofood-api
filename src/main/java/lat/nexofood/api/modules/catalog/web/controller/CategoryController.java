@@ -36,8 +36,8 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Listar categorías del restaurante ordenadas por sortOrder (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Listar categorías del restaurante ordenadas por sortOrder (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> getCategories(
             @PathVariable UUID tenantId,
             @RequestParam(defaultValue = "false") boolean activeOnly
@@ -56,8 +56,8 @@ public class CategoryController {
     }
 
     @GetMapping("/{categoryId}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener categoría por ID (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener categoría por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<CategoryResponse>> getCategoryById(
             @PathVariable UUID tenantId,
             @PathVariable UUID categoryId

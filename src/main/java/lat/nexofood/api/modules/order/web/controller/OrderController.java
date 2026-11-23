@@ -38,7 +38,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
     @Operation(summary = "Listar órdenes paginadas del restaurante con filtros opcionales (estado, modalidad, fechas)")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getOrders(
             @PathVariable UUID tenantId,
@@ -66,8 +66,8 @@ public class OrderController {
     }
 
     @GetMapping("/kds")
-    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).COCINERO)")
-    @Operation(summary = "Cola KDS (Cocina): obtener órdenes EN_PREPARACION ordenadas por antigüedad (FIFO)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Cola KDS backoffice: obtener órdenes EN_PREPARACION ordenadas por antigüedad (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getKitchenOrders(@PathVariable UUID tenantId) {
         List<OrderResponse> response = orderService.getKitchenOrders(tenantId);
         return ResponseEntity.ok(
@@ -80,8 +80,8 @@ public class OrderController {
     }
 
     @GetMapping("/my-deliveries")
-    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).REPARTIDOR)")
-    @Operation(summary = "Repartidor: obtener órdenes asignadas al repartidor autenticado")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Backoffice reparto: obtener órdenes asignadas (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getMyAssignedDeliveries(
             @PathVariable UUID tenantId,
             @RequestParam(required = false) OrderStatus status
@@ -97,8 +97,8 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener detalle de una orden del restaurante por ID")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener detalle de una orden del restaurante por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(
             @PathVariable UUID tenantId,
             @PathVariable UUID id
@@ -114,8 +114,8 @@ public class OrderController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Cambiar estado de la orden (validado por máquina de estados y rol del miembro)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Cambiar estado de la orden desde backoffice (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @PathVariable UUID tenantId,
             @PathVariable UUID id,

@@ -35,8 +35,8 @@ public class TaxController {
     private final TaxService taxService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Listar impuestos del restaurante (acceso para cualquier miembro del staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Listar impuestos del restaurante (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<List<TaxResponse>>> getTaxes(
             @PathVariable UUID tenantId,
             @RequestParam(defaultValue = "false") boolean activeOnly
@@ -55,8 +55,8 @@ public class TaxController {
     }
 
     @GetMapping("/{taxId}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener impuesto por ID (acceso para cualquier miembro del staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener impuesto por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<TaxResponse>> getTaxById(
             @PathVariable UUID tenantId,
             @PathVariable UUID taxId

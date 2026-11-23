@@ -38,8 +38,8 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Listar productos del restaurante (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Listar productos del restaurante (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
             @PathVariable UUID tenantId,
             @RequestParam(required = false) UUID categoryId,
@@ -64,8 +64,8 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener producto por ID (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener producto por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<ProductResponse>> getProductById(
             @PathVariable UUID tenantId,
             @PathVariable UUID productId

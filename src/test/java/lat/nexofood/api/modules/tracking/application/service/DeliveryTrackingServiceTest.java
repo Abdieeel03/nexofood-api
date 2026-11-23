@@ -292,5 +292,58 @@ class DeliveryTrackingServiceTest {
         assertNull(outside.estimatedDeliveryMinutes());
         assertTrue(outside.message().contains("fuera de la zona de cobertura"));
     }
+
+    @Test
+    @DisplayName("getOrderTrackingForDriver: permite al repartidor asignado y rechaza con 403 si no está asignado o pertenece a otro")
+    void getOrderTrackingForDriverEnforcesAssignmentForRepartidor() {
+        DeliveryTracking tracking = DeliveryTracking.builder()
+                .orderId(order.getId())
+                .order(order)
+                .tenant(tenant)
+                .driver(driverUser)
+                .location(GeoUtils.createPoint(-12.1120, -77.0300))
+                .etaMinutes(6)
+                .isActive(true)
+                .recordedAt(OffsetDateTime.now())
+                .build();
+
+        when(orderRepository.findByIdAndTenantId(order.getId(), tenant.getId())).thenReturn(Optional.of(order));
+        when(tenantAccessService.isSuperAdmin()).thenReturn(false);
+        when(tenantAccessService.getCurrentUserRoleInTenant(tenant.getId()))
+                .thenReturn(Optional.of(TenantStaffRole.REPARTIDOR));
+
+        // 1. Otro repartidor -> 403 ForbiddenException
+        when(currentUserProvider.getCurrentUserId()).thenReturn(UUID.randomUUID());
+        assertThrows(ForbiddenException.class, () ->
+                trackingService.getOrderTrackingForDriver(tenant.getId(), order.getId(), false)
+        );
+
+        // 2. Pedido sin repartidor asignado -> 403 ForbiddenException para REPARTIDOR
+        order.setDeliveryStaff(null);
+        when(currentUserProvider.getCurrentUserId()).thenReturn(driverUser.getId());
+        assertThrows(ForbiddenException.class, () ->
+                trackingService.getOrderTrackingForDriver(tenant.getId(), order.getId(), false)
+        );
+
+        // 3. Repartidor asignado -> 200 OK con datos de seguimiento
+        order.setDeliveryStaff(driverUser);
+        when(trackingRepository.findByOrderIdAndTenantId(order.getId(), tenant.getId()))
+                .thenReturn(Optional.of(tracking));
+        DeliveryTrackingResponse driverResp = trackingService.getOrderTrackingForDriver(
+                tenant.getId(), order.getId(), false
+        );
+        assertEquals(order.getId(), driverResp.orderId());
+        assertEquals(-12.1120, driverResp.driverLatitude());
+        assertTrue(driverResp.trackingActive());
+
+        // 4. OWNER / ADMIN puede consultar incluso si está sin asignar
+        order.setDeliveryStaff(null);
+        when(tenantAccessService.getCurrentUserRoleInTenant(tenant.getId()))
+                .thenReturn(Optional.of(TenantStaffRole.OWNER));
+        DeliveryTrackingResponse ownerResp = trackingService.getOrderTrackingForDriver(
+                tenant.getId(), order.getId(), false
+        );
+        assertEquals(order.getId(), ownerResp.orderId());
+    }
 }
 

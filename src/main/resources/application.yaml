@@ -109,3 +109,11 @@ app:
     low-stock-threshold: ${LOW_STOCK_THRESHOLD:5}
     store-schedule-warning-minutes: ${STORE_SCHEDULE_WARNING_MINUTES:15}
     daily-check-cron: ${NOTIFICATIONS_DAILY_CHECK_CRON:0 0 8 * * *}
+
+supabase:
+  url: ${SUPABASE_URL:}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  storage:
+    dish-images-bucket: ${SUPABASE_STORAGE_DISH_BUCKET:dish-images}
+    tenant-assets-bucket: ${SUPABASE_STORAGE_TENANT_BUCKET:tenant-assets}
+    max-file-size-bytes: ${SUPABASE_STORAGE_MAX_FILE_SIZE_BYTES:5242880}
