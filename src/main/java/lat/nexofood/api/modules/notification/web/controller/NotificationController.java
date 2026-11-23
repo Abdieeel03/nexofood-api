@@ -2,6 +2,7 @@ package lat.nexofood.api.modules.notification.web.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.common.response.PageResponse;
@@ -10,19 +11,23 @@ import lat.nexofood.api.modules.notification.domain.NotificationType;
 import lat.nexofood.api.modules.notification.web.dto.request.InvitationActionType;
 import lat.nexofood.api.modules.notification.web.dto.request.NotificationInvitationDecisionRequest;
 import lat.nexofood.api.modules.notification.web.dto.response.NotificationResponse;
+import lat.nexofood.api.modules.notification.web.dto.response.NotificationStreamTicketResponse;
 import lat.nexofood.api.modules.notification.web.dto.response.UnreadNotificationCountResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Map;
 import java.util.UUID;
@@ -63,6 +68,31 @@ public class NotificationController {
                         .data(response)
                         .build()
         );
+    }
+
+    @PostMapping("/stream-ticket")
+    @Operation(summary = "Generar ticket temporal de un solo uso para suscribirse al stream SSE de notificaciones")
+    public ResponseEntity<ApiResponse<NotificationStreamTicketResponse>> createStreamTicket() {
+        NotificationStreamTicketResponse response = notificationService.issueStreamTicket();
+        return ResponseEntity.ok(
+                ApiResponse.<NotificationStreamTicketResponse>builder()
+                        .success(true)
+                        .message("Ticket SSE generado exitosamente")
+                        .data(response)
+                        .build()
+        );
+    }
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Suscribirse al stream SSE de notificaciones en tiempo real (acepta Authorization Bearer o ?ticket=)")
+    public SseEmitter streamNotifications(
+            @RequestParam(required = false) String ticket,
+            HttpServletResponse response
+    ) {
+        SseEmitter emitter = notificationService.subscribeToStream(ticket);
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        return emitter;
     }
 
     @PatchMapping("/{id}/read")

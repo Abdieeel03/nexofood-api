@@ -3,7 +3,7 @@
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial · Caffeine Cache · Bucket4j  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-11-22  
+> **Última actualización:** 2026-11-23  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -14,7 +14,7 @@
 | --- | --- |
 | **Base URL (Local)** | `http://localhost:8080/api/v1` |
 | **Base URL (Prod)** | `https://api.nexofood-app.com/api/v1` |
-| **Formato** | `application/json` |
+| **Formato** | `application/json` *(y `text/event-stream` para el stream SSE de notificaciones)* |
 | **Autenticación** | JWT Bearer Token en header `Authorization` |
 | **Versión** | `v1` |
 | **Documentación viva (Swagger UI)** | `http://localhost:8080/swagger-ui/index.html` *(habilitado solo en perfil `dev`; deshabilitado en `prod`)* |
@@ -6733,6 +6733,114 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 
 ---
 
+#### GET `/api/v1/notifications/stream`
+
+> Abre una conexión persistente **Server-Sent Events (SSE)** para recibir notificaciones en tiempo real y sincronizar el contador de no leídas sin recargar la página ni hacer polling.
+>
+> **Autenticación dual:**
+> 1. **Recomendada para `EventSource` nativo:** obtener un ticket opaco de un solo uso con `POST /api/v1/notifications/stream-ticket` y conectar a `/api/v1/notifications/stream?ticket=<ticket>`.
+> 2. **Recomendada para `fetch` / `@microsoft/fetch-event-source`:** enviar el header estándar `Authorization: Bearer <accessToken>` sin query params.
+>
+> **Límites y comportamiento de la conexión:**
+> - Máximo `5` conexiones simultáneas por usuario (`app.notifications.sse.max-connections-per-user`); si se abre una adicional, el servidor cierra la más antigua.
+> - Timeout por defecto de `30` minutos (`app.notifications.sse.timeout-ms: 1800000`) con `retry: 3000` ms para reconexión automática.
+> - Heartbeat periódico cada `25` segundos (`: keep-alive`) para evitar cierres por proxies o balanceadores.
+> - Las notificaciones se publican únicamente después del `commit` de la transacción en base de datos.
+
+**Autenticación:** Requerida (`Bearer <token>` o query param `?ticket=<ticket>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type (Response):** `text/event-stream` *(con `Cache-Control: no-cache, no-transform` y `X-Accel-Buffering: no`)*
+
+##### 📥 Request
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `ticket` | string | No | Ticket temporal de un solo uso obtenido desde `POST /api/v1/notifications/stream-ticket` (alternativa segura al header `Authorization: Bearer` para `EventSource` nativo) |
+
+##### 📤 Response (`200 OK` — Stream `text/event-stream`)
+
+**1. Evento `connected` (enviado inmediatamente al conectar):**
+```text
+event:connected
+retry:3000
+data:{"status":"CONNECTED","unreadCount":3,"connectedAt":"2026-11-23T15:30:00Z"}
+
+```
+
+**2. Evento `notification` (enviado al crearse una nueva notificación; payload `NotificationResponse`):**
+```text
+id:9a1b2c3d-4e5f-6789-abcd-ef1234567890
+event:notification
+data:{"id":"9a1b2c3d-4e5f-6789-abcd-ef1234567890","recipientUserId":"4fa85f64-5717-4562-b3fc-2c963f66afa7","tenantId":"e1a2c3d4-e5f6-7890-abcd-ef1234567890","tenantName":"Burger Bros","type":"NEW_ORDER_RECEIVED","title":"Nuevo pedido recibido: #ORD-000042","message":"Se ha recibido el pedido #ORD-000042 en 'Burger Bros' por S/ 45.50.","actionRequired":false,"actionStatus":"NONE","allowedActions":[],"referenceId":"1fa85f64-5717-4562-b3fc-2c963f66afa1","metadata":{"orderId":"1fa85f64-5717-4562-b3fc-2c963f66afa1","orderNumber":"ORD-000042","status":"PENDIENTE","deliveryType":"DELIVERY","total":45.50},"isRead":false,"readAt":null,"respondedAt":null,"createdAt":"2026-11-23T15:31:00Z"}
+
+```
+
+**3. Evento `unread-count` (enviado tras nueva notificación, `markAsRead`, `markAllAsRead` o respuesta a invitación; payload `UnreadNotificationCountResponse`):**
+```text
+event:unread-count
+data:{"unreadCount":4}
+
+```
+
+**4. Heartbeat keep-alive (comentario SSE cada 25 segundos, ignorado automáticamente por `EventSource`):**
+```text
+:keep-alive
+
+```
+
+**Error (`401`) — Envelope `ErrorResponse` (`application/json`):**
+```json
+{
+  "message": "Ticket SSE inválido, expirado o ya utilizado",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-23T15:30:00",
+  "path": "/api/v1/notifications/stream",
+  "method": "GET"
+}
+```
+
+---
+
+#### POST `/api/v1/notifications/stream-ticket`
+
+> Genera un ticket opaco temporal y de un solo uso (TTL por defecto: `30` segundos) para autenticar el stream `GET /api/v1/notifications/stream?ticket=...` usando el `EventSource` nativo del navegador sin exponer el JWT en la URL ni en logs de proxies.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** Cualquiera autenticado  
+**Content-Type:** `application/json`
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<NotificationStreamTicketResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Ticket SSE generado exitosamente",
+  "data": {
+    "ticket": "8f2c9a1b4d7e6f0a3c5b8d9e1f2a4c6b7e8d9f0a1b2c",
+    "expiresInSeconds": 30,
+    "expiresAt": "2026-11-23T15:30:30Z"
+  }
+}
+```
+
+**Error (`401`) — Envelope `ErrorResponse`:**
+```json
+{
+  "message": "No autorizado: token inválido, expirado o ausente",
+  "error": "UNAUTHORIZED",
+  "status": 401,
+  "timestamp": "2026-11-23T15:30:00",
+  "path": "/api/v1/notifications/stream-ticket",
+  "method": null
+}
+```
+
+---
+
 #### PATCH `/api/v1/notifications/{id}/read`
 
 > Marca como leída una notificación perteneciente al usuario autenticado (`isRead = true` y asigna `readAt`).
@@ -6938,7 +7046,8 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 > - Todos los IDs son **UUID** y las fechas (`readAt`, `respondedAt`, `createdAt`) llegan en **ISO 8601**.
 > - Mostrar botones de acción en una notificación **únicamente** cuando `notification.actionRequired === true && notification.actionStatus === "PENDING"` y renderizar exactamente las opciones listadas en `notification.allowedActions` (`["ACCEPT", "REJECT"]`).
 > - Al responder la notificación (`POST /api/v1/notifications/{id}/respond`) o la invitación (`POST /api/v1/invitations/{invitationId}/respond`), ambos estados quedan sincronizados automáticamente y el servidor devuelve `allowedActions: []`.
-> - Hacer polling ligero a `GET /api/v1/notifications/unread-count` para actualizar el badge de notificaciones sin traer el listado completo.
+> - **Tiempo real con SSE (sin polling):** al iniciar sesión, solicitar un ticket con `POST /api/v1/notifications/stream-ticket` y abrir `new EventSource(`${API_URL}/notifications/stream?ticket=${ticket}`)` (o usar `@microsoft/fetch-event-source` con `Authorization: Bearer <accessToken>`). Escuchar los eventos `connected`, `notification` (insertar al inicio de la lista / mostrar toast) y `unread-count` (actualizar el badge y sincronizar múltiples pestañas).
+> - **Reconexión con `EventSource` nativo:** como el `ticket` es de un solo uso, ante `onerror` cerrar el `EventSource` actual, pedir un nuevo ticket vía `POST /api/v1/notifications/stream-ticket` (renovando el access token si expiró) y reconectar. Al reconectar, el evento `connected` entrega el `unreadCount` actualizado y se puede refrescar `GET /api/v1/notifications` si se desea recuperar notificaciones perdidas durante la desconexión.
 
 ---
 
@@ -7851,6 +7960,22 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | --- | --- | --- | --- |
 | `unreadCount` | number (long) | No | Cantidad de notificaciones no leídas del usuario autenticado |
 
+### 📤 DTO: NotificationStreamTicketResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `ticket` | string | No | Token opaco temporal y de un solo uso para autenticar `GET /api/v1/notifications/stream?ticket=...` |
+| `expiresInSeconds` | number (long) | No | Tiempo de vida del ticket en segundos (default: `30`) |
+| `expiresAt` | string | No | Fecha y hora exacta de expiración del ticket (ISO 8601 UTC) |
+
+### 📤 DTO: NotificationSseConnectedEvent
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `status` | string | No | Estado de conexión del stream (`"CONNECTED"`) |
+| `unreadCount` | number (long) | No | Cantidad inicial de notificaciones no leídas al abrir el stream |
+| `connectedAt` | string | No | Fecha y hora de conexión al stream (ISO 8601 UTC) |
+
 ---
 
 # ❌ Códigos de Estado HTTP y Manejo de Errores
@@ -7916,7 +8041,7 @@ El backend rechaza propiedades desconocidas en los cuerpos JSON (`fail-on-unknow
 
 # 📝 Notas Adicionales para el Frontend
 
-1. **Tokens en Headers:** Enviar siempre `Authorization: Bearer <accessToken>` en las peticiones autenticadas; **no** se utilizan cookies ni query params para credenciales.
+1. **Tokens en Headers:** Enviar siempre `Authorization: Bearer <accessToken>` en las peticiones autenticadas; **no** se utilizan cookies ni se envían JWTs en query params. *(Única excepción para `EventSource` nativo: usar el ticket opaco temporal y de un solo uso obtenido en `POST /api/v1/notifications/stream-ticket` en `GET /api/v1/notifications/stream?ticket=...`.)*
 2. **UUIDs como Strings:** Todos los identificadores son cadenas UUID de 36 caracteres. No intentar parsearlos como números.
 3. **Fechas ISO 8601 y Horarios `LocalTime`:** Todas las fechas y horas viajan en formato ISO 8601 (`OffsetDateTime` con zona horaria en DTOs de dominio, `LocalDateTime` en `ErrorResponse.timestamp`). Los horarios de tienda (`openingTime`, `closingTime`) y reglas de precio (`startTime`, `endTime`) usan `LocalTime` (`HH:mm:ss`). Formatear localmente en el cliente con `Intl.DateTimeFormat` o `date-fns`.
 4. **JSON Estricto:** No enviar campos extra ni propiedades no documentadas en los payloads de request para evitar errores `400 Bad Request`.
@@ -7925,3 +8050,4 @@ El backend rechaza propiedades desconocidas en los cuerpos JSON (`fail-on-unknow
 7. **Swagger UI:** Disponible en `http://localhost:8080/swagger-ui/index.html` únicamente en el perfil `dev` para explorar y probar endpoints interactivamente.
 8. **Paginación:** Todos los endpoints paginados retornan `PageResponse<T>` (`page`, `size`, `totalElements`, `totalPages`, `first`, `last`, `content`), excepto `GET /api/v1/admin/tenants/{tenantId}/customers`, que retorna directamente `Page<TenantCustomerResponse>` de Spring Data (`number` en lugar de `page`).
 9. **Notificaciones Accionables:** Para `STAFF_INVITATION`, renderizar únicamente las acciones devueltas en `allowedActions` (`["ACCEPT", "REJECT"]`) mientras `actionRequired === true && actionStatus === "PENDING"`.
+10. **Notificaciones en Tiempo Real (SSE):** Suscribirse a `GET /api/v1/notifications/stream` (vía `?ticket=` temporal de `POST /api/v1/notifications/stream-ticket` o header `Authorization: Bearer`) para recibir eventos `connected`, `notification` y `unread-count` al instante sin recargar la página.
