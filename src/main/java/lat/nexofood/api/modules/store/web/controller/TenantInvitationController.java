@@ -14,6 +14,7 @@ import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import lat.nexofood.api.modules.store.web.mapper.TenantMemberMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,6 +37,7 @@ public class TenantInvitationController {
     private final CurrentUserProvider currentUserProvider;
 
     @GetMapping
+    @Transactional(readOnly = true)
     @Operation(summary = "Listar mis invitaciones pendientes a restaurantes")
     public ResponseEntity<ApiResponse<List<TenantMemberResponse>>> getMyPendingInvitations() {
         UUID userId = currentUserProvider.getCurrentUserId();
