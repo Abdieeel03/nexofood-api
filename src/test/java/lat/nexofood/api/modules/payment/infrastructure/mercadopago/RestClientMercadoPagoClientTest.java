@@ -115,6 +115,7 @@ class RestClientMercadoPagoClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer APP_USR-platform-token"))
                 .andExpect(jsonPath("$.auto_recurring.currency_id").value("PEN"))
+                .andExpect(jsonPath("$.card_token_id").doesNotExist())
                 .andRespond(withSuccess(preapprovalJson, MediaType.APPLICATION_JSON));
 
         MpPreapprovalResponse preapproval = mpClient.createPreapproval(
@@ -149,6 +150,89 @@ class RestClientMercadoPagoClientTest {
         );
         assertEquals(400, ex.getGatewayStatus());
         assertTrue(ex.getMessage().contains("Order cannot be refunded"));
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("createPreapproval con card_token_id: serializa card_token_id, soporta init_point nulo y extrae cause.description en errores")
+    void createPreapprovalWithCardTokenAndCauseErrorExtraction() {
+        String authorizedJson = """
+                {
+                  "id": "preapp-card-777",
+                  "status": "authorized",
+                  "external_reference": "sub-777"
+                }
+                """;
+
+        mockServer.expect(requestTo("https://api.mercadopago.com/preapproval"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer APP_USR-platform-token"))
+                .andExpect(jsonPath("$.card_token_id").value("tok_card_777"))
+                .andExpect(jsonPath("$.status").value("authorized"))
+                .andRespond(withSuccess(authorizedJson, MediaType.APPLICATION_JSON));
+
+        MpPreapprovalResponse response = mpClient.createPreapproval(
+                MpPreapprovalRequest.builder()
+                        .reason("NexoFood - Plan Pro")
+                        .externalReference("sub-777")
+                        .payerEmail("buyer@example.com")
+                        .cardTokenId("tok_card_777")
+                        .backUrl("http://localhost:5173/dashboard/subscription/result?subscriptionId=sub-777")
+                        .status("authorized")
+                        .autoRecurring(MpAutoRecurring.builder()
+                                .frequency(1)
+                                .frequencyType("months")
+                                .transactionAmount(new BigDecimal("49.90"))
+                                .currencyId("PEN")
+                                .build())
+                        .build()
+        );
+
+        assertEquals("preapp-card-777", response.id());
+        assertEquals("authorized", response.status());
+        mockServer.verify();
+        mockServer.reset();
+
+        // Error con message + cause[0].description
+        mockServer.expect(requestTo("https://api.mercadopago.com/preapproval"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {
+                                  "message": "Card token is invalid",
+                                  "cause": [
+                                    { "code": 2002, "description": "card_token_id invalid" }
+                                  ]
+                                }
+                                """));
+
+        PaymentGatewayException cardEx = assertThrows(PaymentGatewayException.class, () ->
+                mpClient.createPreapproval(MpPreapprovalRequest.builder().cardTokenId("bad_tok").build())
+        );
+        assertEquals(400, cardEx.getGatewayStatus());
+        assertTrue(cardEx.getMessage().contains("Card token is invalid (card_token_id invalid)"));
+        mockServer.verify();
+        mockServer.reset();
+
+        // Error solo con cause[0].description (sin message)
+        mockServer.expect(requestTo("https://api.mercadopago.com/preapproval"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {
+                                  "cause": [
+                                    { "code": 3001, "description": "cc_rejected_insufficient_amount" }
+                                  ]
+                                }
+                                """));
+
+        PaymentGatewayException causeOnlyEx = assertThrows(PaymentGatewayException.class, () ->
+                mpClient.createPreapproval(MpPreapprovalRequest.builder().cardTokenId("tok_no_funds").build())
+        );
+        assertEquals(400, causeOnlyEx.getGatewayStatus());
+        assertTrue(causeOnlyEx.getMessage().contains("cc_rejected_insufficient_amount"));
         mockServer.verify();
     }
 }

@@ -54,6 +54,7 @@ mercadopago:
   client-id: ${MP_CLIENT_ID:}
   client-secret: ${MP_CLIENT_SECRET:}
   platform-access-token: ${MP_PLATFORM_ACCESS_TOKEN:}
+  platform-public-key: ${MP_PLATFORM_PUBLIC_KEY:}
   test-payer-email: ${MP_TEST_PAYER_EMAIL:}
   webhook-secret: ${MP_WEBHOOK_SECRET:}
   oauth:

@@ -24,7 +24,9 @@ import lat.nexofood.api.modules.subscription.domain.SubscriptionStatus;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionPaymentRepository;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionPlanRepository;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionRepository;
+import lat.nexofood.api.modules.subscription.web.dto.request.SubscriptionCheckoutRequest;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionCheckoutResponse;
+import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentConfigResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionResponse;
 import lat.nexofood.api.modules.subscription.web.mapper.SubscriptionMapper;
@@ -57,11 +59,38 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
     private final SubscriptionMapper subscriptionMapper;
 
     @Override
+    public SubscriptionPaymentConfigResponse getPaymentConfig() {
+        String rawPublicKey = properties.getPlatformPublicKey();
+        String publicKey = (rawPublicKey != null && !rawPublicKey.isBlank()) ? rawPublicKey.trim() : null;
+        String currency = (properties.getCurrency() != null && !properties.getCurrency().isBlank())
+                ? properties.getCurrency().trim()
+                : "PEN";
+
+        return SubscriptionPaymentConfigResponse.builder()
+                .publicKey(publicKey)
+                .currency(currency)
+                .cardPaymentsEnabled(publicKey != null)
+                .build();
+    }
+
+    @Override
     @Transactional
     public SubscriptionCheckoutResponse startCheckout(UUID planId) {
+        return startCheckout(SubscriptionCheckoutRequest.builder()
+                .planId(planId)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionCheckoutResponse startCheckout(SubscriptionCheckoutRequest request) {
+        if (request == null || request.planId() == null) {
+            throw new BadRequestException("El ID del plan es obligatorio");
+        }
+
         User user = currentUserProvider.getCurrentUser();
 
-        SubscriptionPlan plan = planRepository.findById(planId)
+        SubscriptionPlan plan = planRepository.findById(request.planId())
                 .orElseThrow(() -> new ResourceNotFoundException("Plan de suscripción no encontrado"));
 
         if (!Boolean.TRUE.equals(plan.getIsActive())) {
@@ -105,19 +134,22 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
         }
 
         String currency = properties.getCurrency() != null && !properties.getCurrency().isBlank()
-                ? properties.getCurrency()
+                ? properties.getCurrency().trim()
                 : "PEN";
 
-        String payerEmail = (properties.getTestPayerEmail() != null && !properties.getTestPayerEmail().isBlank())
-                ? properties.getTestPayerEmail().trim()
-                : user.getEmail();
+        String payerEmail = resolvePayerEmail(request, user);
+
+        boolean isDirectCardCheckout = request.cardTokenId() != null && !request.cardTokenId().isBlank();
+        String normalizedCardTokenId = isDirectCardCheckout ? request.cardTokenId().trim() : null;
+        String requestedMpStatus = isDirectCardCheckout ? "authorized" : "pending";
 
         MpPreapprovalRequest mpRequest = MpPreapprovalRequest.builder()
                 .reason("NexoFood - " + plan.getName())
                 .externalReference(subscription.getId().toString())
                 .payerEmail(payerEmail)
+                .cardTokenId(normalizedCardTokenId)
                 .backUrl(frontendProperties.buildSubscriptionResultUrl(subscription.getId().toString()))
-                .status("pending")
+                .status(requestedMpStatus)
                 .autoRecurring(MpAutoRecurring.builder()
                         .frequency(frequency)
                         .frequencyType(frequencyType)
@@ -128,13 +160,39 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
                 .build();
 
         MpPreapprovalResponse mpResponse = mercadoPagoClient.createPreapproval(mpRequest);
-        if (mpResponse == null || mpResponse.id() == null || mpResponse.initPoint() == null) {
-            throw new PaymentGatewayException("Mercado Pago no devolvió un enlace válido para la suscripción (init_point)");
+        if (isDirectCardCheckout) {
+            if (mpResponse == null || mpResponse.id() == null || mpResponse.id().isBlank()) {
+                throw new PaymentGatewayException("Mercado Pago no devolvió un identificador válido para la suscripción");
+            }
+        } else {
+            if (mpResponse == null
+                    || mpResponse.id() == null
+                    || mpResponse.id().isBlank()
+                    || mpResponse.initPoint() == null
+                    || mpResponse.initPoint().isBlank()) {
+                throw new PaymentGatewayException("Mercado Pago no devolvió un enlace válido para la suscripción (init_point)");
+            }
         }
 
+        String normalizedMpStatus = (mpResponse.status() != null && !mpResponse.status().isBlank())
+                ? mpResponse.status().trim().toLowerCase(Locale.ROOT)
+                : "pending";
+
         subscription.setMpPreapprovalId(mpResponse.id());
-        subscription.setMpPreapprovalStatus(mpResponse.status() != null ? mpResponse.status() : "pending");
+        subscription.setMpPreapprovalStatus(normalizedMpStatus);
+
+        boolean activatedNow = isDirectCardCheckout && "authorized".equals(normalizedMpStatus);
+        if (activatedNow) {
+            applyAuthorizedActivation(subscription, now, cycleDays);
+        }
+
         Subscription saved = subscriptionRepository.save(subscription);
+
+        if (activatedNow) {
+            reactivateTenantIfLinked(saved.getId());
+            log.info("Suscripción {} activada inmediatamente mediante tarjeta tokenizada (preapprovalId={})",
+                    saved.getId(), saved.getMpPreapprovalId());
+        }
 
         return SubscriptionCheckoutResponse.builder()
                 .subscriptionId(saved.getId())
@@ -142,6 +200,7 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
                 .mpPreapprovalId(saved.getMpPreapprovalId())
                 .initPoint(mpResponse.initPoint())
                 .status(saved.getStatus())
+                .mpPreapprovalStatus(saved.getMpPreapprovalStatus())
                 .build();
     }
 
@@ -189,12 +248,7 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
 
         switch (mpStatus) {
             case "authorized" -> {
-                subscription.setStatus(SubscriptionStatus.ACTIVE);
-                subscription.setCancelAtPeriodEnd(false);
-                if (subscription.getEndDate() == null || subscription.getEndDate().isBefore(now)) {
-                    subscription.setStartDate(now);
-                    subscription.setEndDate(now.plusDays(cycleDays));
-                }
+                applyAuthorizedActivation(subscription, now, cycleDays);
                 reactivateTenantIfLinked(subscription.getId());
                 log.info("Suscripción {} activada con éxito (status=ACTIVE) tras autorización en Mercado Pago (preapprovalId={})",
                         subscription.getId(), preapprovalId);
@@ -356,6 +410,31 @@ public class SubscriptionBillingServiceImpl implements SubscriptionBillingServic
         }
 
         return subscriptionMapper.toResponse(subscription);
+    }
+
+    private String resolvePayerEmail(SubscriptionCheckoutRequest request, User user) {
+        if (properties.getTestPayerEmail() != null && !properties.getTestPayerEmail().isBlank()) {
+            return properties.getTestPayerEmail().trim();
+        }
+        if (request.payerEmail() != null && !request.payerEmail().isBlank()) {
+            return request.payerEmail().trim();
+        }
+        return user.getEmail();
+    }
+
+    private void applyAuthorizedActivation(Subscription subscription, OffsetDateTime now, int cycleDays) {
+        SubscriptionStatus previousStatus = subscription.getStatus();
+        boolean keepExistingEndDate = (previousStatus == SubscriptionStatus.TRIAL
+                || previousStatus == SubscriptionStatus.ACTIVE)
+                && subscription.getEndDate() != null
+                && subscription.getEndDate().isAfter(now);
+
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setCancelAtPeriodEnd(false);
+        if (!keepExistingEndDate) {
+            subscription.setStartDate(now);
+            subscription.setEndDate(now.plusDays(cycleDays));
+        }
     }
 
     private Subscription resolveOrCreateSubscriptionForCheckout(User user, SubscriptionPlan plan) {
