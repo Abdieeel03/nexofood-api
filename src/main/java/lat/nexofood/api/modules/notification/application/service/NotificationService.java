@@ -7,11 +7,13 @@ import lat.nexofood.api.modules.notification.domain.NotificationActionStatus;
 import lat.nexofood.api.modules.notification.domain.NotificationType;
 import lat.nexofood.api.modules.notification.web.dto.request.NotificationInvitationDecisionRequest;
 import lat.nexofood.api.modules.notification.web.dto.response.NotificationResponse;
+import lat.nexofood.api.modules.notification.web.dto.response.NotificationStreamTicketResponse;
 import lat.nexofood.api.modules.notification.web.dto.response.UnreadNotificationCountResponse;
 import lat.nexofood.api.modules.order.domain.Order;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Collection;
 import java.util.Map;
@@ -67,4 +69,8 @@ public interface NotificationService {
     void notifyNewOrder(Order order);
 
     void notifyOrderStatusChanged(Order order);
+
+    NotificationStreamTicketResponse issueStreamTicket();
+
+    SseEmitter subscribeToStream(String ticket);
 }

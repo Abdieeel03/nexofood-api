@@ -4,6 +4,7 @@ import lat.nexofood.api.common.config.TenantConnectionPreparer;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
+import lat.nexofood.api.common.exception.UnauthorizedException;
 import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.modules.catalog.domain.Product;
@@ -15,6 +16,7 @@ import lat.nexofood.api.modules.notification.infrastructure.repository.Notificat
 import lat.nexofood.api.modules.notification.web.dto.request.InvitationActionType;
 import lat.nexofood.api.modules.notification.web.dto.request.NotificationInvitationDecisionRequest;
 import lat.nexofood.api.modules.notification.web.dto.response.NotificationResponse;
+import lat.nexofood.api.modules.notification.web.dto.response.NotificationStreamTicketResponse;
 import lat.nexofood.api.modules.notification.web.dto.response.UnreadNotificationCountResponse;
 import lat.nexofood.api.modules.notification.web.mapper.NotificationMapper;
 import lat.nexofood.api.modules.order.domain.Order;
@@ -30,6 +32,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -57,6 +62,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final CurrentUserProvider currentUserProvider;
     private final TenantConnectionPreparer tenantConnectionPreparer;
     private final ObjectProvider<NotificationInvitationResponder> invitationResponderProvider;
+    private final NotificationSseService notificationSseService;
+    private final NotificationSseTicketService notificationSseTicketService;
 
     @Value("${app.notifications.low-stock-threshold:5}")
     private int lowStockThreshold = 5;
@@ -68,7 +75,9 @@ public class NotificationServiceImpl implements NotificationService {
             TenantMemberRepository tenantMemberRepository,
             CurrentUserProvider currentUserProvider,
             @Autowired(required = false) TenantConnectionPreparer tenantConnectionPreparer,
-            ObjectProvider<NotificationInvitationResponder> invitationResponderProvider
+            ObjectProvider<NotificationInvitationResponder> invitationResponderProvider,
+            @Autowired(required = false) NotificationSseService notificationSseService,
+            @Autowired(required = false) NotificationSseTicketService notificationSseTicketService
     ) {
         this.notificationRepository = notificationRepository;
         this.notificationMapper = notificationMapper;
@@ -76,6 +85,28 @@ public class NotificationServiceImpl implements NotificationService {
         this.currentUserProvider = currentUserProvider;
         this.tenantConnectionPreparer = tenantConnectionPreparer;
         this.invitationResponderProvider = invitationResponderProvider;
+        this.notificationSseService = notificationSseService;
+        this.notificationSseTicketService = notificationSseTicketService;
+    }
+
+    public NotificationServiceImpl(
+            NotificationRepository notificationRepository,
+            NotificationMapper notificationMapper,
+            TenantMemberRepository tenantMemberRepository,
+            CurrentUserProvider currentUserProvider,
+            TenantConnectionPreparer tenantConnectionPreparer,
+            ObjectProvider<NotificationInvitationResponder> invitationResponderProvider
+    ) {
+        this(
+                notificationRepository,
+                notificationMapper,
+                tenantMemberRepository,
+                currentUserProvider,
+                tenantConnectionPreparer,
+                invitationResponderProvider,
+                null,
+                null
+        );
     }
 
     public NotificationServiceImpl(
@@ -84,7 +115,7 @@ public class NotificationServiceImpl implements NotificationService {
             TenantMemberRepository tenantMemberRepository,
             CurrentUserProvider currentUserProvider
     ) {
-        this(notificationRepository, notificationMapper, tenantMemberRepository, currentUserProvider, null, null);
+        this(notificationRepository, notificationMapper, tenantMemberRepository, currentUserProvider, null, null, null, null);
     }
 
     @Override
@@ -133,7 +164,9 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        return notificationMapper.toResponse(saved);
+        NotificationResponse response = notificationMapper.toResponse(saved);
+        publishNewNotificationAfterCommit(recipient.getId(), response);
+        return response;
     }
 
     @Override
@@ -241,6 +274,7 @@ public class NotificationServiceImpl implements NotificationService {
             notification.setIsRead(true);
             notification.setReadAt(OffsetDateTime.now());
             notification = notificationRepository.save(notification);
+            publishUnreadCountAfterCommit(userId);
         }
 
         return notificationMapper.toResponse(notification);
@@ -263,6 +297,7 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
         notificationRepository.saveAll(unreadNotifications);
+        publishUnreadCountAfterCommit(userId, 0L);
         return unreadNotifications.size();
     }
 
@@ -309,6 +344,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setRespondedAt(now);
 
         Notification saved = notificationRepository.save(notification);
+        publishUnreadCountAfterCommit(userId);
         return notificationMapper.toResponse(saved);
     }
 
@@ -330,6 +366,9 @@ public class NotificationServiceImpl implements NotificationService {
                         notification.setRespondedAt(now);
                     }
                     notificationRepository.save(notification);
+                    if (notification.getRecipient() != null && notification.getRecipient().getId() != null) {
+                        publishUnreadCountAfterCommit(notification.getRecipient().getId());
+                    }
                 });
     }
 
@@ -477,6 +516,38 @@ public class NotificationServiceImpl implements NotificationService {
         );
     }
 
+    @Override
+    public NotificationStreamTicketResponse issueStreamTicket() {
+        if (notificationSseTicketService == null) {
+            throw new IllegalStateException("El servicio de tickets SSE no está disponible");
+        }
+        UUID userId = currentUserProvider.getCurrentUserId();
+        return notificationSseTicketService.issueTicket(userId);
+    }
+
+    @Override
+    public SseEmitter subscribeToStream(String ticket) {
+        if (notificationSseService == null) {
+            throw new IllegalStateException("El servicio SSE de notificaciones no está disponible");
+        }
+
+        UUID userId;
+        if (ticket != null && !ticket.isBlank()) {
+            if (notificationSseTicketService == null) {
+                throw new UnauthorizedException("Ticket SSE inválido, expirado o ya utilizado");
+            }
+            userId = notificationSseTicketService.consumeTicket(ticket)
+                    .orElseThrow(() -> new UnauthorizedException("Ticket SSE inválido, expirado o ya utilizado"));
+        } else if (currentUserProvider.getCurrentEmailOptional().isPresent()) {
+            userId = currentUserProvider.getCurrentUserId();
+        } else {
+            throw new UnauthorizedException("No autorizado: token inválido, expirado o ausente");
+        }
+
+        long unreadCount = notificationRepository.countByRecipientIdAndIsReadFalse(userId);
+        return notificationSseService.subscribe(userId, unreadCount);
+    }
+
     public int getLowStockThreshold() {
         return lowStockThreshold;
     }
@@ -504,5 +575,44 @@ public class NotificationServiceImpl implements NotificationService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private void publishNewNotificationAfterCommit(UUID userId, NotificationResponse response) {
+        if (notificationSseService == null || userId == null || response == null
+                || !notificationSseService.hasActiveConnections(userId)) {
+            return;
+        }
+        long unreadCount = notificationRepository.countByRecipientIdAndIsReadFalse(userId);
+        runAfterCommit(() -> notificationSseService.sendNotification(userId, response, unreadCount));
+    }
+
+    private void publishUnreadCountAfterCommit(UUID userId) {
+        if (notificationSseService == null || userId == null
+                || !notificationSseService.hasActiveConnections(userId)) {
+            return;
+        }
+        long unreadCount = notificationRepository.countByRecipientIdAndIsReadFalse(userId);
+        publishUnreadCountAfterCommit(userId, unreadCount);
+    }
+
+    private void publishUnreadCountAfterCommit(UUID userId, long unreadCount) {
+        if (notificationSseService == null || userId == null
+                || !notificationSseService.hasActiveConnections(userId)) {
+            return;
+        }
+        runAfterCommit(() -> notificationSseService.sendUnreadCount(userId, unreadCount));
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 }

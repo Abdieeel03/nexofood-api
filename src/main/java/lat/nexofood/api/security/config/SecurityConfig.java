@@ -153,6 +153,8 @@ public class SecurityConfig {
                         // Mercado Pago: webhook verificado con x-signature y callback OAuth con state firmado
                         .requestMatchers("/api/v1/webhooks/mercadopago").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/mercadopago/oauth/callback").permitAll()
+                        // Notifications SSE: autenticación validada en servicio mediante Bearer JWT o ticket temporal de un solo uso
+                        .requestMatchers(HttpMethod.GET, "/api/v1/notifications/stream").permitAll()
                         .anyRequest().authenticated()
                 );
 
