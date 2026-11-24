@@ -29,6 +29,8 @@ public class MercadoPagoProperties {
 
     private String platformAccessToken;
 
+    private String platformPublicKey;
+
     private String testPayerEmail;
 
     private String webhookSecret;

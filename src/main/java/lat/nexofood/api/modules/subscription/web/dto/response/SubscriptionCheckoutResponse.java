@@ -11,5 +11,6 @@ public record SubscriptionCheckoutResponse(
         UUID planId,
         String mpPreapprovalId,
         String initPoint,
-        SubscriptionStatus status
+        SubscriptionStatus status,
+        String mpPreapprovalStatus
 ) {}

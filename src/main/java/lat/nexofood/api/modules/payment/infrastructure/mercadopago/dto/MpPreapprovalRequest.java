@@ -12,6 +12,7 @@ public record MpPreapprovalRequest(
         @JsonProperty("reason") String reason,
         @JsonProperty("external_reference") String externalReference,
         @JsonProperty("payer_email") String payerEmail,
+        @JsonProperty("card_token_id") String cardTokenId,
         @JsonProperty("back_url") String backUrl,
         @JsonProperty("status") String status,
         @JsonProperty("auto_recurring") MpAutoRecurring autoRecurring

@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.subscription.application.service;
 
+import lat.nexofood.api.common.exception.PaymentGatewayException;
 import lat.nexofood.api.common.security.CurrentUserProvider;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.payment.infrastructure.mercadopago.FrontendProperties;
@@ -22,7 +23,9 @@ import lat.nexofood.api.modules.subscription.domain.SubscriptionStatus;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionPaymentRepository;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionPlanRepository;
 import lat.nexofood.api.modules.subscription.infrastructure.repository.SubscriptionRepository;
+import lat.nexofood.api.modules.subscription.web.dto.request.SubscriptionCheckoutRequest;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionCheckoutResponse;
+import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentConfigResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionResponse;
 import lat.nexofood.api.modules.subscription.web.mapper.SubscriptionMapper;
 import lat.nexofood.api.modules.subscription.web.mapper.SubscriptionPlanMapper;
@@ -43,6 +46,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -65,6 +70,7 @@ class SubscriptionBillingServiceTest {
     @Mock
     private MercadoPagoClient mercadoPagoClient;
 
+    private MercadoPagoProperties properties;
     private SubscriptionBillingServiceImpl billingService;
     private SubscriptionServiceImpl subscriptionService;
     private SubscriptionExpirationScheduler expirationScheduler;
@@ -74,7 +80,7 @@ class SubscriptionBillingServiceTest {
 
     @BeforeEach
     void setUp() {
-        MercadoPagoProperties properties = MercadoPagoProperties.builder().currency("PEN").build();
+        properties = MercadoPagoProperties.builder().currency("PEN").build();
         FrontendProperties frontendProperties = new FrontendProperties();
         SubscriptionMapper subscriptionMapper = new SubscriptionMapper(new SubscriptionPlanMapper());
 
@@ -266,5 +272,229 @@ class SubscriptionBillingServiceTest {
         assertFalse(activePaidSub.getCancelAtPeriodEnd());
         assertFalse(tenant.getIsActive());
         verify(tenantRepository).save(tenant);
+    }
+
+    @Test
+    @DisplayName("startCheckout (tarjeta directa): cardTokenId autorizado activa inmediatamente a ACTIVE, permite initPoint nulo y reactiva el tenant")
+    void startCheckoutWithCardTokenActivatesImmediatelyAndReactivatesTenant() {
+        UUID subId = UUID.randomUUID();
+        Subscription pastDueSub = Subscription.builder()
+                .id(subId)
+                .user(owner)
+                .plan(planPro)
+                .status(SubscriptionStatus.PAST_DUE)
+                .startDate(OffsetDateTime.now().minusDays(40))
+                .endDate(OffsetDateTime.now().minusDays(10))
+                .cancelAtPeriodEnd(true)
+                .build();
+
+        Tenant inactiveTenant = Tenant.builder()
+                .id(UUID.randomUUID())
+                .owner(owner)
+                .subscription(pastDueSub)
+                .isActive(false)
+                .build();
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(owner);
+        when(planRepository.findById(planPro.getId())).thenReturn(Optional.of(planPro));
+        when(tenantRepository.findByOwnerId(owner.getId())).thenReturn(Optional.of(inactiveTenant));
+        when(tenantRepository.findBySubscriptionId(subId)).thenReturn(Optional.of(inactiveTenant));
+        when(subscriptionRepository.save(any(Subscription.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ArgumentCaptor<MpPreapprovalRequest> reqCaptor = ArgumentCaptor.forClass(MpPreapprovalRequest.class);
+        when(mercadoPagoClient.createPreapproval(reqCaptor.capture())).thenReturn(
+                MpPreapprovalResponse.builder()
+                        .id("preapp-card-001")
+                        .status("authorized")
+                        .initPoint(null)
+                        .build()
+        );
+
+        SubscriptionCheckoutRequest request = SubscriptionCheckoutRequest.builder()
+                .planId(planPro.getId())
+                .cardTokenId("  tok_mp_card_123  ")
+                .build();
+
+        SubscriptionCheckoutResponse response = billingService.startCheckout(request);
+
+        MpPreapprovalRequest sent = reqCaptor.getValue();
+        assertEquals("tok_mp_card_123", sent.cardTokenId());
+        assertEquals("authorized", sent.status());
+        assertEquals(owner.getEmail(), sent.payerEmail());
+        assertEquals("NexoFood - Plan Pro", sent.reason());
+        assertEquals(subId.toString(), sent.externalReference());
+        assertNotNull(sent.backUrl());
+        assertNull(sent.autoRecurring().startDate());
+
+        assertEquals(subId, response.subscriptionId());
+        assertEquals(planPro.getId(), response.planId());
+        assertEquals("preapp-card-001", response.mpPreapprovalId());
+        assertNull(response.initPoint());
+        assertEquals(SubscriptionStatus.ACTIVE, response.status());
+        assertEquals("authorized", response.mpPreapprovalStatus());
+
+        assertEquals(SubscriptionStatus.ACTIVE, pastDueSub.getStatus());
+        assertFalse(pastDueSub.getCancelAtPeriodEnd());
+        assertTrue(pastDueSub.getEndDate().isAfter(OffsetDateTime.now().plusDays(25)));
+        assertTrue(inactiveTenant.getIsActive());
+        verify(tenantRepository).save(inactiveTenant);
+    }
+
+    @Test
+    @DisplayName("startCheckout (tarjeta directa en TRIAL vigente): activa a ACTIVE preservando la fecha de fin del TRIAL")
+    void startCheckoutWithCardTokenOnActiveTrialPreservesTrialEndDate() {
+        OffsetDateTime trialEnd = OffsetDateTime.now().plusDays(12);
+        UUID subId = UUID.randomUUID();
+        Subscription trialSub = Subscription.builder()
+                .id(subId)
+                .user(owner)
+                .plan(planPro)
+                .status(SubscriptionStatus.TRIAL)
+                .startDate(OffsetDateTime.now().minusDays(2))
+                .endDate(trialEnd)
+                .build();
+
+        Tenant tenant = Tenant.builder()
+                .id(UUID.randomUUID())
+                .owner(owner)
+                .subscription(trialSub)
+                .isActive(true)
+                .build();
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(owner);
+        when(planRepository.findById(planPro.getId())).thenReturn(Optional.of(planPro));
+        when(tenantRepository.findByOwnerId(owner.getId())).thenReturn(Optional.of(tenant));
+        when(tenantRepository.findBySubscriptionId(subId)).thenReturn(Optional.of(tenant));
+        when(subscriptionRepository.save(any(Subscription.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ArgumentCaptor<MpPreapprovalRequest> reqCaptor = ArgumentCaptor.forClass(MpPreapprovalRequest.class);
+        when(mercadoPagoClient.createPreapproval(reqCaptor.capture())).thenReturn(
+                MpPreapprovalResponse.builder()
+                        .id("preapp-trial-card")
+                        .status("authorized")
+                        .initPoint(null)
+                        .build()
+        );
+
+        SubscriptionCheckoutResponse response = billingService.startCheckout(
+                SubscriptionCheckoutRequest.builder()
+                        .planId(planPro.getId())
+                        .cardTokenId("tok_trial_456")
+                        .payerEmail("facturacion@restaurante.pe")
+                        .build()
+        );
+
+        assertEquals(SubscriptionStatus.ACTIVE, response.status());
+        assertEquals("authorized", response.mpPreapprovalStatus());
+        assertEquals(trialEnd, trialSub.getEndDate());
+        assertNotNull(reqCaptor.getValue().autoRecurring().startDate());
+        assertEquals("facturacion@restaurante.pe", reqCaptor.getValue().payerEmail());
+    }
+
+    @Test
+    @DisplayName("startCheckout: usa payerEmail del request cuando testPayerEmail está vacío y prioriza testPayerEmail si está configurado")
+    void startCheckoutResolvesPayerEmailPrecedence() {
+        when(currentUserProvider.getCurrentUser()).thenReturn(owner);
+        when(planRepository.findById(planPro.getId())).thenReturn(Optional.of(planPro));
+        when(tenantRepository.findByOwnerId(owner.getId())).thenReturn(Optional.empty());
+        when(subscriptionRepository.findFirstByUserIdOrderByCreatedAtDesc(owner.getId())).thenReturn(Optional.empty());
+        when(subscriptionRepository.save(any(Subscription.class))).thenAnswer(inv -> {
+            Subscription s = inv.getArgument(0);
+            if (s.getId() == null) {
+                s.setId(UUID.randomUUID());
+            }
+            return s;
+        });
+
+        ArgumentCaptor<MpPreapprovalRequest> reqCaptor = ArgumentCaptor.forClass(MpPreapprovalRequest.class);
+        when(mercadoPagoClient.createPreapproval(reqCaptor.capture())).thenReturn(
+                MpPreapprovalResponse.builder()
+                        .id("preapp-email-1")
+                        .status("authorized")
+                        .build()
+        );
+
+        // 1. Sin testPayerEmail -> usa request.payerEmail (trimmed)
+        billingService.startCheckout(SubscriptionCheckoutRequest.builder()
+                .planId(planPro.getId())
+                .cardTokenId("tok_email_1")
+                .payerEmail("  pagador@custom.com  ")
+                .build());
+        assertEquals("pagador@custom.com", reqCaptor.getValue().payerEmail());
+
+        // 2. Con testPayerEmail configurado -> prioriza testPayerEmail sobre request.payerEmail y user.email
+        properties.setTestPayerEmail("  test_user_99@testuser.com  ");
+        billingService.startCheckout(SubscriptionCheckoutRequest.builder()
+                .planId(planPro.getId())
+                .cardTokenId("tok_email_2")
+                .payerEmail("pagador@custom.com")
+                .build());
+        assertEquals("test_user_99@testuser.com", reqCaptor.getValue().payerEmail());
+    }
+
+    @Test
+    @DisplayName("startCheckout (fallback redirect sin cardTokenId): envía status=pending, respeta payerEmail y exige initPoint")
+    void startCheckoutRedirectFallbackWithoutCardTokenRequiresInitPointAndHonorsPayerEmail() {
+        when(currentUserProvider.getCurrentUser()).thenReturn(owner);
+        when(planRepository.findById(planPro.getId())).thenReturn(Optional.of(planPro));
+        when(tenantRepository.findByOwnerId(owner.getId())).thenReturn(Optional.empty());
+        when(subscriptionRepository.findFirstByUserIdOrderByCreatedAtDesc(owner.getId())).thenReturn(Optional.empty());
+        when(subscriptionRepository.save(any(Subscription.class))).thenAnswer(inv -> {
+            Subscription s = inv.getArgument(0);
+            if (s.getId() == null) {
+                s.setId(UUID.randomUUID());
+            }
+            return s;
+        });
+
+        // 1. Si Mercado Pago no devuelve initPoint en modo redirect -> PaymentGatewayException
+        when(mercadoPagoClient.createPreapproval(any())).thenReturn(
+                MpPreapprovalResponse.builder()
+                        .id("preapp-no-init")
+                        .status("pending")
+                        .initPoint(null)
+                        .build()
+        );
+
+        SubscriptionCheckoutRequest redirectRequest = SubscriptionCheckoutRequest.builder()
+                .planId(planPro.getId())
+                .payerEmail("compras@restaurante.pe")
+                .build();
+
+        assertThrows(PaymentGatewayException.class, () -> billingService.startCheckout(redirectRequest));
+
+        // 2. Con initPoint válido -> mantiene flujo redirect pending y respeta payerEmail
+        ArgumentCaptor<MpPreapprovalRequest> reqCaptor = ArgumentCaptor.forClass(MpPreapprovalRequest.class);
+        when(mercadoPagoClient.createPreapproval(reqCaptor.capture())).thenReturn(
+                MpPreapprovalResponse.builder()
+                        .id("preapp-redirect-1")
+                        .status("pending")
+                        .initPoint("https://www.mercadopago.com.pe/subscriptions/checkout?preapproval_id=preapp-redirect-1")
+                        .build()
+        );
+
+        SubscriptionCheckoutResponse response = billingService.startCheckout(redirectRequest);
+
+        assertNull(reqCaptor.getValue().cardTokenId());
+        assertEquals("pending", reqCaptor.getValue().status());
+        assertEquals("compras@restaurante.pe", reqCaptor.getValue().payerEmail());
+        assertEquals(SubscriptionStatus.PENDING, response.status());
+        assertEquals("pending", response.mpPreapprovalStatus());
+        assertEquals("https://www.mercadopago.com.pe/subscriptions/checkout?preapproval_id=preapp-redirect-1", response.initPoint());
+    }
+
+    @Test
+    @DisplayName("getPaymentConfig: devuelve publicKey, currency y cardPaymentsEnabled según MP_PLATFORM_PUBLIC_KEY")
+    void getPaymentConfigReflectsPlatformPublicKey() {
+        SubscriptionPaymentConfigResponse disabledConfig = billingService.getPaymentConfig();
+        assertNull(disabledConfig.publicKey());
+        assertEquals("PEN", disabledConfig.currency());
+        assertFalse(disabledConfig.cardPaymentsEnabled());
+
+        properties.setPlatformPublicKey("  APP_USR-platform-public-key-123  ");
+        SubscriptionPaymentConfigResponse enabledConfig = billingService.getPaymentConfig();
+        assertEquals("APP_USR-platform-public-key-123", enabledConfig.publicKey());
+        assertEquals("PEN", enabledConfig.currency());
+        assertTrue(enabledConfig.cardPaymentsEnabled());
     }
 }

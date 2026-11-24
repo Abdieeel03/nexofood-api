@@ -302,15 +302,30 @@ public class RestClientMercadoPagoClient implements MercadoPagoClient {
         }
         try {
             JsonNode root = objectMapper.readTree(responseBody);
-            if (root.hasNonNull("message")) {
-                return root.get("message").asText();
+            String topMessage = extractNonBlankText(root, "message");
+            String causeDescription = extractFirstCauseDescription(root);
+
+            if (topMessage != null && causeDescription != null) {
+                if (topMessage.equalsIgnoreCase(causeDescription) || topMessage.contains(causeDescription)) {
+                    return topMessage;
+                }
+                return topMessage + " (" + causeDescription + ")";
             }
+            if (topMessage != null) {
+                return topMessage;
+            }
+            if (causeDescription != null) {
+                return causeDescription;
+            }
+
             if (root.has("errors") && root.get("errors").isArray() && !root.get("errors").isEmpty()) {
                 JsonNode firstError = root.get("errors").get(0);
-                String baseMessage = firstError.hasNonNull("message") ? firstError.get("message").asText() : null;
+                String baseMessage = extractNonBlankText(firstError, "message");
                 if (firstError.has("details") && firstError.get("details").isArray() && !firstError.get("details").isEmpty()) {
                     String detail = firstError.get("details").get(0).asText();
-                    return baseMessage != null ? baseMessage + " (" + detail + ")" : detail;
+                    if (detail != null && !detail.isBlank()) {
+                        return baseMessage != null ? baseMessage + " (" + detail.trim() + ")" : detail.trim();
+                    }
                 }
                 if (baseMessage != null) {
                     return baseMessage;
@@ -319,6 +334,43 @@ public class RestClientMercadoPagoClient implements MercadoPagoClient {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    private String extractFirstCauseDescription(JsonNode root) {
+        if (root == null || !root.hasNonNull("cause")) {
+            return null;
+        }
+        JsonNode cause = root.get("cause");
+        if (cause.isArray() && !cause.isEmpty()) {
+            JsonNode firstCause = cause.get(0);
+            if (firstCause.isTextual() && !firstCause.asText().isBlank()) {
+                return firstCause.asText().trim();
+            }
+            String description = extractNonBlankText(firstCause, "description");
+            if (description != null) {
+                return description;
+            }
+            return extractNonBlankText(firstCause, "message");
+        }
+        if (cause.isObject()) {
+            String description = extractNonBlankText(cause, "description");
+            if (description != null) {
+                return description;
+            }
+            return extractNonBlankText(cause, "message");
+        }
+        if (cause.isTextual() && !cause.asText().isBlank()) {
+            return cause.asText().trim();
+        }
+        return null;
+    }
+
+    private String extractNonBlankText(JsonNode node, String fieldName) {
+        if (node == null || !node.hasNonNull(fieldName)) {
+            return null;
+        }
+        String text = node.get(fieldName).asText();
+        return (text != null && !text.isBlank()) ? text.trim() : null;
     }
 
     private void requireAccessToken(String accessToken, String ownerLabel) {

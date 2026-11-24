@@ -6,8 +6,11 @@ import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.subscription.application.service.subscription.SubscriptionBillingService;
 import lat.nexofood.api.modules.subscription.application.service.subscription.SubscriptionService;
+import lat.nexofood.api.modules.subscription.domain.SubscriptionStatus;
+import lat.nexofood.api.modules.subscription.web.dto.request.SubscriptionCheckoutRequest;
 import lat.nexofood.api.modules.subscription.web.dto.request.SubscriptionCreateRequest;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionCheckoutResponse;
+import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentConfigResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionPaymentResponse;
 import lat.nexofood.api.modules.subscription.web.dto.response.SubscriptionResponse;
 import lombok.RequiredArgsConstructor;
@@ -45,15 +48,31 @@ public class SubscriptionController {
         );
     }
 
+    @GetMapping("/config")
+    @Operation(summary = "Obtener configuración pública de Mercado Pago para pagos de suscripción con tarjeta")
+    public ResponseEntity<ApiResponse<SubscriptionPaymentConfigResponse>> getPaymentConfig() {
+        SubscriptionPaymentConfigResponse response = subscriptionBillingService.getPaymentConfig();
+        return ResponseEntity.ok(
+                ApiResponse.<SubscriptionPaymentConfigResponse>builder()
+                        .success(true)
+                        .message("Configuración de pagos de suscripción obtenida exitosamente")
+                        .data(response)
+                        .build()
+        );
+    }
+
     @PostMapping("/checkout")
-    @Operation(summary = "Generar suscripción preaprobada en Mercado Pago (devuelve initPoint para autorizar pagos recurrentes)")
+    @Operation(summary = "Iniciar checkout de suscripción en Mercado Pago (pago directo con tarjeta tokenizada o enlace initPoint)")
     public ResponseEntity<ApiResponse<SubscriptionCheckoutResponse>> checkoutSubscription(
-            @Valid @RequestBody SubscriptionCreateRequest request) {
-        SubscriptionCheckoutResponse response = subscriptionBillingService.startCheckout(request.planId());
+            @Valid @RequestBody SubscriptionCheckoutRequest request) {
+        SubscriptionCheckoutResponse response = subscriptionBillingService.startCheckout(request);
+        String message = response.status() == SubscriptionStatus.ACTIVE
+                ? "Suscripción activada exitosamente"
+                : "Enlace de suscripción preaprobada generado exitosamente";
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 ApiResponse.<SubscriptionCheckoutResponse>builder()
                         .success(true)
-                        .message("Enlace de suscripción preaprobada generado exitosamente")
+                        .message(message)
                         .data(response)
                         .build()
         );
