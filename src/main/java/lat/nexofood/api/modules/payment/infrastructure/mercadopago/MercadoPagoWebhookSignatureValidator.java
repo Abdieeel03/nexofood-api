@@ -79,7 +79,7 @@ public class MercadoPagoWebhookSignatureValidator {
     private boolean isTestCredentialsMode() {
         boolean missingSecret = properties.getClientSecret() == null || properties.getClientSecret().isBlank();
         boolean hasPlatformToken = properties.getPlatformAccessToken() != null && !properties.getPlatformAccessToken().isBlank();
-        return missingSecret && hasPlatformToken;
+        return properties.isAllowTestMode() && missingSecret && hasPlatformToken;
     }
 
     public String buildManifest(String dataId, String xRequestId, String ts) {

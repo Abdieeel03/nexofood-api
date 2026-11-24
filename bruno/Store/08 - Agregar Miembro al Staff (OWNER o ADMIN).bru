@@ -20,7 +20,7 @@ headers {
 
 body:json {
   {
-    "userId": "{{userId}}",
+    "email": "{{invitedUserEmail}}",
     "role": "COCINERO"
   }
 }
@@ -29,7 +29,7 @@ script:post-response {
   if (res.getStatus() === 201) {
     const data = res.getBody().data;
     if (data && data.id) {
-      bru.setEnvVar("memberId", data.id);
+      bru.setEnvVar("invitationId", data.id);
     }
   }
 }
@@ -39,9 +39,10 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("Miembro creado con el rol asignado", function() {
+  test("Invitación creada con el rol asignado en estado PENDING", function() {
     const data = res.getBody().data;
     expect(data.role).to.equal("COCINERO");
-    expect(data.isActive).to.be.true;
+    expect(data.isActive).to.be.false;
+    expect(data.invitationStatus).to.equal("PENDING");
   });
 }

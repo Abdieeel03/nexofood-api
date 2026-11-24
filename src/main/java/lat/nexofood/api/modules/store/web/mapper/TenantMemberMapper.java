@@ -2,6 +2,8 @@ package lat.nexofood.api.modules.store.web.mapper;
 
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.store.domain.Tenant;
+import lat.nexofood.api.modules.store.domain.TenantInvitation;
+import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantMember;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
@@ -24,6 +26,25 @@ public class TenantMemberMapper {
                 .isActive(member.getIsActive())
                 .createdAt(member.getCreatedAt())
                 .updatedAt(member.getUpdatedAt())
+                .build();
+    }
+
+    public TenantMemberResponse toInvitationResponse(TenantInvitation invitation) {
+        if (invitation == null) {
+            return null;
+        }
+        User invitedUser = invitation.getInvitedUser();
+        return TenantMemberResponse.builder()
+                .id(invitation.getId())
+                .tenantId(invitation.getTenant() != null ? invitation.getTenant().getId() : null)
+                .userId(invitedUser != null ? invitedUser.getId() : null)
+                .userFullName(invitedUser != null ? invitedUser.getFullName() : null)
+                .userEmail(invitedUser != null ? invitedUser.getEmail() : invitation.getInvitedEmail())
+                .role(invitation.getRole())
+                .isActive(invitation.getStatus() == TenantInvitationStatus.ACCEPTED)
+                .createdAt(invitation.getCreatedAt())
+                .updatedAt(invitation.getUpdatedAt())
+                .invitationStatus(invitation.getStatus())
                 .build();
     }
 

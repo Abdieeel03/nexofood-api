@@ -15,6 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "postgis";
 -- ------------------------------------------------------------------------------
 -- 2. DROP EXISTING TABLES & FUNCTIONS (Reverse Dependency Order)
 -- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -25,6 +26,7 @@ DROP TABLE IF EXISTS products CASCADE;
 DROP TABLE IF EXISTS taxes CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS tenant_customers CASCADE;
+DROP TABLE IF EXISTS tenant_invitations CASCADE;
 DROP TABLE IF EXISTS tenant_members CASCADE;
 DROP TABLE IF EXISTS tenants CASCADE;
 DROP TABLE IF EXISTS subscription_payments CASCADE;
@@ -210,6 +212,9 @@ CREATE TABLE tenants (
     mp_connected_at      TIMESTAMPTZ,
     mp_token_expires_at  TIMESTAMPTZ,
     is_active            BOOLEAN               NOT NULL DEFAULT TRUE,
+    opening_time         TIME,
+    closing_time         TIME,
+    is_open              BOOLEAN               NOT NULL DEFAULT TRUE,
     created_at           TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMPTZ           NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -247,6 +252,32 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ALTER TABLE tenant_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON tenant_members
     USING (tenant_id::TEXT = current_setting('app.current_tenant_id', true));
+
+-- Table: tenant_invitations
+-- Sin RLS: los usuarios invitados consultan y responden invitaciones a través de múltiples tiendas.
+CREATE TABLE tenant_invitations (
+    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id       UUID         NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    invited_user_id UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    inviter_user_id UUID         REFERENCES users(id) ON DELETE SET NULL,
+    invited_email   VARCHAR(255) NOT NULL,
+    role            VARCHAR(50)  NOT NULL
+        CONSTRAINT chk_tenant_invitations_role CHECK (role IN ('OWNER', 'ADMIN', 'COCINERO', 'REPARTIDOR')),
+    status          VARCHAR(30)  NOT NULL DEFAULT 'PENDING'
+        CONSTRAINT chk_tenant_invitations_status CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED')),
+    responded_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tenant_invitations_tenant_id       ON tenant_invitations(tenant_id);
+CREATE INDEX idx_tenant_invitations_invited_user_id ON tenant_invitations(invited_user_id);
+CREATE INDEX idx_tenant_invitations_inviter_user_id ON tenant_invitations(inviter_user_id);
+CREATE INDEX idx_tenant_invitations_status          ON tenant_invitations(status);
+
+CREATE TRIGGER trg_tenant_invitations_updated_at
+BEFORE UPDATE ON tenant_invitations
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Table: tenant_customers
 -- PK compuesta (tenant_id, user_id): un usuario es cliente de un tenant una sola vez.
@@ -650,7 +681,43 @@ CREATE POLICY tenant_isolation ON payments
     );
 
 -- ==============================================================================
--- 11. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
+-- 11. MODULE: NOTIFICATION
+-- ==============================================================================
+
+-- Table: notifications
+-- Sin RLS: un usuario recibe notificaciones de múltiples tiendas (invitaciones, pedidos, alertas).
+CREATE TABLE notifications (
+    id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_user_id UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id         UUID         REFERENCES tenants(id) ON DELETE CASCADE,
+    type              VARCHAR(50)  NOT NULL,
+    title             VARCHAR(200) NOT NULL,
+    message           TEXT         NOT NULL,
+    action_required   BOOLEAN      NOT NULL DEFAULT FALSE,
+    action_status     VARCHAR(30)  NOT NULL DEFAULT 'NONE'
+        CONSTRAINT chk_notifications_action_status CHECK (action_status IN ('NONE', 'PENDING', 'ACCEPTED', 'REJECTED')),
+    reference_id      UUID,
+    dedup_key         VARCHAR(150),
+    metadata          JSONB,
+    is_read           BOOLEAN      NOT NULL DEFAULT FALSE,
+    read_at           TIMESTAMPTZ,
+    responded_at      TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_notifications_recipient_user_id   ON notifications(recipient_user_id);
+CREATE INDEX idx_notifications_tenant_id           ON notifications(tenant_id);
+CREATE INDEX idx_notifications_recipient_is_read   ON notifications(recipient_user_id, is_read);
+CREATE INDEX idx_notifications_recipient_dedup_key ON notifications(recipient_user_id, dedup_key);
+CREATE INDEX idx_notifications_reference_id        ON notifications(reference_id);
+
+CREATE TRIGGER trg_notifications_updated_at
+BEFORE UPDATE ON notifications
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ==============================================================================
+-- 12. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
 -- ==============================================================================
 
 -- Forzar Row Level Security incluso para el propietario de las tablas

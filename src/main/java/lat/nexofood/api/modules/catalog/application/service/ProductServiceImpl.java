@@ -23,6 +23,7 @@ import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductMapper;
+import lat.nexofood.api.modules.notification.application.service.NotificationService;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.subscription.application.service.guard.SubscriptionGuard;
@@ -51,6 +52,7 @@ public class ProductServiceImpl implements ProductService {
     private final TaxRepository taxRepository;
     private final ProductMapper productMapper;
     private final SubscriptionGuard subscriptionGuard;
+    private final NotificationService notificationService;
 
     @Autowired
     public ProductServiceImpl(
@@ -59,7 +61,8 @@ public class ProductServiceImpl implements ProductService {
             CategoryRepository categoryRepository,
             TaxRepository taxRepository,
             ProductMapper productMapper,
-            SubscriptionGuard subscriptionGuard
+            SubscriptionGuard subscriptionGuard,
+            @Autowired(required = false) NotificationService notificationService
     ) {
         this.productRepository = productRepository;
         this.tenantRepository = tenantRepository;
@@ -67,6 +70,18 @@ public class ProductServiceImpl implements ProductService {
         this.taxRepository = taxRepository;
         this.productMapper = productMapper;
         this.subscriptionGuard = subscriptionGuard;
+        this.notificationService = notificationService;
+    }
+
+    public ProductServiceImpl(
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            CategoryRepository categoryRepository,
+            TaxRepository taxRepository,
+            ProductMapper productMapper,
+            SubscriptionGuard subscriptionGuard
+    ) {
+        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, subscriptionGuard, null);
     }
 
     public ProductServiceImpl(
@@ -76,7 +91,7 @@ public class ProductServiceImpl implements ProductService {
             TaxRepository taxRepository,
             ProductMapper productMapper
     ) {
-        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, null);
+        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, null, null);
     }
 
     @Override
@@ -106,6 +121,9 @@ public class ProductServiceImpl implements ProductService {
 
         Product product = productMapper.toEntity(request, tenant, category, tax);
         Product savedProduct = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(savedProduct != null ? savedProduct : product);
+        }
         return productMapper.toResponse(savedProduct);
     }
 
@@ -147,6 +165,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product updatedProduct = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(updatedProduct != null ? updatedProduct : product);
+        }
         return productMapper.toResponse(updatedProduct);
     }
 
@@ -292,6 +313,9 @@ public class ProductServiceImpl implements ProductService {
 
         product.updateStock(stock);
         Product updated = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(updated != null ? updated : product);
+        }
         return productMapper.toResponse(updated);
     }
 

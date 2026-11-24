@@ -32,8 +32,8 @@ public class ProductPriceController {
     private final ProductPriceService productPriceService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Listar todas las reglas de precio de un producto (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Listar todas las reglas de precio de un producto (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<List<ProductPriceResponse>>> getPrices(
             @PathVariable UUID tenantId,
             @PathVariable UUID productId
@@ -49,8 +49,8 @@ public class ProductPriceController {
     }
 
     @GetMapping("/{priceId}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener una regla de precio por ID (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener una regla de precio por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<ProductPriceResponse>> getPriceById(
             @PathVariable UUID tenantId,
             @PathVariable UUID productId,

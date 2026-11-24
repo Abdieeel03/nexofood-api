@@ -1,0 +1,16 @@
+package lat.nexofood.api.modules.notification.domain;
+
+public enum NotificationType {
+    STAFF_INVITATION,
+    INVITATION_ACCEPTED,
+    INVITATION_REJECTED,
+    LOW_STOCK,
+    OUT_OF_STOCK,
+    STORE_OPENING_SOON,
+    STORE_CLOSING_SOON,
+    STORE_AUTO_CLOSED,
+    STORE_AUTO_OPENED,
+    SUBSCRIPTION_EXPIRING_SOON,
+    NEW_ORDER_RECEIVED,
+    ORDER_STATUS_CHANGED
+}

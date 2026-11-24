@@ -23,6 +23,11 @@ public interface DeliveryTrackingService {
     DeliveryTrackingResponse getOrderTrackingForStaff(UUID tenantId, UUID orderId, boolean includeHistory);
 
     /**
+     * Obtiene el estado de rastreo de un pedido para el repartidor asignado (o OWNER/ADMIN/SUPERADMIN).
+     */
+    DeliveryTrackingResponse getOrderTrackingForDriver(UUID tenantId, UUID orderId, boolean includeHistory);
+
+    /**
      * Lista todas las entregas en curso (activas) del restaurante con la última posición de cada repartidor.
      */
     List<DeliveryTrackingResponse> getActiveTrackingsByTenant(UUID tenantId);

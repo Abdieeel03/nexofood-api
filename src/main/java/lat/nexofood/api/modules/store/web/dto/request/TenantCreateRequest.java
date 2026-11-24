@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Builder
@@ -49,5 +50,9 @@ public record TenantCreateRequest(
 
         @DecimalMin(value = "0.00")
         @DecimalMax(value = "1000.00", message = "El costo de envío no puede superar 1000")
-        BigDecimal defaultDeliveryFee
+        BigDecimal defaultDeliveryFee,
+
+        LocalTime openingTime,
+
+        LocalTime closingTime
 ) {}

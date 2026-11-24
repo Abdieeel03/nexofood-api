@@ -65,4 +65,51 @@ class MercadoPagoWebhookSignatureValidatorTest {
         );
         assertFalse(unconfiguredValidator.isValid("ts=" + ts + ",v1=" + validHmac, requestId, dataId));
     }
+
+    @Test
+    @DisplayName("isValid: con allowTestMode=false y clientSecret vacío, NO activa bypass de modo prueba ante firma HMAC inválida")
+    void rejectsInvalidHmacWhenAllowTestModeIsFalseEvenWithBlankClientSecretAndPlatformToken() {
+        MercadoPagoProperties properties = MercadoPagoProperties.builder()
+                .allowTestMode(false)
+                .clientSecret("")
+                .platformAccessToken("APP_USR-platform-test-token")
+                .webhookSecret(WEBHOOK_SECRET)
+                .build();
+        MercadoPagoWebhookSignatureValidator strictValidator = new MercadoPagoWebhookSignatureValidator(properties);
+
+        String dataId = "987654321";
+        String requestId = "req-002";
+        String ts = "1704908010";
+        String validHmac = strictValidator.computeHmacSha256Hex(
+                strictValidator.buildManifest(dataId, requestId, ts),
+                WEBHOOK_SECRET
+        );
+        String tamperedSignature = "ts=" + ts + ",v1=0000" + validHmac.substring(4);
+
+        assertFalse(strictValidator.isValid(tamperedSignature, requestId, dataId));
+        assertTrue(strictValidator.isValid("ts=" + ts + ",v1=" + validHmac, requestId, dataId));
+    }
+
+    @Test
+    @DisplayName("isValid: con allowTestMode=true, clientSecret vacío y platformAccessToken presente, activa bypass de modo prueba")
+    void allowsBypassWhenAllowTestModeIsTrueWithMissingClientSecretAndPlatformToken() {
+        MercadoPagoProperties devProperties = MercadoPagoProperties.builder()
+                .allowTestMode(true)
+                .clientSecret("")
+                .platformAccessToken("APP_USR-platform-test-token")
+                .webhookSecret(WEBHOOK_SECRET)
+                .build();
+        MercadoPagoWebhookSignatureValidator devValidator = new MercadoPagoWebhookSignatureValidator(devProperties);
+
+        String dataId = "987654321";
+        String requestId = "req-003";
+        String ts = "1704908010";
+        String validHmac = devValidator.computeHmacSha256Hex(
+                devValidator.buildManifest(dataId, requestId, ts),
+                WEBHOOK_SECRET
+        );
+        String mismatchedSignature = "ts=" + ts + ",v1=0000" + validHmac.substring(4);
+
+        assertTrue(devValidator.isValid(mismatchedSignature, requestId, dataId));
+    }
 }
