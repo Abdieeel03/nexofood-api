@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.web.dto.response;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -27,6 +28,9 @@ public record TenantResponse(
         OffsetDateTime mpConnectedAt,
         OffsetDateTime mpTokenExpiresAt,
         Boolean isActive,
+        LocalTime openingTime,
+        LocalTime closingTime,
+        Boolean isOpen,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {}

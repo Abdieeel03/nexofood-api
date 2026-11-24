@@ -41,7 +41,7 @@ public class CartItemMapper {
             return null;
         }
         Product product = item.getProduct();
-        boolean available = isProductAvailable(product);
+        boolean available = isProductAvailable(product, item.getQuantity());
         return toResponse(item, null, false, available);
     }
 
@@ -66,6 +66,7 @@ public class CartItemMapper {
                 .previousUnitPrice(previousUnitPrice)
                 .priceChanged(priceChanged)
                 .productAvailable(productAvailable)
+                .productStock(product != null && product.getStock() != null ? product.getStock() : 0)
                 .quantity(item.getQuantity())
                 .subtotal(subtotal)
                 .notes(item.getNotes())
@@ -92,7 +93,7 @@ public class CartItemMapper {
                 .build();
     }
 
-    private boolean isProductAvailable(Product product) {
+    private boolean isProductAvailable(Product product, Integer quantity) {
         if (product == null) {
             return false;
         }
@@ -100,6 +101,8 @@ public class CartItemMapper {
         boolean categoryActive = product.getCategory() == null
                 || product.getCategory().getIsActive() == null
                 || Boolean.TRUE.equals(product.getCategory().getIsActive());
-        return productActive && categoryActive;
+        int requiredQty = quantity != null && quantity > 0 ? quantity : 1;
+        boolean hasStock = product.getStock() != null && product.getStock() > 0 && product.getStock() >= requiredQty;
+        return productActive && categoryActive && hasStock;
     }
 }

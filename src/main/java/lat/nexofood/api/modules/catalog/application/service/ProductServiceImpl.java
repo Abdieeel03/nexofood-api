@@ -1,5 +1,13 @@
 package lat.nexofood.api.modules.catalog.application.service;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Order;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lat.nexofood.api.common.exception.BadRequestException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
 import lat.nexofood.api.common.exception.ResourceNotFoundException;
@@ -15,6 +23,7 @@ import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.ProductMapper;
+import lat.nexofood.api.modules.notification.application.service.NotificationService;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.subscription.application.service.guard.SubscriptionGuard;
@@ -22,10 +31,14 @@ import lat.nexofood.api.modules.subscription.domain.SubscriptionPlan;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +52,7 @@ public class ProductServiceImpl implements ProductService {
     private final TaxRepository taxRepository;
     private final ProductMapper productMapper;
     private final SubscriptionGuard subscriptionGuard;
+    private final NotificationService notificationService;
 
     @Autowired
     public ProductServiceImpl(
@@ -47,7 +61,8 @@ public class ProductServiceImpl implements ProductService {
             CategoryRepository categoryRepository,
             TaxRepository taxRepository,
             ProductMapper productMapper,
-            SubscriptionGuard subscriptionGuard
+            SubscriptionGuard subscriptionGuard,
+            @Autowired(required = false) NotificationService notificationService
     ) {
         this.productRepository = productRepository;
         this.tenantRepository = tenantRepository;
@@ -55,6 +70,18 @@ public class ProductServiceImpl implements ProductService {
         this.taxRepository = taxRepository;
         this.productMapper = productMapper;
         this.subscriptionGuard = subscriptionGuard;
+        this.notificationService = notificationService;
+    }
+
+    public ProductServiceImpl(
+            ProductRepository productRepository,
+            TenantRepository tenantRepository,
+            CategoryRepository categoryRepository,
+            TaxRepository taxRepository,
+            ProductMapper productMapper,
+            SubscriptionGuard subscriptionGuard
+    ) {
+        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, subscriptionGuard, null);
     }
 
     public ProductServiceImpl(
@@ -64,7 +91,7 @@ public class ProductServiceImpl implements ProductService {
             TaxRepository taxRepository,
             ProductMapper productMapper
     ) {
-        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, null);
+        this(productRepository, tenantRepository, categoryRepository, taxRepository, productMapper, null, null);
     }
 
     @Override
@@ -88,9 +115,15 @@ public class ProductServiceImpl implements ProductService {
         }
 
         validateInitialPrices(request);
+        if (request.stock() != null && request.stock() < 0) {
+            throw new BadRequestException("El stock del producto no puede ser negativo.");
+        }
 
         Product product = productMapper.toEntity(request, tenant, category, tax);
         Product savedProduct = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(savedProduct != null ? savedProduct : product);
+        }
         return productMapper.toResponse(savedProduct);
     }
 
@@ -98,7 +131,8 @@ public class ProductServiceImpl implements ProductService {
     @CacheEvict(value = "storefront_menu", allEntries = true)
     @Transactional
     public ProductResponse update(UUID tenantId, UUID productId, ProductRequest request) {
-        Product product = productRepository.findByIdAndTenantId(productId, tenantId)
+        Product product = productRepository.findByIdAndTenantIdForUpdate(productId, tenantId)
+                .or(() -> productRepository.findByIdAndTenantId(productId, tenantId))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + productId));
 
         if (request.categoryId() != null) {
@@ -119,6 +153,9 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.name());
         product.setDescription(request.description());
         product.setImageUrl(request.imageUrl());
+        if (request.stock() != null) {
+            product.updateStock(request.stock());
+        }
         if (request.isAvailable() != null) {
             product.setIsAvailable(request.isAvailable());
         }
@@ -128,6 +165,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product updatedProduct = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(updatedProduct != null ? updatedProduct : product);
+        }
         return productMapper.toResponse(updatedProduct);
     }
 
@@ -154,23 +194,101 @@ public class ProductServiceImpl implements ProductService {
             UUID tenantId,
             UUID categoryId,
             Boolean availableOnly,
+            Boolean inStockOnly,
             Pageable pageable
     ) {
-        Page<Product> productPage;
-        boolean filterAvailable = Boolean.TRUE.equals(availableOnly);
+        boolean hasPriceSort = pageable != null && pageable.getSort().stream()
+                .anyMatch(order -> isPriceSortProperty(order.getProperty()));
 
-        if (categoryId != null && filterAvailable) {
-            productPage = productRepository.findAllByTenantIdAndCategoryIdAndIsAvailableTrue(tenantId, categoryId, pageable);
-        } else if (categoryId != null) {
-            productPage = productRepository.findAllByTenantIdAndCategoryId(tenantId, categoryId, pageable);
-        } else if (filterAvailable) {
-            productPage = productRepository.findAllByTenantIdAndIsAvailableTrue(tenantId, pageable);
-        } else {
-            productPage = productRepository.findAllByTenantId(tenantId, pageable);
-        }
+        Specification<Product> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("tenant").get("id"), tenantId));
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+            if (Boolean.TRUE.equals(availableOnly)) {
+                predicates.add(cb.isTrue(root.get("isAvailable")));
+            }
+            if (Boolean.TRUE.equals(inStockOnly)) {
+                predicates.add(cb.greaterThan(root.get("stock"), 0));
+            }
 
+            if (hasPriceSort && query != null
+                    && query.getResultType() != Long.class
+                    && query.getResultType() != long.class) {
+                applyCustomSort(root, query, cb, pageable.getSort());
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Pageable effectivePageable = hasPriceSort
+                ? (pageable.isPaged()
+                        ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.unsorted())
+                        : Pageable.unpaged())
+                : pageable;
+
+        Page<Product> productPage = productRepository.findAll(spec, effectivePageable);
         Page<ProductResponse> mappedPage = productPage.map(productMapper::toResponse);
         return PageResponse.from(mappedPage);
+    }
+
+    private boolean isPriceSortProperty(String property) {
+        return "price".equals(property) || "basePrice".equals(property);
+    }
+
+    private void applyCustomSort(
+            Root<Product> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Sort sort
+    ) {
+        List<Order> orders = new ArrayList<>();
+        for (Sort.Order sortOrder : sort) {
+            Expression<?> expr = isPriceSortProperty(sortOrder.getProperty())
+                    ? buildPriceSortExpression(root, query, cb)
+                    : resolvePropertyPath(root, sortOrder.getProperty());
+            orders.add(sortOrder.isAscending() ? cb.asc(expr) : cb.desc(expr));
+        }
+        if (!orders.isEmpty()) {
+            query.orderBy(orders);
+        }
+    }
+
+    private Expression<BigDecimal> buildPriceSortExpression(
+            Root<Product> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb
+    ) {
+        Subquery<BigDecimal> basePriceSubquery = query.subquery(BigDecimal.class);
+        Root<ProductPrice> basePp = basePriceSubquery.from(ProductPrice.class);
+        basePriceSubquery.select(cb.min(basePp.get("price")));
+        basePriceSubquery.where(
+                cb.equal(basePp.get("product"), root),
+                cb.isTrue(basePp.get("isBase")),
+                cb.isTrue(basePp.get("isActive"))
+        );
+
+        Subquery<BigDecimal> activePriceSubquery = query.subquery(BigDecimal.class);
+        Root<ProductPrice> activePp = activePriceSubquery.from(ProductPrice.class);
+        activePriceSubquery.select(cb.min(activePp.get("price")));
+        activePriceSubquery.where(
+                cb.equal(activePp.get("product"), root),
+                cb.isTrue(activePp.get("isActive"))
+        );
+
+        return cb.coalesce(
+                cb.coalesce(basePriceSubquery, activePriceSubquery),
+                cb.literal(BigDecimal.ZERO)
+        );
+    }
+
+    private Path<?> resolvePropertyPath(Root<Product> root, String property) {
+        Path<?> path = root;
+        for (String segment : property.split("\\.")) {
+            path = path.get(segment);
+        }
+        return path;
     }
 
     @Override
@@ -182,6 +300,22 @@ public class ProductServiceImpl implements ProductService {
 
         product.setIsAvailable(isAvailable);
         Product updated = productRepository.save(product);
+        return productMapper.toResponse(updated);
+    }
+
+    @Override
+    @CacheEvict(value = "storefront_menu", allEntries = true)
+    @Transactional
+    public ProductResponse updateStock(UUID tenantId, UUID productId, int stock) {
+        Product product = productRepository.findByIdAndTenantIdForUpdate(productId, tenantId)
+                .or(() -> productRepository.findByIdAndTenantId(productId, tenantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + productId));
+
+        product.updateStock(stock);
+        Product updated = productRepository.save(product);
+        if (notificationService != null) {
+            notificationService.checkAndNotifyProductStock(updated != null ? updated : product);
+        }
         return productMapper.toResponse(updated);
     }
 

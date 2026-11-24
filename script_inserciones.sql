@@ -10,9 +10,6 @@ BEGIN;
 -- ------------------------------------------------------------------------------
 -- 1. LIMPIEZA DE DATOS PREVIOS DE PRUEBA
 -- ------------------------------------------------------------------------------
-DELETE FROM inventory_movements WHERE reason_details LIKE '[TEST]%';
-DELETE FROM inventory_stocks WHERE location LIKE '[TEST]%';
-DELETE FROM inventory_items WHERE name LIKE '[TEST]%';
 DELETE FROM payments WHERE mp_payment_id LIKE 'MP-TEST-%';
 DELETE FROM order_items WHERE notes LIKE '[TEST]%';
 DELETE FROM orders WHERE notes LIKE '[TEST]%';
@@ -90,12 +87,12 @@ INSERT INTO categories (id, tenant_id, name, description, sort_order, is_active)
 ('10000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Bebidas Italianas',   '[TEST] Refrescos y cervezas', 2, true),
 ('20000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Burgers Smash',       '[TEST] Carne Angus smash', 1, true);
 
--- Productos (con tenant_id para llave compuesta)
-INSERT INTO products (id, tenant_id, category_id, name, description, is_available) VALUES
-('11000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000001', 'Pizza Margherita', '[TEST] Tomate San Marzano, mozzarella fior di latte', true),
-('11000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000001', 'Pizza Pepperoni',  '[TEST] Doble pepperoni americano crocante', true),
-('11000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000002', 'Cerveza Peroni',   '[TEST] Botella 330ml importada', true),
-('21000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', '20000000-0000-0000-0000-000000000001', 'Doble Cheese Smash', '[TEST] Doble carne con queso cheddar fundido', true);
+-- Productos (con tenant_id para llave compuesta y stock disponible)
+INSERT INTO products (id, tenant_id, category_id, name, description, stock, is_available) VALUES
+('11000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000001', 'Pizza Margherita', '[TEST] Tomate San Marzano, mozzarella fior di latte', 25, true),
+('11000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000001', 'Pizza Pepperoni',  '[TEST] Doble pepperoni americano crocante', 20, true),
+('11000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '10000000-0000-0000-0000-000000000002', 'Cerveza Peroni',   '[TEST] Botella 330ml importada', 40, true),
+('21000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', '20000000-0000-0000-0000-000000000001', 'Doble Cheese Smash', '[TEST] Doble carne con queso cheddar fundido', 15, true);
 
 -- Precios y promociones (days_of_week en SMALLINT[] con días ISO: 1=Lun, 5=Vie, 6=Sáb, 7=Dom)
 INSERT INTO product_prices (id, product_id, name, price, is_base, discount_percentage, days_of_week, priority, is_active) VALUES
@@ -144,29 +141,10 @@ INSERT INTO payments (id, tenant_id, customer_id, order_id, mp_order_id, mp_paym
  '{"id": 99887711, "status": "approved", "status_detail": "accredited", "payment_method_id": "visa", "transaction_amount": 85.00, "currency_id": "PEN"}'::JSONB,
  NOW());
 
--- ==============================================================================
--- 8. INVENTARIO: INSUMOS, STOCK Y MOVIMIENTOS
--- ==============================================================================
-INSERT INTO inventory_items (id, tenant_id, name, sku, category, unit, cost_price, is_active) VALUES
-('50000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '[TEST] Harina de Trigo 00', 'INS-HAR-01', 'Secos', 'KG', 4.50, true),
-('50000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '[TEST] Queso Mozzarella Bloque', 'INS-MOZ-01', 'Lácteos', 'KG', 26.00, true),
-('50000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '[TEST] Carne Molida Angus', 'INS-CAR-01', 'Cárnicos', 'KG', 32.00, true);
-
--- Stock (quantity >= 0 garantizado por CHECK)
-INSERT INTO inventory_stocks (id, tenant_id, inventory_item_id, quantity, reserved_quantity, minimum_stock, location, is_active) VALUES
-('51000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000001', 50.000, 5.000, 10.000, '[TEST] Almacén Secos - Estante A1', true),
-('51000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '50000000-0000-0000-0000-000000000002', 20.000, 2.000, 5.000,  '[TEST] Cámara Fría 1', true),
-('51000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', '50000000-0000-0000-0000-000000000003', 15.000, 0.000, 4.000,  '[TEST] Congelador Carnes B', true);
-
--- Movimientos de inventario (cumpliendo CHECK de consistencia aritmética: new_quantity = previous_quantity + quantity)
-INSERT INTO inventory_movements (id, tenant_id, inventory_stock_id, inventory_item_id, movement_type, reason, quantity, previous_quantity, new_quantity, performed_by_id, performed_by_name, reason_details) VALUES
-('52000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '51000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'ENTRY', 'INITIAL_STOCK', 50.000, 0.000, 50.000, '00000000-0000-0000-0000-000000000002', 'Mario Rossi', '[TEST] Carga inicial de harina'),
-('52000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '51000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', 'ENTRY', 'PURCHASE',      20.000, 0.000, 20.000, '00000000-0000-0000-0000-000000000002', 'Mario Rossi', '[TEST] Factura proveedor F001-443');
-
 COMMIT;
 
 -- ==============================================================================
--- 9. SUITE DE CONSULTAS DE VERIFICACIÓN (EJECUTAR DESDE PGADMIN)
+-- 8. SUITE DE CONSULTAS DE VERIFICACIÓN (EJECUTAR DESDE PGADMIN)
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
@@ -245,9 +223,9 @@ WHERE pp.days_of_week @> ARRAY[5]::SMALLINT[];
 -- VALUES ('30000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '21000000-0000-0000-0000-000000000001', 1, 28.00);
 -- ERROR: insert or update on table "cart_items" violates foreign key constraint "cart_items_product_tenant_fkey"
 
--- Test 5.2: Intentar registrar stock negativo (Falla por CHECK)
--- UPDATE inventory_stocks SET quantity = -5.000 WHERE id = '51000000-0000-0000-0000-000000000001';
--- ERROR: new row for relation "inventory_stocks" violates check constraint "chk_inventory_stocks_quantity_non_negative"
+-- Test 5.2: Intentar registrar stock negativo en producto (Falla por CHECK)
+-- UPDATE products SET stock = -5 WHERE id = '11000000-0000-0000-0000-000000000001';
+-- ERROR: new row for relation "products" violates check constraint "chk_products_stock_non_negative"
 
 -- Test 5.3: Intentar borrar usuario con órdenes (Falla por ON DELETE RESTRICT)
 -- DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000004';

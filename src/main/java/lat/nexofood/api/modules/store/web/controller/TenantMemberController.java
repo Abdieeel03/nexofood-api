@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
+import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.web.dto.request.MemberRoleUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantMemberRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
@@ -40,8 +41,23 @@ public class TenantMemberController {
         );
     }
 
+    @GetMapping("/invitations")
+    @Operation(summary = "Listar invitaciones del restaurante")
+    public ResponseEntity<ApiResponse<List<TenantMemberResponse>>> getInvitations(
+            @PathVariable UUID tenantId,
+            @RequestParam(required = false) TenantInvitationStatus status) {
+        List<TenantMemberResponse> invitations = tenantService.getInvitations(tenantId, status);
+        return ResponseEntity.ok(
+                ApiResponse.<List<TenantMemberResponse>>builder()
+                        .success(true)
+                        .message("Invitaciones obtenidas exitosamente")
+                        .data(invitations)
+                        .build()
+        );
+    }
+
     @PostMapping
-    @Operation(summary = "Agregar nuevo empleado al restaurante")
+    @Operation(summary = "Invitar nuevo empleado al restaurante por correo electrónico")
     public ResponseEntity<ApiResponse<TenantMemberResponse>> addMember(
             @PathVariable UUID tenantId,
             @Valid @RequestBody TenantMemberRequest request) {
@@ -49,7 +65,7 @@ public class TenantMemberController {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 ApiResponse.<TenantMemberResponse>builder()
                         .success(true)
-                        .message("Miembro agregado exitosamente")
+                        .message("Invitación enviada exitosamente")
                         .data(response)
                         .build()
         );

@@ -9,6 +9,7 @@ import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 @Component
 public class TenantMapper {
@@ -37,16 +38,29 @@ public class TenantMapper {
                 .mpConnectedAt(tenant.getMpConnectedAt())
                 .mpTokenExpiresAt(tenant.getMpTokenExpiresAt())
                 .isActive(tenant.getIsActive())
+                .openingTime(tenant.getOpeningTime())
+                .closingTime(tenant.getClosingTime())
+                .isOpen(resolveEffectiveIsOpen(tenant))
                 .createdAt(tenant.getCreatedAt())
                 .updatedAt(tenant.getUpdatedAt())
                 .build();
+    }
+
+    public boolean resolveEffectiveIsOpen(Tenant tenant) {
+        if (tenant == null) {
+            return false;
+        }
+        if (tenant.getOpeningTime() != null && tenant.getClosingTime() != null) {
+            return tenant.isWithinOperatingHours(LocalTime.now());
+        }
+        return Boolean.TRUE.equals(tenant.getIsActive()) && !Boolean.FALSE.equals(tenant.getIsOpen());
     }
 
     public Tenant toEntity(TenantCreateRequest request, Subscription subscription, User owner) {
         if (request == null) {
             return null;
         }
-        return Tenant.builder()
+        Tenant tenant = Tenant.builder()
                 .subscription(subscription)
                 .owner(owner)
                 .name(request.name())
@@ -58,6 +72,10 @@ public class TenantMapper {
                 .location(GeoUtils.createPoint(request.latitude(), request.longitude()))
                 .deliveryRadiusKm(request.deliveryRadiusKm() != null ? request.deliveryRadiusKm() : new BigDecimal("5.00"))
                 .defaultDeliveryFee(request.defaultDeliveryFee() != null ? request.defaultDeliveryFee() : BigDecimal.ZERO)
+                .openingTime(request.openingTime())
+                .closingTime(request.closingTime())
                 .build();
+        tenant.syncOpenStatusWithSchedule(LocalTime.now());
+        return tenant;
     }
 }

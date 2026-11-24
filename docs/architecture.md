@@ -35,9 +35,10 @@ lat.nexofood.api
     ├── identity/            # Identidad, Gestión de Usuarios, Autenticación global, JWT y emisión de Claims
     ├── subscription/        # Control de planes SaaS, membresías y validación de vigencia
     ├── tenant/              # Inquilinos/Restaurantes, miembros de staff (RBAC)
-    ├── catalog/             # Categorías y Productos
-    ├── cart/                # Gestión de carritos de compra e ítems
+    ├── catalog/             # Categorías, Impuestos, Productos (con stock directo) y Precios Dinámicos
+    ├── cart/                # Gestión de carritos de compra e ítems (con validación de stock)
     ├── order/               # Órdenes, cálculo de distancias PostGIS y máquina de estados
+    ├── tracking/            # Rastreo geoespacial del repartidor (PostGIS) y ETA en tiempo real
     └── payment/             # Mercado Pago OAuth, Webhooks y auditoría de transacciones
 ```
 
@@ -81,6 +82,8 @@ module/
    * Las órdenes preservan una copia inmutable del nombre del producto, precio unitario y dirección textual al momento exacto de la compra para garantizar consistencia histórica[cite: 1, 2].
 6. **Precios Dinámicos y Promociones:**
    * El precio no es un valor estático en `products`; se desacopla en la tabla `product_prices`, permitiendo precios base y reglas dinámicas por fecha, día de la semana y rangos de horario (ej. Happy Hour, ofertas de fin de semana). Las órdenes y carritos calculan y congelan el precio vigente en el momento exacto de la operación.
+7. **Gestión Directa de Stock por Producto:**
+   * Los productos preparados (hamburguesas, gaseosas, aguas, pizzas, etc.) gestionan su disponibilidad por unidades enteras directamente en `products.stock` (`INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0)`). El carrito y el checkout validan existencias antes del pago; al materializarse la orden se descuenta el stock atómicamente con bloqueo pesimista (`SELECT ... FOR UPDATE` en orden determinístico) y ante cualquier cancelación se restaura automáticamente.
 
 ---
 

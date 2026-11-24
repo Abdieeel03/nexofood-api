@@ -10,6 +10,7 @@ import lat.nexofood.api.modules.catalog.application.service.TaxService;
 import lat.nexofood.api.modules.catalog.web.dto.request.CategoryRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductPriceRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
+import lat.nexofood.api.modules.catalog.web.dto.request.ProductStockRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.TaxRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductPriceResponse;
@@ -110,27 +111,78 @@ class CatalogAuthorizationControllerTest {
     }
 
     @Test
-    @DisplayName("Backoffice GET: permite acceso a cualquier miembro del staff (OWNER, ADMIN, COCINERO, REPARTIDOR) via isMember")
-    void backofficeGetAllowedForAnyStaffMember() throws Exception {
+    @DisplayName("Backoffice GET: rechaza a COCINERO/REPARTIDOR (isMember=true sin OWNER/ADMIN) y permite solo a OWNER/ADMIN")
+    void backofficeGetRestrictedToOwnerOrAdmin() throws Exception {
         UUID tenantId = UUID.randomUUID();
+        UUID taxId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
+        UUID priceId = UUID.randomUUID();
 
-        // Un COCINERO o REPARTIDOR es miembro (isMember = true), aunque no sea OWNER/ADMIN
+        // COCINERO o REPARTIDOR es miembro (isMember = true), pero NO tiene rol OWNER/ADMIN -> 403 / AccessDeniedException
         when(tenantAccessService.isMember(tenantId)).thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTaxController.getTaxes(tenantId, false)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedTaxController.getTaxById(tenantId, taxId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedCategoryController.getCategories(tenantId, false)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedCategoryController.getCategoryById(tenantId, categoryId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductController.getProducts(tenantId, null, null, null, PageRequest.of(0, 20))
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductController.getProductById(tenantId, productId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductPriceController.getPrices(tenantId, productId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductPriceController.getPriceById(tenantId, productId, priceId)
+        );
+
+        // OWNER o ADMIN sí tiene acceso a todos los GET de catálogo e impuestos
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
         when(taxService.findAllByTenant(tenantId)).thenReturn(List.of());
+        when(taxService.findByIdAndTenant(taxId, tenantId)).thenReturn(
+                TaxResponse.builder().id(taxId).tenantId(tenantId).name("IGV").rate(new BigDecimal("18.00")).build()
+        );
         when(categoryService.findAllByTenant(tenantId)).thenReturn(List.of());
+        when(categoryService.findByIdAndTenant(tenantId, categoryId)).thenReturn(
+                CategoryResponse.builder().id(categoryId).tenantId(tenantId).name("Hamburguesas").build()
+        );
         when(productService.findByIdAndTenant(tenantId, productId)).thenReturn(
                 ProductResponse.builder().id(productId).name("Hamburguesa Clásica").build()
         );
         when(productPriceService.findAllByProduct(tenantId, productId)).thenReturn(List.of());
+        when(productPriceService.findById(tenantId, productId, priceId)).thenReturn(
+                ProductPriceResponse.builder().id(priceId).productId(productId).name("Base").price(new BigDecimal("20.00")).build()
+        );
 
         mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/taxes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/taxes/" + taxId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(taxId.toString()));
+
         mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/categories"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/categories/" + categoryId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(categoryId.toString()));
 
         mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/products/" + productId))
                 .andExpect(status().isOk())
@@ -140,12 +192,9 @@ class CatalogAuthorizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // Si no es miembro del tenant, GET es denegado
-        UUID otherTenantId = UUID.randomUUID();
-        when(tenantAccessService.isMember(otherTenantId)).thenReturn(false);
-        assertThrows(AccessDeniedException.class, () ->
-                proxiedProductController.getProducts(otherTenantId, null, null, PageRequest.of(0, 20))
-        );
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/products/" + productId + "/prices/" + priceId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(priceId.toString()));
     }
 
     @Test
@@ -229,6 +278,45 @@ class CatalogAuthorizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("ProductController PATCH /stock: deniega acceso sin OWNER/ADMIN, valida stock >= 0 y actualiza cuando está autorizado")
+    void productStockEndpointAuthorizationAndValidation() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedProductController.updateStock(tenantId, productId, new ProductStockRequest(20))
+        );
+        verify(productService, never()).updateStock(any(), any(), anyInt());
+
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"stock\": -1}"))
+                .andExpect(status().isBadRequest());
+
+        when(productService.updateStock(tenantId, productId, 35)).thenReturn(
+                ProductResponse.builder().id(productId).tenantId(tenantId).name("Hamburguesa").stock(35).isAvailable(true).build()
+        );
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/products/" + productId + "/stock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"stock\": 35}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.stock").value(35));
     }
 
     @Test

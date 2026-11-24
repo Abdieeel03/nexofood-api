@@ -169,13 +169,14 @@ INSERT INTO categories (
 
 -- 12. PRODUCTO PARA CHECKOUT
 INSERT INTO products (
-    id, tenant_id, category_id, name, description, is_available
+    id, tenant_id, category_id, name, description, stock, is_available
 ) VALUES (
     '11000000-0000-0000-0000-000000000001',
     '11111111-1111-1111-1111-111111111111',
     '10000000-0000-0000-0000-000000000001',
     'Pizza Margherita',
     '[TEST] Tomate San Marzano, mozzarella fior di latte',
+    50,
     true
 );
 

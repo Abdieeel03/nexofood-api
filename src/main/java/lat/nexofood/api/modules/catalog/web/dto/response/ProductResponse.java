@@ -23,6 +23,7 @@ public record ProductResponse(
         BigDecimal basePrice,
         List<ProductPriceResponse> prices,
         String imageUrl,
+        Integer stock,
         Boolean isAvailable,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

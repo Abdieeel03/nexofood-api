@@ -20,6 +20,7 @@ tests {
     expect(res.getBody().success).to.be.true;
     expect(data.id).to.equal(bru.getEnvVar("productId"));
     expect(data.finalPrice).to.be.a('number');
+    expect(data.stock).to.be.a('number');
     expect(data.isAvailable).to.be.true;
   });
 }

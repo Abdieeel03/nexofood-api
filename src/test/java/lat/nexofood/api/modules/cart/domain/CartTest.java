@@ -103,6 +103,7 @@ class CartTest {
         Product product = Product.builder()
                 .id(UUID.randomUUID())
                 .name("Cheeseburger")
+                .stock(10)
                 .isAvailable(true)
                 .prices(new ArrayList<>(List.of(price)))
                 .build();
@@ -138,6 +139,7 @@ class CartTest {
         assertEquals(new BigDecimal("20.00"), itemResponse.subtotal());
         assertEquals("Well done", itemResponse.notes());
         assertTrue(itemResponse.productAvailable());
+        assertEquals(10, itemResponse.productStock());
     }
 
     @Test

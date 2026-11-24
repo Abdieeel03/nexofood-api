@@ -176,52 +176,98 @@ class OrderAuthorizationControllerTest {
     }
 
     @Test
-    @DisplayName("OrderController Backoffice: protege KDS, reparto, cambio de estado y asignación de repartidor según rol")
-    void backofficeOrderControllerEnforcesRoleAuthorization() throws Exception {
+    @DisplayName("OrderController Backoffice: restringe todos los endpoints (/orders, /kds, /my-deliveries, /{id}, /{id}/status, /{id}/assign) solo a OWNER o ADMIN")
+    void backofficeOrderControllerEnforcesOwnerOrAdminOnly() throws Exception {
         UUID tenantId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
 
-        // 1. Si no es miembro del tenant, GET /orders/{id} lanza AccessDeniedException
-        when(tenantAccessService.isMember(tenantId)).thenReturn(false);
+        // Aunque el usuario sea miembro / COCINERO / REPARTIDOR, sin rol OWNER o ADMIN todos los endpoints backoffice son denegados
+        when(tenantAccessService.isMember(tenantId)).thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN, TenantStaffRole.COCINERO))
+                .thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN, TenantStaffRole.REPARTIDOR))
+                .thenReturn(true);
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedOrderController.getOrders(tenantId, null, null, null, null, org.springframework.data.domain.PageRequest.of(0, 20))
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedOrderController.getKitchenOrders(tenantId)
+        );
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedOrderController.getMyAssignedDeliveries(tenantId, null)
+        );
         assertThrows(AccessDeniedException.class, () ->
                 proxiedOrderController.getOrderById(tenantId, orderId)
         );
-
-        // 2. Si no es OWNER ni ADMIN, PATCH /assign lanza AccessDeniedException
-        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
-                .thenReturn(false);
+        assertThrows(AccessDeniedException.class, () ->
+                proxiedOrderController.updateOrderStatus(
+                        tenantId, orderId, new OrderStatusUpdateRequest(OrderStatus.EN_PREPARACION)
+                )
+        );
         assertThrows(AccessDeniedException.class, () ->
                 proxiedOrderController.assignDeliveryStaff(
                         tenantId, orderId, new OrderAssignStaffRequest(staffId)
                 )
         );
 
-        // 3. KDS permite a COCINERO, ADMIN u OWNER
-        when(tenantAccessService.hasAnyRole(
-                tenantId,
-                TenantStaffRole.OWNER,
-                TenantStaffRole.ADMIN,
-                TenantStaffRole.COCINERO
-        )).thenReturn(true);
+        // Con rol OWNER o ADMIN todos los endpoints backoffice responden 200 OK
+        when(tenantAccessService.hasAnyRole(tenantId, TenantStaffRole.OWNER, TenantStaffRole.ADMIN))
+                .thenReturn(true);
+        when(orderService.findByTenantPaginated(eq(tenantId), any(), any(), any(), any(), any())).thenReturn(
+                PageResponse.<OrderResponse>builder()
+                        .content(List.of())
+                        .page(0)
+                        .size(20)
+                        .totalElements(0)
+                        .totalPages(0)
+                        .first(true)
+                        .last(true)
+                        .build()
+        );
         when(orderService.getKitchenOrders(tenantId)).thenReturn(List.of(
                 OrderResponse.builder().id(orderId).orderNumber("ORD-000001").status(OrderStatus.EN_PREPARACION).build()
         ));
+        when(orderService.getMyAssignedDeliveries(tenantId, null)).thenReturn(List.of());
+        when(orderService.findByIdAndTenant(orderId, tenantId)).thenReturn(
+                OrderResponse.builder().id(orderId).orderNumber("ORD-000001").status(OrderStatus.EN_PREPARACION).build()
+        );
+        when(orderService.updateStatus(tenantId, orderId, OrderStatus.LISTO_PARA_ENTREGA)).thenReturn(
+                OrderResponse.builder().id(orderId).status(OrderStatus.LISTO_PARA_ENTREGA).build()
+        );
+        when(orderService.assignDeliveryStaff(tenantId, orderId, staffId)).thenReturn(
+                OrderResponse.builder().id(orderId).deliveryStaffId(staffId).build()
+        );
+
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
 
         mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders/kds"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("EN_PREPARACION"));
 
-        // 4. PATCH /{id}/status permite al miembro activo y delega validación fina a OrderService
-        when(tenantAccessService.isMember(tenantId)).thenReturn(true);
-        when(orderService.updateStatus(tenantId, orderId, OrderStatus.LISTO_PARA_ENTREGA)).thenReturn(
-                OrderResponse.builder().id(orderId).status(OrderStatus.LISTO_PARA_ENTREGA).build()
-        );
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders/my-deliveries"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/v1/tenants/" + tenantId + "/orders/" + orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(orderId.toString()));
 
         mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/orders/" + orderId + "/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new OrderStatusUpdateRequest(OrderStatus.LISTO_PARA_ENTREGA))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("LISTO_PARA_ENTREGA"));
+
+        mockMvc.perform(patch("/api/v1/tenants/" + tenantId + "/orders/" + orderId + "/assign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new OrderAssignStaffRequest(staffId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deliveryStaffId").value(staffId.toString()));
     }
 }

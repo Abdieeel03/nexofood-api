@@ -127,7 +127,10 @@ public class CartServiceImpl implements CartService {
         if (cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
                 Product product = item.getProduct();
-                boolean available = isProductAvailable(product);
+                boolean baseAvailable = isProductAvailable(product);
+                int requestedQty = item.getQuantity() != null && item.getQuantity() > 0 ? item.getQuantity() : 1;
+                int currentStock = product != null && product.getStock() != null ? product.getStock() : 0;
+                boolean available = baseAvailable && currentStock >= requestedQty;
                 BigDecimal previousPrice = null;
                 boolean priceChanged = false;
 
@@ -147,11 +150,25 @@ public class CartServiceImpl implements CartService {
                                 livePrice
                         ));
                     }
-                    if (!available) {
+                    if (!baseAvailable) {
                         hasUnavailableItems = true;
                         warnings.add(String.format(
                                 "El producto '%s' ya no se encuentra disponible en la tienda",
                                 product.getName()
+                        ));
+                    } else if (currentStock <= 0) {
+                        hasUnavailableItems = true;
+                        warnings.add(String.format(
+                                "El producto '%s' se encuentra agotado (sin stock disponible)",
+                                product.getName()
+                        ));
+                    } else if (currentStock < requestedQty) {
+                        hasUnavailableItems = true;
+                        warnings.add(String.format(
+                                "Stock insuficiente para '%s': solicitaste %d, pero solo quedan %d disponibles",
+                                product.getName(),
+                                requestedQty,
+                                currentStock
                         ));
                     }
                 } else {

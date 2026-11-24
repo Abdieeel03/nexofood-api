@@ -30,8 +30,8 @@ public class DeliveryTrackingController {
     private final DeliveryTrackingService trackingService;
 
     @PutMapping("/orders/{orderId}/tracking/location")
-    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).REPARTIDOR)")
-    @Operation(summary = "Repartidor: enviar ping periódico de coordenadas GPS (cada 10-15 s) y recalcular ETA restante")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Backoffice: actualizar coordenadas GPS de la orden (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<DeliveryTrackingResponse>> updateDriverLocation(
             @PathVariable UUID tenantId,
             @PathVariable UUID orderId,
@@ -48,8 +48,8 @@ public class DeliveryTrackingController {
     }
 
     @GetMapping("/orders/{orderId}/tracking")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Backoffice / Repartidor: obtener posición actual del repartidor, ETA y recorrido opcional de la orden")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Backoffice: obtener posición actual del repartidor, ETA y recorrido opcional de la orden (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<DeliveryTrackingResponse>> getOrderTracking(
             @PathVariable UUID tenantId,
             @PathVariable UUID orderId,

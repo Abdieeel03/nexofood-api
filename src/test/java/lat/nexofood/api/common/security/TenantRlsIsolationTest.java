@@ -52,7 +52,7 @@ class TenantRlsIsolationTest {
         UUID tenantId = UUID.randomUUID();
         TenantContextFilter filter = new TenantContextFilter(tenantRepository);
 
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tenants/" + tenantId + "/inventory/items");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tenants/" + tenantId + "/products");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         AtomicReference<UUID> capturedDuringRequest = new AtomicReference<>();

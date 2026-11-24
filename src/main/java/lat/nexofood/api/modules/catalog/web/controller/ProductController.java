@@ -8,6 +8,7 @@ import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.modules.catalog.application.service.ProductService;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductAvailabilityRequest;
 import lat.nexofood.api.modules.catalog.web.dto.request.ProductRequest;
+import lat.nexofood.api.modules.catalog.web.dto.request.ProductStockRequest;
 import lat.nexofood.api.modules.catalog.web.dto.response.ProductResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -37,18 +38,20 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Listar productos del restaurante (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Listar productos del restaurante (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
             @PathVariable UUID tenantId,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) Boolean availableOnly,
+            @RequestParam(required = false) Boolean inStockOnly,
             @PageableDefault(size = 20) Pageable pageable
     ) {
         PageResponse<ProductResponse> page = productService.findAllByTenant(
                 tenantId,
                 categoryId,
                 availableOnly,
+                inStockOnly,
                 pageable
         );
         return ResponseEntity.ok(
@@ -61,8 +64,8 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
-    @PreAuthorize("@tenantAccess.isMember(#tenantId)")
-    @Operation(summary = "Obtener producto por ID (acceso para todo el staff)")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Obtener producto por ID (solo OWNER o ADMIN)")
     public ResponseEntity<ApiResponse<ProductResponse>> getProductById(
             @PathVariable UUID tenantId,
             @PathVariable UUID productId
@@ -127,6 +130,24 @@ public class ProductController {
                         .message(Boolean.TRUE.equals(request.isAvailable())
                                 ? "Producto marcado como disponible"
                                 : "Producto marcado como no disponible")
+                        .data(updated)
+                        .build()
+        );
+    }
+
+    @PatchMapping("/{productId}/stock")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Actualizar el stock disponible de un producto (solo OWNER o ADMIN)")
+    public ResponseEntity<ApiResponse<ProductResponse>> updateStock(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID productId,
+            @Valid @RequestBody ProductStockRequest request
+    ) {
+        ProductResponse updated = productService.updateStock(tenantId, productId, request.stock());
+        return ResponseEntity.ok(
+                ApiResponse.<ProductResponse>builder()
+                        .success(true)
+                        .message("Stock del producto actualizado exitosamente")
                         .data(updated)
                         .build()
         );

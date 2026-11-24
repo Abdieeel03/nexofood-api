@@ -78,7 +78,7 @@ public class OrderMapper {
                 .estimatedDistanceKm(order.getEstimatedDistanceKm())
                 .estimatedDeliveryMinutes(order.getEstimatedDeliveryMinutes())
                 .estimatedArrivalAt(order.getEstimatedArrivalAt())
-                .etaMessage(buildEtaMessage(order))
+                .etaMessage(resolveEtaMessage(order))
                 .dispatchedAt(order.getDispatchedAt())
                 .deliveredAt(order.getDeliveredAt())
                 .subtotal(order.getSubtotal())
@@ -92,7 +92,7 @@ public class OrderMapper {
                 .build();
     }
 
-    private String buildEtaMessage(Order order) {
+    public static String resolveEtaMessage(Order order) {
         if (order == null || order.getDeliveryType() != DeliveryType.DELIVERY) {
             return null;
         }

@@ -2,9 +2,12 @@ package lat.nexofood.api.modules.order.application.service;
 
 import lat.nexofood.api.common.exception.PaymentGatewayException;
 import lat.nexofood.api.common.exception.ResourceConflictException;
+import lat.nexofood.api.modules.catalog.domain.Product;
+import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.order.domain.DeliveryType;
 import lat.nexofood.api.modules.order.domain.Order;
+import lat.nexofood.api.modules.order.domain.OrderItem;
 import lat.nexofood.api.modules.order.domain.OrderStatus;
 import lat.nexofood.api.modules.order.infrastructure.repository.OrderRepository;
 import lat.nexofood.api.modules.order.web.dto.response.OrderResponse;
@@ -42,6 +45,8 @@ class OrderCancelByCustomerTest {
     @Mock
     private OrderRepository orderRepository;
     @Mock
+    private ProductRepository productRepository;
+    @Mock
     private CurrentCustomerResolver currentCustomerResolver;
     @Mock
     private PaymentRefundService paymentRefundService;
@@ -58,7 +63,7 @@ class OrderCancelByCustomerTest {
 
         orderService = new OrderServiceImpl(
                 orderRepository,
-                null,
+                productRepository,
                 null,
                 null,
                 null,
@@ -169,5 +174,62 @@ class OrderCancelByCustomerTest {
 
         assertEquals(OrderStatus.PENDIENTE, order.getStatus());
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("cancelByCustomer: restaura stock al cancelar en PENDIENTE tras reembolso exitoso y no restaura si falla el reembolso")
+    void cancelByCustomerWithItemsRestoresStockOnlyWhenRefundSucceeds() {
+        UUID orderId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Product burger = Product.builder()
+                .id(productId)
+                .tenant(tenant)
+                .name("Burger")
+                .stock(3)
+                .isAvailable(true)
+                .build();
+
+        OrderItem item = OrderItem.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .product(burger)
+                .productName("Burger")
+                .quantity(2)
+                .build();
+
+        Order order = Order.builder()
+                .id(orderId)
+                .tenant(tenant)
+                .customer(customer)
+                .customerId(userId)
+                .orderNumber("ORD-000013")
+                .deliveryType(DeliveryType.TAKEAWAY)
+                .status(OrderStatus.PENDIENTE)
+                .total(new BigDecimal("40.00"))
+                .items(List.of(item))
+                .build();
+
+        when(currentCustomerResolver.resolveBySlug("burger-bros")).thenReturn(customer);
+        when(orderRepository.findByIdAndTenantIdAndCustomerUserIdForUpdate(orderId, tenant.getId(), userId))
+                .thenReturn(Optional.of(order));
+
+        doThrow(new PaymentGatewayException("MP timeout")).when(paymentRefundService)
+                .refundOrderPayment(eq(order), any());
+
+        assertThrows(PaymentGatewayException.class, () ->
+                orderService.cancelByCustomer("burger-bros", orderId, "Error")
+        );
+        assertEquals(3, burger.getStock());
+
+        // Ahora el reembolso tiene éxito -> cancela la orden y restaura +2 unidades (3 -> 5)
+        org.mockito.Mockito.reset(paymentRefundService);
+        when(productRepository.findByIdAndTenantIdForUpdate(productId, tenant.getId()))
+                .thenReturn(Optional.of(burger));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        OrderResponse response = orderService.cancelByCustomer("burger-bros", orderId, "Ya no lo necesito");
+        assertEquals(OrderStatus.CANCELADO, response.status());
+        assertEquals(5, burger.getStock());
     }
 }

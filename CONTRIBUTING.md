@@ -25,7 +25,7 @@
    - `feat(tracking): add live ETA recalculation`
    - `fix(order): validate delivery radius before checkout`
    - `test(security): agregar pruebas de aislamiento RLS`
-   - Alcances frecuentes: `identity`, `subscription`, `store`, `catalog`, `inventory`, `cart`, `order`, `tracking`, `payment`, `security`, `common`, `bruno`, `docs`.
+   - Alcances frecuentes: `identity`, `subscription`, `store`, `catalog`, `cart`, `order`, `tracking`, `payment`, `security`, `common`, `bruno`, `docs`.
 3. Antes de abrir tu Pull Request hacia `dev`, asegúrate de que el proyecto compile y pasen todas las pruebas:
 
 ```bash

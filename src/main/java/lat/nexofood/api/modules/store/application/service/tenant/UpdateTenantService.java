@@ -15,6 +15,7 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Slf4j
@@ -46,6 +47,19 @@ public class UpdateTenantService implements UpdateTenantUseCase {
         if (request.deliveryRadiusKm() != null) tenant.setDeliveryRadiusKm(request.deliveryRadiusKm());
         if (request.defaultDeliveryFee() != null) tenant.setDefaultDeliveryFee(request.defaultDeliveryFee());
         if (request.isActive() != null) tenant.setIsActive(request.isActive());
+        if (request.openingTime() != null) tenant.setOpeningTime(request.openingTime());
+        if (request.closingTime() != null) tenant.setClosingTime(request.closingTime());
+
+        boolean hasSchedule = tenant.getOpeningTime() != null && tenant.getClosingTime() != null;
+        LocalTime now = LocalTime.now();
+        if (request.isOpen() != null) {
+            tenant.setIsOpen(request.isOpen());
+        } else if (hasSchedule) {
+            tenant.syncOpenStatusWithSchedule(now);
+        }
+        if (hasSchedule && !tenant.isWithinOperatingHours(now)) {
+            tenant.setIsOpen(false);
+        }
 
         Tenant updated = tenantRepository.save(tenant);
         log.info("Tenant actualizado: {}", updated.getId());

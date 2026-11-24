@@ -141,6 +141,7 @@ class OrderTaxIntegrationTest {
                 .tenant(tenantA)
                 .name("Hamburguesa Doble")
                 .tax(taxA)
+                .stock(10)
                 .isAvailable(true)
                 .build();
 
@@ -177,6 +178,7 @@ class OrderTaxIntegrationTest {
         assertEquals(new BigDecimal("6.10"), item.taxAmount());
         assertEquals(new BigDecimal("16.95"), item.unitPrice());
         assertEquals(new BigDecimal("33.90"), item.subtotal());
+        assertEquals(8, burger.getStock());
     }
 
     @Test
@@ -258,6 +260,7 @@ class OrderTaxIntegrationTest {
                 .tenant(tenantA)
                 .name("Sushi Roll")
                 .tax(taxA)
+                .stock(10)
                 .isAvailable(true)
                 .build();
 
@@ -285,6 +288,7 @@ class OrderTaxIntegrationTest {
         assertEquals(new BigDecimal("50.00"), response.subtotal());
         assertEquals(new BigDecimal("9.00"), response.taxTotal());
         assertEquals(new BigDecimal("59.00"), response.total());
+        assertEquals(9, sushi.getStock());
     }
 
     @Test
@@ -295,6 +299,7 @@ class OrderTaxIntegrationTest {
                 .tenant(tenantA)
                 .name("Agua Mineral")
                 .tax(null) // Exento / sin impuesto
+                .stock(10)
                 .isAvailable(true)
                 .build();
 
@@ -321,6 +326,7 @@ class OrderTaxIntegrationTest {
         assertEquals(new BigDecimal("0.00"), item.taxRate());
         assertEquals(new BigDecimal("0.00"), item.taxAmount());
         assertEquals(new BigDecimal("5.00"), item.unitPrice());
+        assertEquals(7, water.getStock());
     }
 
     @Test

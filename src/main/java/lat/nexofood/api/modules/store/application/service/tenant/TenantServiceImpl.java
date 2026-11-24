@@ -1,9 +1,11 @@
 package lat.nexofood.api.modules.store.application.service.tenant;
 
+import lat.nexofood.api.common.response.PageResponse;
 import lat.nexofood.api.modules.store.application.usecase.tenant.*;
 import lat.nexofood.api.modules.store.application.usecase.member.*;
 import lat.nexofood.api.modules.store.application.usecase.customer.*;
 import lat.nexofood.api.modules.store.application.usecase.auth.*;
+import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantMemberRequest;
@@ -11,6 +13,7 @@ import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantMemberResponse;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,12 +24,14 @@ import java.util.UUID;
 public class TenantServiceImpl implements TenantService {
 
     private final CreateTenantUseCase createTenantUseCase;
+    private final GetAllTenantsUseCase getAllTenantsUseCase;
     private final GetTenantByIdUseCase getTenantByIdUseCase;
     private final GetTenantBySlugUseCase getTenantBySlugUseCase;
     private final UpdateTenantUseCase updateTenantUseCase;
     private final ChangeTenantStatusUseCase changeTenantStatusUseCase;
     private final GetMyTenantUseCase getMyTenantUseCase;
     private final GetTenantMembersUseCase getTenantMembersUseCase;
+    private final GetTenantInvitationsUseCase getTenantInvitationsUseCase;
     private final AddTenantMemberUseCase addTenantMemberUseCase;
     private final UpdateMemberRoleUseCase updateMemberRoleUseCase;
     private final RemoveTenantMemberUseCase removeTenantMemberUseCase;
@@ -34,6 +39,11 @@ public class TenantServiceImpl implements TenantService {
     @Override
     public TenantResponse createTenant(TenantCreateRequest request) {
         return createTenantUseCase.execute(request);
+    }
+
+    @Override
+    public PageResponse<TenantResponse> getAllTenants(Boolean isActive, Boolean isOpen, String search, Pageable pageable) {
+        return getAllTenantsUseCase.execute(isActive, isOpen, search, pageable);
     }
 
     @Override
@@ -64,6 +74,11 @@ public class TenantServiceImpl implements TenantService {
     @Override
     public List<TenantMemberResponse> getMembers(UUID tenantId) {
         return getTenantMembersUseCase.execute(tenantId);
+    }
+
+    @Override
+    public List<TenantMemberResponse> getInvitations(UUID tenantId, TenantInvitationStatus status) {
+        return getTenantInvitationsUseCase.execute(tenantId, status);
     }
 
     @Override

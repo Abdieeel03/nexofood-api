@@ -55,5 +55,7 @@ public interface OrderService {
 
     OrderResponse updateStatus(UUID tenantId, UUID orderId, OrderStatus newStatus);
 
+    void cancelPendingOrderFromRefund(Order order);
+
     OrderResponse assignDeliveryStaff(UUID tenantId, UUID orderId, UUID deliveryStaffUserId);
 }

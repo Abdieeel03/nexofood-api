@@ -1,0 +1,39 @@
+meta {
+  name: 03 - Responder Invitacion (ACCEPT or REJECT)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/notifications/{{notificationId}}/respond
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "decision": "ACCEPT"
+  }
+}
+
+tests {
+  test("Código de estado es 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Notificación actualizada con decisión ACCEPT o REJECT", function() {
+    const body = res.getBody();
+    expect(body.success).to.be.true;
+    expect(["ACCEPTED", "REJECTED"]).to.include(body.data.actionStatus);
+    expect(body.data.isRead).to.be.true;
+    expect(body.data.allowedActions).to.be.an('array').that.is.empty;
+  });
+}

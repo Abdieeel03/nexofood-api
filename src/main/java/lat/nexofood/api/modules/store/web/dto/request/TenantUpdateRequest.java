@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 @Builder
 public record TenantUpdateRequest(
@@ -42,5 +43,11 @@ public record TenantUpdateRequest(
         @DecimalMax(value = "1000.00", message = "El costo de envío no puede superar 1000")
         BigDecimal defaultDeliveryFee,
 
-        Boolean isActive
+        Boolean isActive,
+
+        LocalTime openingTime,
+
+        LocalTime closingTime,
+
+        Boolean isOpen
 ) {}

@@ -30,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -75,6 +76,9 @@ class StorefrontMenuServiceTest {
                 .name("Burger Bros")
                 .slug("burger-bros")
                 .isActive(true)
+                .openingTime(LocalTime.of(0, 0))
+                .closingTime(LocalTime.of(0, 0))
+                .isOpen(true)
                 .build();
     }
 
@@ -112,6 +116,7 @@ class StorefrontMenuServiceTest {
                 .category(burgersCat)
                 .tax(igv)
                 .name("Burger Suprema")
+                .stock(15)
                 .isAvailable(true)
                 .prices(List.of(baseRule))
                 .build();
@@ -125,12 +130,16 @@ class StorefrontMenuServiceTest {
         StorefrontMenuResponse menu = storefrontMenuService.getMenuBySlug("burger-bros");
 
         assertEquals("Burger Bros", menu.tenantName());
+        assertEquals(LocalTime.of(0, 0), menu.openingTime());
+        assertEquals(LocalTime.of(0, 0), menu.closingTime());
+        assertTrue(menu.isOpen());
         assertEquals(1, menu.categories().size());
         assertEquals("Hamburguesas", menu.categories().getFirst().name());
         assertEquals(1, menu.categories().getFirst().products().size());
 
         StorefrontProductResponse item = menu.categories().getFirst().products().getFirst();
         assertEquals("Burger Suprema", item.name());
+        assertEquals(15, item.stock());
         assertEquals(new BigDecimal("118.00"), item.price());
         assertEquals(new BigDecimal("100.00"), item.baseUnitPrice());
         assertEquals(new BigDecimal("18.00"), item.taxAmount());
@@ -154,6 +163,7 @@ class StorefrontMenuServiceTest {
                 .tenant(tenant)
                 .category(activeCat)
                 .name("Limonada Frozen")
+                .stock(8)
                 .isAvailable(true)
                 .prices(List.of(
                         ProductPrice.builder().name("Base").price(new BigDecimal("12.00")).isBase(true).isActive(true).build()
@@ -179,6 +189,7 @@ class StorefrontMenuServiceTest {
         );
         assertEquals(1, productPage.totalElements());
         assertEquals("Limonada Frozen", productPage.content().getFirst().name());
+        assertEquals(8, productPage.content().getFirst().stock());
         assertEquals(new BigDecimal("12.00"), productPage.content().getFirst().finalPrice());
     }
 

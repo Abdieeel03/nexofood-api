@@ -18,14 +18,26 @@ public interface ProductService {
 
     List<ProductResponse> findAllByTenant(UUID tenantId);
 
-    PageResponse<ProductResponse> findAllByTenant(
+    default PageResponse<ProductResponse> findAllByTenant(
             UUID tenantId,
             UUID categoryId,
             Boolean availableOnly,
             Pageable pageable
+    ) {
+        return findAllByTenant(tenantId, categoryId, availableOnly, null, pageable);
+    }
+
+    PageResponse<ProductResponse> findAllByTenant(
+            UUID tenantId,
+            UUID categoryId,
+            Boolean availableOnly,
+            Boolean inStockOnly,
+            Pageable pageable
     );
 
     ProductResponse toggleAvailability(UUID tenantId, UUID productId, boolean isAvailable);
+
+    ProductResponse updateStock(UUID tenantId, UUID productId, int stock);
 
     void delete(UUID tenantId, UUID productId);
 }
