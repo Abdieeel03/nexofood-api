@@ -118,9 +118,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .map(p -> toStorefrontProduct(p, now))
                 .toList();
 
-        boolean effectiveIsOpen = (tenant.getOpeningTime() != null && tenant.getClosingTime() != null)
-                ? tenant.isWithinOperatingHours(LocalTime.now())
-                : Boolean.TRUE.equals(tenant.getIsActive()) && !Boolean.FALSE.equals(tenant.getIsOpen());
+        boolean effectiveIsOpen = Boolean.TRUE.equals(tenant.getIsActive()) && !Boolean.FALSE.equals(tenant.getIsOpen());
 
         return StorefrontMenuResponse.builder()
                 .tenantId(tenant.getId())

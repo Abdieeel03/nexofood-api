@@ -203,12 +203,12 @@ class OrderScheduleAndNotificationIntegrationTest {
     }
 
     @Test
-    @DisplayName("create y buildDraft: rechazan pedidos cuando la hora actual está fuera del horario de atención")
+    @DisplayName("create y buildDraft: respetan isOpen=false incluso dentro del horario y permiten isOpen=true fuera de horario")
     void createAndBuildDraftRejectOrderOutsideOperatingHours() {
         LocalTime now = LocalTime.now();
-        tenant.setIsOpen(true);
-        tenant.setOpeningTime(now.plusHours(2));
-        tenant.setClosingTime(now.plusHours(4));
+        tenant.setIsOpen(false);
+        tenant.setOpeningTime(now.minusHours(2));
+        tenant.setClosingTime(now.plusHours(2));
 
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
 
