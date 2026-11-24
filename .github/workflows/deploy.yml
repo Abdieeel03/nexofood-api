@@ -51,6 +51,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Install cloudflared
@@ -75,7 +76,7 @@ jobs:
 
           PROXY_CMD="/usr/local/bin/cloudflared access ssh --hostname %h"
           if [ -n "$CF_ACCESS_CLIENT_ID" ] && [ -n "$CF_ACCESS_CLIENT_SECRET" ]; then
-            PROXY_CMD="$PROXY_CMD --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET"
+            PROXY_CMD="$PROXY_CMD --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET"
           fi
 
           cat > ~/.ssh/config <<EOF
@@ -83,6 +84,8 @@ jobs:
             User $SERVER_USER
             IdentityFile ~/.ssh/id_deploy
             StrictHostKeyChecking no
+            BatchMode yes
+            ConnectTimeout 30
             ProxyCommand $PROXY_CMD
           EOF
           chmod 600 ~/.ssh/config
