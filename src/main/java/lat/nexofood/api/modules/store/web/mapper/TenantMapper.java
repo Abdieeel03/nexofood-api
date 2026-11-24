@@ -50,9 +50,6 @@ public class TenantMapper {
         if (tenant == null) {
             return false;
         }
-        if (tenant.getOpeningTime() != null && tenant.getClosingTime() != null) {
-            return tenant.isWithinOperatingHours(LocalTime.now());
-        }
         return Boolean.TRUE.equals(tenant.getIsActive()) && !Boolean.FALSE.equals(tenant.getIsOpen());
     }
 

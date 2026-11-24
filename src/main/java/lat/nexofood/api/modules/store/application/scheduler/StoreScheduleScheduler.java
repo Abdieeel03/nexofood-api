@@ -79,9 +79,12 @@ public class StoreScheduleScheduler {
                 continue;
             }
 
-            boolean shouldBeOpen = tenant.isWithinOperatingHours(currentTime);
+            if (tenant.getOpeningTime().equals(tenant.getClosingTime())) {
+                continue;
+            }
 
-            if (!shouldBeOpen && !Boolean.FALSE.equals(tenant.getIsOpen())) {
+            if (isWithinBoundaryWindow(currentTime, tenant.getClosingTime(), 2)
+                    && !Boolean.FALSE.equals(tenant.getIsOpen())) {
                 tenant.setIsOpen(false);
                 tenantRepository.save(tenant);
                 evictStorefrontCaches(tenant.getSlug());
@@ -100,7 +103,8 @@ public class StoreScheduleScheduler {
                         "STORE_AUTO_CLOSED:" + tenant.getId() + ":" + currentDate + ":" + tenant.getClosingTime(),
                         metadata
                 );
-            } else if (shouldBeOpen && Boolean.FALSE.equals(tenant.getIsOpen())) {
+            } else if (isWithinBoundaryWindow(currentTime, tenant.getOpeningTime(), 2)
+                    && Boolean.FALSE.equals(tenant.getIsOpen())) {
                 tenant.setIsOpen(true);
                 tenantRepository.save(tenant);
                 evictStorefrontCaches(tenant.getSlug());
@@ -122,7 +126,7 @@ public class StoreScheduleScheduler {
             }
 
             if (!tenant.getOpeningTime().equals(tenant.getClosingTime()) && warningMinutes > 0) {
-                processProactiveWarnings(tenant, currentTime, currentDate, shouldBeOpen);
+                processProactiveWarnings(tenant, currentTime, currentDate, tenant.isWithinOperatingHours(currentTime));
             }
         }
 
@@ -174,6 +178,14 @@ public class StoreScheduleScheduler {
                 );
             }
         }
+    }
+
+    private boolean isWithinBoundaryWindow(LocalTime currentTime, LocalTime boundaryTime, long windowMinutes) {
+        long minsSinceBoundary = Duration.between(boundaryTime, currentTime).toMinutes();
+        if (minsSinceBoundary < 0) {
+            minsSinceBoundary += 1440;
+        }
+        return minsSinceBoundary >= 0 && minsSinceBoundary < windowMinutes;
     }
 
     private long minutesUntil(LocalTime currentTime, LocalTime targetTime) {

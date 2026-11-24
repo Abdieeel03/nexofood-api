@@ -1099,9 +1099,7 @@ public class OrderServiceImpl implements OrderService {
         if (Boolean.FALSE.equals(tenant.getIsActive())) {
             throw new BadRequestException("El restaurante '" + tenant.getName() + "' no se encuentra activo actualmente");
         }
-        if (Boolean.FALSE.equals(tenant.getIsOpen())
-                || (tenant.getOpeningTime() != null && tenant.getClosingTime() != null
-                        && !tenant.isWithinOperatingHours(LocalTime.now()))) {
+        if (Boolean.FALSE.equals(tenant.getIsOpen())) {
             throw new BadRequestException("El restaurante '" + tenant.getName() + "' se encuentra cerrado en este momento");
         }
         if (subscriptionGuard != null) {

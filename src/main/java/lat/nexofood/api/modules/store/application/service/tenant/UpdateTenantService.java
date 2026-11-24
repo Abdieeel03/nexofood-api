@@ -57,9 +57,6 @@ public class UpdateTenantService implements UpdateTenantUseCase {
         } else if (hasSchedule) {
             tenant.syncOpenStatusWithSchedule(now);
         }
-        if (hasSchedule && !tenant.isWithinOperatingHours(now)) {
-            tenant.setIsOpen(false);
-        }
 
         Tenant updated = tenantRepository.save(tenant);
         log.info("Tenant actualizado: {}", updated.getId());

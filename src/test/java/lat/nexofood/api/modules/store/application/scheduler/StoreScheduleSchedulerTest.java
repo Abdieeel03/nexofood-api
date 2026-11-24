@@ -241,8 +241,8 @@ class StoreScheduleSchedulerTest {
                 anyMap()
         );
 
-        // 02:05 debe cerrar automáticamente
-        int updatedAfterClose = scheduler.processStoreSchedules(LocalTime.of(2, 5), today);
+        // 02:01 (ventana de cierre) debe cerrar automáticamente
+        int updatedAfterClose = scheduler.processStoreSchedules(LocalTime.of(2, 1), today);
         assertEquals(1, updatedAfterClose);
         assertFalse(nightBar.getIsOpen());
         verify(notificationService).notifyTenantStaff(
