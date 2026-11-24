@@ -52,8 +52,25 @@ public class GlobalExceptionHandler {
             PaymentGatewayException ex,
             HttpServletRequest req
     ) {
-        log.error("Payment gateway error (status={}): {}", ex.getGatewayStatus(), ex.getMessage());
-        return buildErrorResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), req);
+        HttpStatus status = resolvePaymentGatewayHttpStatus(ex.getGatewayStatus());
+        if (status.is5xxServerError()) {
+            log.error("Payment gateway error (gatewayStatus={}): {}", ex.getGatewayStatus(), ex.getMessage());
+        } else {
+            log.warn("Payment gateway rejected request (gatewayStatus={}): {}", ex.getGatewayStatus(), ex.getMessage());
+        }
+        return buildErrorResponse(status, ex.getMessage(), req);
+    }
+
+    private HttpStatus resolvePaymentGatewayHttpStatus(Integer gatewayStatus) {
+        if (gatewayStatus != null
+                && gatewayStatus >= 400
+                && gatewayStatus < 500
+                && gatewayStatus != 401
+                && gatewayStatus != 403
+                && gatewayStatus != 429) {
+            return HttpStatus.UNPROCESSABLE_CONTENT;
+        }
+        return HttpStatus.BAD_GATEWAY;
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
