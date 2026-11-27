@@ -3,7 +3,7 @@
 > **Proyecto:** NexoFood API — Plataforma SaaS Multi-Tenant para Restaurantes  
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL 16 + PostGIS · Hibernate Spatial · Caffeine Cache · Bucket4j  
 > **Versión:** 1.0  
-> **Última actualización:** 2026-11-23  
+> **Última actualización:** 2026-11-26  
 > **Guía de estilo:** [DOCUMENTATION_GUIDE.md](./DOCUMENTATION_GUIDE.md)
 
 ---
@@ -181,6 +181,7 @@ Todos los módulos principales de la v1 se encuentran **activos y operativos**:
 | 7 | **Payment** | ✅ Activo | `MercadoPagoConnectionController`, `MercadoPagoOAuthCallbackController`, `StorefrontPaymentController`, `TenantPaymentController`, `MercadoPagoWebhookController` |
 | 8 | **Tracking** | ✅ Activo | `StorefrontTrackingController`, `DeliveryTrackingController` |
 | 9 | **Notification** | ✅ Activo | `NotificationController` |
+| 10 | **Analytics / Dashboard** | ✅ Activo | `ExpenseController`, `DashboardController` |
 
 > **🔮 Preparados internamente / No expuestos como endpoints REST aún:**
 > - **Creación directa de órdenes sin carrito (`OrderCreateRequest` / `OrderItemRequest`):** Existen en el código para uso interno del flujo de checkout y pruebas, pero el flujo público de compra se realiza exclusivamente vía `POST /api/v1/store/{slug}/orders/checkout`.
@@ -2085,6 +2086,42 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
   "method": null
 }
 ```
+
+---
+
+#### PATCH `/api/v1/tenants/{id}/style`
+
+> Actualiza el estilo visual predefinido del storefront (`MODERN`, `MINIMALIST`, `ENTERPRISE`, `CLASSIC`) e invalida la caché del menú público.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER` del restaurante o `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID | Sí | ID del restaurante |
+
+**Body (JSON) — `TenantStyleUpdateRequest`:**
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `storefrontStyle` | `StorefrontStyle` | Sí | `@NotNull` (`MODERN`, `MINIMALIST`, `ENTERPRISE`, `CLASSIC`) | Estilo visual asignado al storefront |
+
+**Ejemplo de request:**
+```json
+{
+  "storefrontStyle": "MINIMALIST"
+}
+```
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<TenantResponse>`:**
+Retorna el `TenantResponse` actualizado con `"storefrontStyle": "MINIMALIST"`.
 
 ---
 
@@ -4672,6 +4709,7 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
     "tenantSlug": "burger-bros",
     "logoUrl": "https://storage.nexofood.lat/logos/burger.png",
     "bannerUrl": "https://storage.nexofood.lat/banners/burger.png",
+    "storefrontStyle": "MODERN",
     "onlinePaymentsEnabled": true,
     "openingTime": "09:00:00",
     "closingTime": "23:00:00",
@@ -5860,6 +5898,43 @@ Módulo de monetización SaaS que administra los planes comerciales de NexoFood 
 > - En `POST /checkout`, redirigir al usuario a `data.checkoutUrl` y guardar `data.paymentId` para consultar `GET /api/v1/store/{slug}/payments/{paymentId}` al regresar a `/store/{slug}/checkout/result`.
 > - Mostrar el botón de cancelar pedido al cliente **únicamente** cuando `order.status === "PENDIENTE"`.
 > - Las cancelaciones desde backoffice solo están habilitadas en `PENDIENTE` o `EN_PREPARACION`.
+> - **Liberación de stock retenido (5 minutos y manual):** Un scheduler automático libera cada minuto las órdenes en estado `PENDIENTE` sin pago `APPROVED` que superen los **5 minutos** (`status -> CANCELADO` y restauración de stock). Además, el `OWNER` o `ADMIN` puede listar las órdenes pendientes (`GET /api/v1/tenants/{tenantId}/orders?status=PENDIENTE`) y liberar manualmente cualquiera de ellas con `POST /api/v1/tenants/{tenantId}/orders/{id}/release`.
+
+---
+
+#### POST `/api/v1/tenants/{tenantId}/orders/{id}/release`
+
+> Libera manualmente una orden en estado `PENDIENTE` que aún no tenga un pago `APPROVED`, pasándola a `CANCELADO` y restaurando de inmediato el stock de sus productos.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `tenantId` | UUID | Sí | ID del restaurante |
+| `id` | UUID | Sí | ID de la orden pendiente |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<OrderResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Orden pendiente liberada y stock restaurado exitosamente",
+  "data": {
+    "id": "8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d",
+    "orderNumber": "ORD-000015",
+    "status": "CANCELADO"
+  }
+}
+```
+
+**Error (`400 Bad Request`):** Si la orden no está en `PENDIENTE` o ya cuenta con un pago `APPROVED`.
 
 ---
 
@@ -7059,6 +7134,239 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 
 ---
 
+## 10. Analytics / Dashboard — Gastos y Métricas Financieras
+
+Módulo encargado de registrar los gastos del restaurante (`tenant_expenses` con aislamiento RLS) y calcular las métricas financieras del dashboard (`Ganancia Bruta`, `Ganancia Operativa`, `Ganancia Neta`, `Margen de Ganancia %` y `Markup %`), separando siempre el IGV de las ventas netas.
+
+> **📊 Fórmulas Contables Utilizadas:**
+> - **Ventas Netas (`netSales`):** Suma de `orders.subtotal` (base imponible **sin IGV**). Si un producto cuesta S/ 10.00 y se vende a S/ 25.00 con IGV 18% inclusivo, `netSales` = S/ 21.19 y `taxCollected` = S/ 3.81.
+> - **Costo de Ventas (`costOfGoodsSold`):** Suma de `order_items.unit_cost * order_items.quantity` (snapshot histórico congelado al crear la orden).
+> - **Ganancia Bruta (`grossProfit`):** `netSales - costOfGoodsSold` (ej. `21.19 - 10.00 = 11.19`).
+> - **Ganancia Operativa (`operatingProfit`):** `grossProfit - operatingExpenses`.
+> - **Ganancia Neta (`netProfit`):** `operatingProfit - nonOperatingExpenses - incomeTaxExpenses`.
+> - **Margen Bruto (%):** `(grossProfit / netSales) * 100` (ej. `52.81%`).
+> - **Markup / Margen sobre costo (%):** `(grossProfit / costOfGoodsSold) * 100` (ej. `111.90%`).
+
+---
+
+### `ExpenseController` (`/api/v1/tenants/{tenantId}/expenses`)
+
+#### GET `/api/v1/tenants/{tenantId}/expenses`
+
+> Lista los gastos del restaurante paginados y filtrables por rango de fechas, tipo y categoría.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `tenantId` | UUID | Sí | ID del restaurante |
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `fromDate` | string (`YYYY-MM-DD`) | No | Fecha inicial del filtro |
+| `toDate` | string (`YYYY-MM-DD`) | No | Fecha final del filtro |
+| `type` | `ExpenseType` | No | Filtrar por tipo (`OPERATING`, `NON_OPERATING`, `INCOME_TAX`) |
+| `category` | `ExpenseCategory` | No | Filtrar por categoría |
+| `page` | integer | No | Página (0-indexed, default `0`) |
+| `size` | integer | No | Tamaño de página (default `20`) |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<PageResponse<TenantExpenseResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Gastos del restaurante obtenidos exitosamente",
+  "data": {
+    "content": [
+      {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+        "createdBy": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+        "type": "OPERATING",
+        "category": "RENT",
+        "description": "Alquiler mensual del local",
+        "amount": 2500.00,
+        "expenseDate": "2026-11-01",
+        "notes": "Pago puntual",
+        "createdAt": "2026-11-01T10:00:00Z",
+        "updatedAt": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true
+  }
+}
+```
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/expenses/{expenseId}`
+
+> Obtiene el detalle de un gasto específico del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<TenantExpenseResponse>`**
+
+---
+
+#### POST `/api/v1/tenants/{tenantId}/expenses`
+
+> Registra un nuevo gasto operativo, no operativo o impuesto a la renta para el restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+**Content-Type:** `application/json`
+
+##### 📥 Request
+
+**Ejemplo de request (`TenantExpenseRequest`):**
+```json
+{
+  "type": "OPERATING",
+  "category": "UTILITIES",
+  "description": "Recibo de luz y agua noviembre",
+  "amount": 380.50,
+  "expenseDate": "2026-11-15",
+  "notes": "Medidor principal"
+}
+```
+
+##### 📤 Response
+
+**Éxito (`201 Created`) — Envelope `ApiResponse<TenantExpenseResponse>`**
+
+---
+
+#### PUT `/api/v1/tenants/{tenantId}/expenses/{expenseId}`
+
+> Actualiza un gasto existente del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<TenantExpenseResponse>`**
+
+---
+
+#### DELETE `/api/v1/tenants/{tenantId}/expenses/{expenseId}`
+
+> Elimina un gasto registrado del restaurante.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<Void>`**
+
+---
+
+### `DashboardController` (`/api/v1/tenants/{tenantId}/dashboard`)
+
+#### GET `/api/v1/tenants/{tenantId}/dashboard/financial-summary`
+
+> Retorna el resumen financiero del restaurante en un rango de fechas (por defecto desde el primer día del mes actual hasta hoy).
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+
+##### 📥 Request
+
+**Query Parameters:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --- | --- | --- | --- |
+| `fromDate` | string (`YYYY-MM-DD`) | No | Fecha inicial (default: 1° día de `toDate`) |
+| `toDate` | string (`YYYY-MM-DD`) | No | Fecha final (default: hoy) |
+| `paidOnly` | boolean | No | `true` (default) solo contabiliza órdenes con pago `APPROVED` y `status != CANCELADO`; `false` incluye todas las no canceladas |
+
+##### 📤 Response
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<FinancialSummaryResponse>`:**
+```json
+{
+  "success": true,
+  "message": "Resumen financiero obtenido exitosamente",
+  "data": {
+    "tenantId": "e1a2c3d4-e5f6-7890-abcd-ef1234567890",
+    "fromDate": "2026-11-01",
+    "toDate": "2026-11-26",
+    "paidOnly": true,
+    "totalOrders": 120,
+    "totalUnitsSold": 240,
+    "grossSalesWithTax": 6000.00,
+    "netSales": 5084.75,
+    "taxCollected": 915.25,
+    "deliveryFeesCollected": 360.00,
+    "costOfGoodsSold": 2400.00,
+    "grossProfit": 2684.75,
+    "operatingExpenses": 1200.00,
+    "operatingProfit": 1484.75,
+    "nonOperatingExpenses": 100.00,
+    "incomeTaxExpenses": 200.00,
+    "netProfit": 1184.75,
+    "grossMarginPercentage": 52.80,
+    "operatingMarginPercentage": 29.20,
+    "netMarginPercentage": 23.30,
+    "markupPercentage": 111.86,
+    "expensesByCategory": [
+      {
+        "category": "RENT",
+        "type": "OPERATING",
+        "totalAmount": 1200.00
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### GET `/api/v1/tenants/{tenantId}/dashboard/product-margins`
+
+> Retorna las ventas netas, costo total, ganancia bruta, margen bruto (%) y markup (%) desglosados por producto, ordenados de mayor a menor ganancia bruta.
+
+**Autenticación:** Requerida (`Bearer <token>`)  
+**Rol requerido:** `OWNER`, `ADMIN` del restaurante o `SUPERADMIN`  
+
+**Query Parameters:** `fromDate`, `toDate`, `paidOnly` (mismos criterios que `/financial-summary`).
+
+**Éxito (`200 OK`) — Envelope `ApiResponse<List<ProductMarginResponse>>`:**
+```json
+{
+  "success": true,
+  "message": "Rentabilidad por producto obtenida exitosamente",
+  "data": [
+    {
+      "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "productName": "Hamburguesa Clásica",
+      "unitsSold": 10,
+      "netSales": 211.86,
+      "taxCollected": 38.14,
+      "totalCost": 100.00,
+      "grossProfit": 111.86,
+      "grossMarginPercentage": 52.80,
+      "markupPercentage": 111.86
+    }
+  ]
+}
+```
+
+---
+
 ## Enums del Sistema
 
 | Enum | Valores |
@@ -7074,6 +7382,9 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `NotificationType` | `STAFF_INVITATION`, `INVITATION_ACCEPTED`, `INVITATION_REJECTED`, `LOW_STOCK`, `OUT_OF_STOCK`, `STORE_OPENING_SOON`, `STORE_CLOSING_SOON`, `STORE_AUTO_CLOSED`, `STORE_AUTO_OPENED`, `SUBSCRIPTION_EXPIRING_SOON`, `NEW_ORDER_RECEIVED`, `ORDER_STATUS_CHANGED` |
 | `NotificationActionStatus` | `NONE`, `PENDING`, `ACCEPTED`, `REJECTED` |
 | `InvitationActionType` | `ACCEPT`, `REJECT` |
+| `StorefrontStyle` | `MODERN`, `MINIMALIST`, `ENTERPRISE`, `CLASSIC` |
+| `ExpenseType` | `OPERATING`, `NON_OPERATING`, `INCOME_TAX` |
+| `ExpenseCategory` | `RENT`, `PAYROLL`, `UTILITIES`, `MARKETING`, `PACKAGING`, `PLATFORM_FEES`, `MAINTENANCE`, `INCOME_TAX`, `FINANCIAL`, `OTHER` |
 
 ---
 
@@ -7292,6 +7603,7 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `defaultDeliveryFee` | BigDecimal | No | `0.00` a `1000.00` (default `0.00`) | Costo estándar de delivery |
 | `openingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de apertura |
 | `closingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de cierre |
+| `storefrontStyle` | `StorefrontStyle` | No | Default: `MODERN` | Estilo visual del storefront |
 
 ### 📥 DTO: TenantUpdateRequest
 
@@ -7309,7 +7621,14 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `isActive` | boolean | No | — | Estado operativo |
 | `openingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de apertura |
 | `closingTime` | string (`LocalTime`) | No | Formato `HH:mm:ss` o `HH:mm` | Hora de cierre |
+| `storefrontStyle` | `StorefrontStyle` | No | Default: `MODERN` | Estilo visual del storefront |
 | `isOpen` | boolean | No | — | Estado abierto/cerrado |
+
+### 📥 DTO: TenantStyleUpdateRequest
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `storefrontStyle` | `StorefrontStyle` | Sí | `@NotNull` | Nuevo estilo visual del storefront (`MODERN`, `MINIMALIST`, `ENTERPRISE`, `CLASSIC`) |
 
 ### 📥 DTO: TenantStatusRequest
 
@@ -7375,6 +7694,7 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `slug` | string | No | Slug único |
 | `logoUrl` | string | Sí | URL del logo |
 | `bannerUrl` | string | Sí | URL del banner |
+| `storefrontStyle` | `StorefrontStyle` | No | Estilo visual del storefront (`MODERN`, `MINIMALIST`, `ENTERPRISE`, `CLASSIC`) |
 | `phone` | string | Sí | Teléfono |
 | `address` | string | Sí | Dirección física |
 | `latitude` | Double | Sí | Latitud WGS84 |
@@ -7489,6 +7809,7 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `name` | string | Sí | No vacío, máx. 150 | Nombre del producto |
 | `description` | string | No | Máx. 1000 | Descripción |
 | `price` | BigDecimal | Condicional | `0.01` a `999999.99` | Precio base (si no viene en `prices`) |
+| `cost` | BigDecimal | No | `0.00` a `999999.99` (default `0.00`) | Costo unitario de producción/adquisición |
 | `imageUrl` | string | No | Máx. 500 | URL de imagen |
 | `stock` | integer | No | `≥ 0` (default `0`) | Stock disponible |
 | `isAvailable` | boolean | No | Default: `true` | Disponibilidad |
@@ -7586,6 +7907,7 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `description` | string | Sí | Descripción |
 | `price` | BigDecimal | No | Precio efectivo vigente |
 | `basePrice` | BigDecimal | No | Precio base |
+| `cost` | BigDecimal | No | Costo unitario del producto (solo backoffice; nunca expuesto en storefront) |
 | `prices` | `List<ProductPriceResponse>` | No | Reglas de precios configuradas |
 | `imageUrl` | string | Sí | Imagen |
 | `stock` | integer | No | Unidades en stock |
@@ -7595,7 +7917,7 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 
 ### 📤 DTO: StorefrontMenuResponse / StorefrontCategoryResponse / StorefrontProductResponse
 
-- **`StorefrontMenuResponse`**: `tenantId` (UUID), `tenantName` (string), `tenantSlug` (string), `logoUrl` (string, nullable), `bannerUrl` (string, nullable), `onlinePaymentsEnabled` (boolean), `openingTime` (`LocalTime`, nullable), `closingTime` (`LocalTime`, nullable), `isOpen` (boolean), `categories` (`List<StorefrontCategoryResponse>`), `uncategorizedProducts` (`List<StorefrontProductResponse>`).
+- **`StorefrontMenuResponse`**: `tenantId` (UUID), `tenantName` (string), `tenantSlug` (string), `logoUrl` (string, nullable), `bannerUrl` (string, nullable), `storefrontStyle` (`StorefrontStyle`), `onlinePaymentsEnabled` (boolean), `openingTime` (`LocalTime`, nullable), `closingTime` (`LocalTime`, nullable), `isOpen` (boolean), `categories` (`List<StorefrontCategoryResponse>`), `uncategorizedProducts` (`List<StorefrontProductResponse>`).
 - **`StorefrontCategoryResponse`**: `id` (UUID), `name` (string), `description` (string, nullable), `sortOrder` (integer), `products` (`List<StorefrontProductResponse>`).
 - **`StorefrontProductResponse`**:
 
@@ -7975,6 +8297,86 @@ El sistema genera automáticamente notificaciones ante eventos de negocio y tare
 | `status` | string | No | Estado de conexión del stream (`"CONNECTED"`) |
 | `unreadCount` | number (long) | No | Cantidad inicial de notificaciones no leídas al abrir el stream |
 | `connectedAt` | string | No | Fecha y hora de conexión al stream (ISO 8601 UTC) |
+
+---
+
+## DTOs — 10. Analytics / Dashboard
+
+### 📥 DTO: TenantExpenseRequest
+
+| Campo | Tipo | Requerido | Validación | Descripción |
+| --- | --- | --- | --- | --- |
+| `type` | `ExpenseType` | Sí | `@NotNull` | Tipo de gasto (`OPERATING`, `NON_OPERATING`, `INCOME_TAX`) |
+| `category` | `ExpenseCategory` | Sí | `@NotNull` | Categoría del gasto |
+| `description` | string | Sí | `@NotBlank`, máx. 255 | Descripción del gasto |
+| `amount` | BigDecimal | Sí | `0.01` a `99999999.99` | Monto del gasto |
+| `expenseDate` | string (`LocalDate`) | Sí | `@NotNull`, formato `YYYY-MM-DD` | Fecha contable del gasto |
+| `notes` | string | No | Máx. 1000 | Notas adicionales |
+
+### 📤 DTO: TenantExpenseResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `id` | UUID (string) | No | ID del gasto |
+| `tenantId` | UUID (string) | No | Restaurante |
+| `createdBy` | UUID (string) | Sí | Usuario que registró el gasto |
+| `type` | `ExpenseType` | No | Clasificación del gasto |
+| `category` | `ExpenseCategory` | No | Categoría del gasto |
+| `description` | string | No | Descripción |
+| `amount` | BigDecimal | No | Monto |
+| `expenseDate` | string (`LocalDate`) | No | Fecha del gasto (`YYYY-MM-DD`) |
+| `notes` | string | Sí | Notas |
+| `createdAt` | string | No | ISO 8601 |
+| `updatedAt` | string | No | ISO 8601 |
+
+### 📤 DTO: FinancialSummaryResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `tenantId` | UUID (string) | No | Restaurante |
+| `fromDate` | string (`LocalDate`) | No | Fecha inicial evaluada |
+| `toDate` | string (`LocalDate`) | No | Fecha final evaluada |
+| `paidOnly` | boolean | No | Si solo se incluyeron órdenes con pago `APPROVED` |
+| `totalOrders` | number (long) | No | Cantidad de órdenes contabilizadas |
+| `totalUnitsSold` | number (long) | No | Total de unidades vendidas |
+| `grossSalesWithTax` | BigDecimal | No | Ventas brutas con IGV (`netSales + taxCollected`) |
+| `netSales` | BigDecimal | No | Ventas netas sin IGV |
+| `taxCollected` | BigDecimal | No | IGV recaudado |
+| `deliveryFeesCollected` | BigDecimal | No | Total cobrado por delivery |
+| `costOfGoodsSold` | BigDecimal | No | Costo de ventas (COGS) |
+| `grossProfit` | BigDecimal | No | Ganancia bruta (`netSales - costOfGoodsSold`) |
+| `operatingExpenses` | BigDecimal | No | Gastos operativos (`OPERATING`) |
+| `operatingProfit` | BigDecimal | No | Ganancia operativa (`grossProfit - operatingExpenses`) |
+| `nonOperatingExpenses` | BigDecimal | No | Gastos no operativos (`NON_OPERATING`) |
+| `incomeTaxExpenses` | BigDecimal | No | Impuesto a la renta (`INCOME_TAX`) |
+| `netProfit` | BigDecimal | No | Ganancia neta final |
+| `grossMarginPercentage` | BigDecimal | No | Margen bruto % |
+| `operatingMarginPercentage` | BigDecimal | No | Margen operativo % |
+| `netMarginPercentage` | BigDecimal | No | Margen neto % |
+| `markupPercentage` | BigDecimal | No | Markup sobre costo % |
+| `expensesByCategory` | `List<ExpenseCategoryBreakdownResponse>` | No | Desglose de gastos por categoría |
+
+### 📤 DTO: ExpenseCategoryBreakdownResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `category` | `ExpenseCategory` | No | Categoría del gasto |
+| `type` | `ExpenseType` | No | Tipo de gasto |
+| `totalAmount` | BigDecimal | No | Suma acumulada en el período |
+
+### 📤 DTO: ProductMarginResponse
+
+| Campo | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `productId` | UUID (string) | Sí | ID del producto |
+| `productName` | string | No | Nombre del producto |
+| `unitsSold` | number (long) | No | Unidades vendidas |
+| `netSales` | BigDecimal | No | Ventas netas sin IGV del producto |
+| `taxCollected` | BigDecimal | No | IGV recaudado del producto |
+| `totalCost` | BigDecimal | No | Costo acumulado (`unitCost * quantity`) |
+| `grossProfit` | BigDecimal | No | Ganancia bruta del producto |
+| `grossMarginPercentage` | BigDecimal | No | Margen bruto % del producto |
+| `markupPercentage` | BigDecimal | No | Markup % sobre costo del producto |
 
 ---
 
