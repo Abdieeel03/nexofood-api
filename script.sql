@@ -200,6 +200,8 @@ CREATE TABLE tenants (
     ruc                  VARCHAR(20),
     logo_url             TEXT,
     banner_url           TEXT,
+    storefront_style     VARCHAR(50)           NOT NULL DEFAULT 'MODERN'
+        CONSTRAINT chk_tenants_storefront_style CHECK (storefront_style IN ('MODERN', 'MINIMALIST', 'ENTERPRISE', 'CLASSIC')),
     phone                VARCHAR(20),
     address              TEXT,
     location             geometry(Point, 4326),
@@ -376,6 +378,8 @@ CREATE TABLE products (
     name         VARCHAR(150) NOT NULL,
     description  TEXT,
     image_url    TEXT,
+    cost         NUMERIC(10, 2) NOT NULL DEFAULT 0.00
+        CONSTRAINT chk_products_cost_non_negative CHECK (cost >= 0),
     stock        INTEGER      NOT NULL DEFAULT 0
         CONSTRAINT chk_products_stock_non_negative CHECK (stock >= 0),
     is_available BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -550,6 +554,7 @@ CREATE INDEX idx_orders_customer_id        ON orders(customer_id);
 CREATE INDEX idx_orders_delivery_staff_id  ON orders(delivery_staff_id);
 CREATE INDEX idx_orders_address_id         ON orders(address_id);
 CREATE INDEX idx_orders_tenant_status      ON orders(tenant_id, status);
+CREATE INDEX idx_orders_tenant_status_created_at ON orders(tenant_id, status, created_at);
 CREATE INDEX idx_orders_delivery_location  ON orders USING GIST(delivery_location);
 
 CREATE TRIGGER trg_orders_updated_at
@@ -598,6 +603,8 @@ CREATE TABLE order_items (
     tax_id       UUID,
     product_name VARCHAR(150)   NOT NULL,
     unit_price   NUMERIC(10, 2) NOT NULL,
+    unit_cost    NUMERIC(10, 2) NOT NULL DEFAULT 0.00
+        CONSTRAINT chk_order_items_unit_cost_non_negative CHECK (unit_cost >= 0),
     quantity     INTEGER        NOT NULL,
     subtotal     NUMERIC(10, 2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
     tax_rate     NUMERIC(5, 2)  NOT NULL DEFAULT 0.00,
@@ -717,7 +724,44 @@ BEFORE UPDATE ON notifications
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ==============================================================================
--- 12. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
+-- 12. MODULE: ANALYTICS (EXPENSES & FINANCIAL DASHBOARD)
+-- ==============================================================================
+
+-- Table: tenant_expenses
+-- Gastos operativos, no operativos e impuestos del restaurante para cálculo de ganancia operativa y neta.
+CREATE TABLE tenant_expenses (
+    id           UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID           NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    created_by   UUID           REFERENCES users(id) ON DELETE SET NULL,
+    type         VARCHAR(30)    NOT NULL DEFAULT 'OPERATING'
+        CONSTRAINT chk_tenant_expenses_type CHECK (type IN ('OPERATING', 'NON_OPERATING', 'INCOME_TAX')),
+    category     VARCHAR(40)    NOT NULL DEFAULT 'OTHER'
+        CONSTRAINT chk_tenant_expenses_category CHECK (category IN (
+            'RENT', 'PAYROLL', 'UTILITIES', 'MARKETING', 'PACKAGING',
+            'PLATFORM_FEES', 'MAINTENANCE', 'INCOME_TAX', 'FINANCIAL', 'OTHER'
+        )),
+    description  VARCHAR(255)   NOT NULL,
+    amount       NUMERIC(10, 2) NOT NULL
+        CONSTRAINT chk_tenant_expenses_amount_positive CHECK (amount > 0),
+    expense_date DATE           NOT NULL,
+    notes        TEXT,
+    created_at   TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tenant_expenses_tenant_date      ON tenant_expenses(tenant_id, expense_date DESC);
+CREATE INDEX idx_tenant_expenses_tenant_type_date ON tenant_expenses(tenant_id, type, expense_date);
+
+CREATE TRIGGER trg_tenant_expenses_updated_at
+BEFORE UPDATE ON tenant_expenses
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE tenant_expenses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON tenant_expenses
+    USING (tenant_id::TEXT = (SELECT current_setting('app.current_tenant_id', true)));
+
+-- ==============================================================================
+-- 13. SECURITY HARDENING & FORCE ROW LEVEL SECURITY (FASE 9)
 -- ==============================================================================
 
 -- Forzar Row Level Security incluso para el propietario de las tablas
@@ -731,6 +775,7 @@ ALTER TABLE cart_items          FORCE ROW LEVEL SECURITY;
 ALTER TABLE orders              FORCE ROW LEVEL SECURITY;
 ALTER TABLE order_items         FORCE ROW LEVEL SECURITY;
 ALTER TABLE payments            FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_expenses     FORCE ROW LEVEL SECURITY;
 
 -- Rol de aplicación sin privilegios de superusuario ni evasión de RLS (NOBYPASSRLS)
 DO $$
