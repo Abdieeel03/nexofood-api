@@ -22,6 +22,7 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +68,10 @@ public class Product extends BaseEntity {
 
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
+
+    @Column(name = "cost", precision = 10, scale = 2, nullable = false, columnDefinition = "NUMERIC(10, 2) DEFAULT 0.00")
+    @Builder.Default
+    private BigDecimal cost = new BigDecimal("0.00");
 
     @Column(name = "stock", nullable = false)
     @Builder.Default

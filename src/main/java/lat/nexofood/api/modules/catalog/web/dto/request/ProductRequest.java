@@ -28,6 +28,10 @@ public record ProductRequest(
         @DecimalMax(value = "999999.99", message = "El precio no puede exceder 999,999.99")
         BigDecimal price,
 
+        @DecimalMin(value = "0.00", message = "El costo no puede ser negativo")
+        @DecimalMax(value = "999999.99", message = "El costo no puede exceder 999,999.99")
+        BigDecimal cost,
+
         @Size(max = 500, message = "La URL de la imagen no puede exceder los 500 caracteres")
         String imageUrl,
 
