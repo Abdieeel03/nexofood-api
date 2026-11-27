@@ -13,6 +13,7 @@ import lat.nexofood.api.modules.catalog.infrastructure.repository.CategoryReposi
 import lat.nexofood.api.modules.catalog.infrastructure.repository.ProductRepository;
 import lat.nexofood.api.modules.catalog.web.dto.response.CategoryResponse;
 import lat.nexofood.api.modules.catalog.web.mapper.CategoryMapper;
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.infrastructure.repository.TenantRepository;
 import lat.nexofood.api.modules.store.web.dto.response.StorefrontCategoryResponse;
@@ -128,6 +129,7 @@ public class StorefrontMenuServiceImpl implements StorefrontMenuService {
                 .tenantSlug(tenant.getSlug())
                 .logoUrl(tenant.getLogoUrl())
                 .bannerUrl(tenant.getBannerUrl())
+                .storefrontStyle(tenant.getStorefrontStyle() != null ? tenant.getStorefrontStyle() : StorefrontStyle.MODERN)
                 .onlinePaymentsEnabled(tenant.isMercadoPagoConnected())
                 .openingTime(tenant.getOpeningTime())
                 .closingTime(tenant.getClosingTime())

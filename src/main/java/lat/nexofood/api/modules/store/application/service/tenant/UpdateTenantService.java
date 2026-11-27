@@ -39,6 +39,7 @@ public class UpdateTenantService implements UpdateTenantUseCase {
         if (request.name() != null) tenant.setName(request.name());
         if (request.logoUrl() != null) tenant.setLogoUrl(request.logoUrl());
         if (request.bannerUrl() != null) tenant.setBannerUrl(request.bannerUrl());
+        if (request.storefrontStyle() != null) tenant.setStorefrontStyle(request.storefrontStyle());
         if (request.phone() != null) tenant.setPhone(request.phone());
         if (request.address() != null) tenant.setAddress(request.address());
         if (request.latitude() != null && request.longitude() != null) {

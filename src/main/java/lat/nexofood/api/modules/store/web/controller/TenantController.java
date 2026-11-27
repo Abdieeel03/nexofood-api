@@ -9,6 +9,7 @@ import lat.nexofood.api.common.response.ApiResponse;
 import lat.nexofood.api.modules.store.application.service.tenant.TenantService;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantStatusRequest;
+import lat.nexofood.api.modules.store.web.dto.request.TenantStyleUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.request.TenantUpdateRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +82,22 @@ public class TenantController {
                 ApiResponse.<TenantResponse>builder()
                         .success(true)
                         .message("Restaurante actualizado exitosamente")
+                        .data(response)
+                        .build()
+        );
+    }
+
+    @PatchMapping("/{id}/style")
+    @PreAuthorize("@tenantAccess.isOwner(#id)")
+    @Operation(summary = "Actualizar el estilo visual del storefront del restaurante")
+    public ResponseEntity<ApiResponse<TenantResponse>> updateStyle(
+            @PathVariable UUID id,
+            @Valid @RequestBody TenantStyleUpdateRequest request) {
+        TenantResponse response = tenantService.updateStorefrontStyle(id, request.storefrontStyle());
+        return ResponseEntity.ok(
+                ApiResponse.<TenantResponse>builder()
+                        .success(true)
+                        .message("Estilo del storefront actualizado exitosamente")
                         .data(response)
                         .build()
         );

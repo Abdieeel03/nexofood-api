@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -54,5 +55,7 @@ public record TenantCreateRequest(
 
         LocalTime openingTime,
 
-        LocalTime closingTime
+        LocalTime closingTime,
+
+        StorefrontStyle storefrontStyle
 ) {}

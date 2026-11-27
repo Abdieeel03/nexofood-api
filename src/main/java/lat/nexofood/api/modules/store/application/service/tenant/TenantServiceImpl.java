@@ -5,6 +5,7 @@ import lat.nexofood.api.modules.store.application.usecase.tenant.*;
 import lat.nexofood.api.modules.store.application.usecase.member.*;
 import lat.nexofood.api.modules.store.application.usecase.customer.*;
 import lat.nexofood.api.modules.store.application.usecase.auth.*;
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
@@ -28,6 +29,7 @@ public class TenantServiceImpl implements TenantService {
     private final GetTenantByIdUseCase getTenantByIdUseCase;
     private final GetTenantBySlugUseCase getTenantBySlugUseCase;
     private final UpdateTenantUseCase updateTenantUseCase;
+    private final UpdateTenantStyleUseCase updateTenantStyleUseCase;
     private final ChangeTenantStatusUseCase changeTenantStatusUseCase;
     private final GetMyTenantUseCase getMyTenantUseCase;
     private final GetTenantMembersUseCase getTenantMembersUseCase;
@@ -59,6 +61,11 @@ public class TenantServiceImpl implements TenantService {
     @Override
     public TenantResponse updateTenant(UUID id, TenantUpdateRequest request) {
         return updateTenantUseCase.execute(id, request);
+    }
+
+    @Override
+    public TenantResponse updateStorefrontStyle(UUID id, StorefrontStyle storefrontStyle) {
+        return updateTenantStyleUseCase.execute(id, storefrontStyle);
     }
 
     @Override
