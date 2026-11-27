@@ -74,6 +74,10 @@ public class OrderItem extends BaseEntity {
     @Column(name = "unit_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal unitPrice;
 
+    @Column(name = "unit_cost", precision = 10, scale = 2, nullable = false, columnDefinition = "NUMERIC(10, 2) DEFAULT 0.00")
+    @Builder.Default
+    private BigDecimal unitCost = new BigDecimal("0.00");
+
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 

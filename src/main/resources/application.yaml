@@ -106,6 +106,9 @@ app:
     cleanup-cron: ${TRACKING_CLEANUP_CRON:0 30 3 * * *}
   store:
     schedule-cron: ${STORE_SCHEDULE_CRON:0 * * * * *}
+  orders:
+    pending-expiration-minutes: ${ORDER_PENDING_EXPIRATION_MINUTES:5}
+    pending-expiration-cron: ${ORDER_PENDING_EXPIRATION_CRON:0 * * * * *}
   notifications:
     low-stock-threshold: ${LOW_STOCK_THRESHOLD:5}
     store-schedule-warning-minutes: ${STORE_SCHEDULE_WARNING_MINUTES:15}

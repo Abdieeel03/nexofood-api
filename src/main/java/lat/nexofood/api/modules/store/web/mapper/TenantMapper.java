@@ -3,6 +3,7 @@ package lat.nexofood.api.modules.store.web.mapper;
 import lat.nexofood.api.common.util.GeoUtils;
 import lat.nexofood.api.modules.identity.domain.User;
 import lat.nexofood.api.modules.subscription.domain.Subscription;
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lat.nexofood.api.modules.store.domain.Tenant;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
 import lat.nexofood.api.modules.store.web.dto.response.TenantResponse;
@@ -26,6 +27,7 @@ public class TenantMapper {
                 .slug(tenant.getSlug())
                 .logoUrl(tenant.getLogoUrl())
                 .bannerUrl(tenant.getBannerUrl())
+                .storefrontStyle(tenant.getStorefrontStyle() != null ? tenant.getStorefrontStyle() : StorefrontStyle.MODERN)
                 .phone(tenant.getPhone())
                 .address(tenant.getAddress())
                 .latitude(GeoUtils.getLatitude(tenant.getLocation()))
@@ -64,6 +66,7 @@ public class TenantMapper {
                 .slug(request.slug())
                 .logoUrl(request.logoUrl())
                 .bannerUrl(request.bannerUrl())
+                .storefrontStyle(request.storefrontStyle() != null ? request.storefrontStyle() : StorefrontStyle.MODERN)
                 .phone(request.phone())
                 .address(request.address())
                 .location(GeoUtils.createPoint(request.latitude(), request.longitude()))

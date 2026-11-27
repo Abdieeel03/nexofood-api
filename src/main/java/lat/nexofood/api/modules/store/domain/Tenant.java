@@ -3,6 +3,8 @@ package lat.nexofood.api.modules.store.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -70,6 +72,11 @@ public class Tenant extends BaseEntity {
 
     @Column(name = "banner_url", columnDefinition = "TEXT")
     private String bannerUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storefront_style", length = 50, nullable = false, columnDefinition = "VARCHAR(50) DEFAULT 'MODERN'")
+    @Builder.Default
+    private StorefrontStyle storefrontStyle = StorefrontStyle.MODERN;
 
     @Column(name = "phone", length = 20)
     private String phone;

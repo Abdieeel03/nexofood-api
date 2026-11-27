@@ -39,6 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -115,6 +116,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         validateInitialPrices(request);
+        if (request.cost() != null && request.cost().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("El costo del producto no puede ser negativo.");
+        }
         if (request.stock() != null && request.stock() < 0) {
             throw new BadRequestException("El stock del producto no puede ser negativo.");
         }
@@ -153,6 +157,12 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.name());
         product.setDescription(request.description());
         product.setImageUrl(request.imageUrl());
+        if (request.cost() != null) {
+            if (request.cost().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("El costo del producto no puede ser negativo.");
+            }
+            product.setCost(request.cost().setScale(2, RoundingMode.HALF_UP));
+        }
         if (request.stock() != null) {
             product.updateStock(request.stock());
         }

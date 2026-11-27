@@ -1,6 +1,7 @@
 package lat.nexofood.api.modules.store.application.service.tenant;
 
 import lat.nexofood.api.common.response.PageResponse;
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lat.nexofood.api.modules.store.domain.TenantInvitationStatus;
 import lat.nexofood.api.modules.store.domain.TenantStaffRole;
 import lat.nexofood.api.modules.store.web.dto.request.TenantCreateRequest;
@@ -24,6 +25,8 @@ public interface TenantService {
     TenantResponse getTenantBySlug(String slug);
 
     TenantResponse updateTenant(UUID id, TenantUpdateRequest request);
+
+    TenantResponse updateStorefrontStyle(UUID id, StorefrontStyle storefrontStyle);
 
     void changeStatus(UUID id, boolean isActive);
 

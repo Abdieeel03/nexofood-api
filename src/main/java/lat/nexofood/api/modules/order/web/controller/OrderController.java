@@ -20,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -126,6 +127,23 @@ public class OrderController {
                 ApiResponse.<OrderResponse>builder()
                         .success(true)
                         .message("Estado de la orden actualizado exitosamente")
+                        .data(response)
+                        .build()
+        );
+    }
+
+    @PostMapping("/{id}/release")
+    @PreAuthorize("@tenantAccess.hasAnyRole(#tenantId, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).OWNER, T(lat.nexofood.api.modules.store.domain.TenantStaffRole).ADMIN)")
+    @Operation(summary = "Liberar manualmente una orden PENDIENTE sin pago aprobado y devolver su stock (solo OWNER o ADMIN)")
+    public ResponseEntity<ApiResponse<OrderResponse>> releasePendingOrder(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID id
+    ) {
+        OrderResponse response = orderService.releasePendingOrder(tenantId, id);
+        return ResponseEntity.ok(
+                ApiResponse.<OrderResponse>builder()
+                        .success(true)
+                        .message("Orden pendiente liberada y stock restaurado exitosamente")
                         .data(response)
                         .build()
         );

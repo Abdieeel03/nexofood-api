@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.store.web.dto.response;
 
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lombok.Builder;
 
 import java.time.LocalTime;
@@ -13,6 +14,7 @@ public record StorefrontMenuResponse(
         String tenantSlug,
         String logoUrl,
         String bannerUrl,
+        StorefrontStyle storefrontStyle,
         Boolean onlinePaymentsEnabled,
         LocalTime openingTime,
         LocalTime closingTime,

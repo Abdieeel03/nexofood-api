@@ -596,6 +596,9 @@ public class OrderServiceImpl implements OrderService {
                     .priceId(effectivePrice != null ? effectivePrice.getId() : null)
                     .taxId(effectiveTax != null ? effectiveTax.getId() : null)
                     .unitPrice(calc != null ? calc.baseUnitPrice() : sellingPrice)
+                    .unitCost(product.getCost() != null
+                            ? product.getCost().setScale(2, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                     .quantity(itemRequest.quantity())
                     .lineSubtotal(calc != null ? calc.subtotal() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                     .taxRate(calc != null && calc.taxRate() != null ? calc.taxRate() : BigDecimal.ZERO)
@@ -699,6 +702,14 @@ public class OrderServiceImpl implements OrderService {
                     tax = product.getTax();
                 }
 
+                BigDecimal resolvedUnitCost = draftItem.unitCost();
+                if (resolvedUnitCost == null && product != null && product.getCost() != null) {
+                    resolvedUnitCost = product.getCost();
+                }
+                if (resolvedUnitCost == null) {
+                    resolvedUnitCost = BigDecimal.ZERO;
+                }
+
                 OrderItem orderItem = OrderItem.builder()
                         .order(order)
                         .tenant(tenant)
@@ -707,6 +718,7 @@ public class OrderServiceImpl implements OrderService {
                         .tax(tax)
                         .productName(draftItem.productName())
                         .unitPrice(draftItem.unitPrice())
+                        .unitCost(resolvedUnitCost.setScale(2, RoundingMode.HALF_UP))
                         .quantity(draftItem.quantity())
                         .subtotal(draftItem.lineSubtotal())
                         .taxRate(draftItem.taxRate() != null ? draftItem.taxRate() : BigDecimal.ZERO)
@@ -999,6 +1011,81 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
+    public OrderResponse releasePendingOrder(UUID tenantId, UUID orderId) {
+        Order order = orderRepository.findByIdAndTenantIdForUpdate(orderId, tenantId)
+                .or(() -> orderRepository.findByIdAndTenantId(orderId, tenantId))
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + orderId));
+
+        if (order.getStatus() != OrderStatus.PENDIENTE) {
+            throw new BadRequestException("Solo se pueden liberar órdenes en estado PENDIENTE. Estado actual: " + order.getStatus());
+        }
+        if (hasApprovedPayment(order)) {
+            throw new BadRequestException("La orden ya cuenta con un pago aprobado; cancélela mediante actualización de estado para procesar el reembolso.");
+        }
+
+        restoreStockForOrder(order);
+        order.setStatus(OrderStatus.CANCELADO);
+        order.setEstimatedDeliveryMinutes(null);
+        order.setEstimatedArrivalAt(null);
+
+        Order savedOrder = orderRepository.save(order);
+        if (deliveryTrackingService != null) {
+            deliveryTrackingService.onOrderClosed(savedOrder);
+        }
+        securityAuditLogger.logEvent(
+                AuditAction.ORDER_CANCELLATION,
+                tenantId,
+                orderId.toString(),
+                "Pedido " + order.getOrderNumber() + " liberado manualmente desde PENDIENTE"
+        );
+        if (notificationService != null) {
+            notificationService.notifyOrderStatusChanged(savedOrder != null ? savedOrder : order);
+        }
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public int releaseExpiredPendingOrdersForTenant(UUID tenantId, OffsetDateTime cutoff) {
+        List<Order> expiredOrders = orderRepository.findExpiredUnpaidPendingOrders(
+                tenantId,
+                OrderStatus.PENDIENTE,
+                lat.nexofood.api.modules.payment.domain.PaymentStatus.APPROVED,
+                cutoff
+        );
+        int released = 0;
+        for (Order candidate : expiredOrders) {
+            Order locked = orderRepository.findByIdAndTenantIdForUpdate(candidate.getId(), tenantId).orElse(candidate);
+            if (locked.getStatus() != OrderStatus.PENDIENTE) {
+                continue;
+            }
+            if (hasApprovedPayment(locked)) {
+                continue;
+            }
+            restoreStockForOrder(locked);
+            locked.setStatus(OrderStatus.CANCELADO);
+            locked.setEstimatedDeliveryMinutes(null);
+            locked.setEstimatedArrivalAt(null);
+            Order saved = orderRepository.save(locked);
+            if (deliveryTrackingService != null) {
+                deliveryTrackingService.onOrderClosed(saved);
+            }
+            securityAuditLogger.logEvent(
+                    AuditAction.ORDER_CANCELLATION,
+                    tenantId,
+                    locked.getId().toString(),
+                    "Pedido " + locked.getOrderNumber() + " liberado automáticamente por expiración de tiempo pendiente"
+            );
+            if (notificationService != null) {
+                notificationService.notifyOrderStatusChanged(saved != null ? saved : locked);
+            }
+            released++;
+        }
+        return released;
+    }
+
+    @Override
+    @Transactional
     public void cancelPendingOrderFromRefund(Order order) {
         if (order == null || order.getStatus() != OrderStatus.PENDIENTE) {
             return;
@@ -1041,6 +1128,18 @@ public class OrderServiceImpl implements OrderService {
             deliveryTrackingService.onOrderDispatched(saved);
         }
         return orderMapper.toResponse(saved);
+    }
+
+    private boolean hasApprovedPayment(Order order) {
+        if (paymentGuard == null || order == null || order.getId() == null) {
+            return false;
+        }
+        try {
+            paymentGuard.assertCanMoveToPreparation(order);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private UUID resolveCustomerUserId(TenantCustomer customer) {

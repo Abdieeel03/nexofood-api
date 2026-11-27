@@ -1,5 +1,6 @@
 package lat.nexofood.api.modules.store.web.dto.response;
 
+import lat.nexofood.api.modules.store.domain.StorefrontStyle;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ public record TenantResponse(
         String slug,
         String logoUrl,
         String bannerUrl,
+        StorefrontStyle storefrontStyle,
         String phone,
         String address,
         Double latitude,

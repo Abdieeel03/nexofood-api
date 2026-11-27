@@ -137,4 +137,23 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     long countByTenantId(UUID tenantId);
 
     boolean existsByOrderNumberAndTenantId(String orderNumber, UUID tenantId);
+
+    @Query("""
+            SELECT o FROM Order o
+            WHERE o.tenant.id = :tenantId
+              AND o.status = :pendingStatus
+              AND o.createdAt <= :cutoff
+              AND NOT EXISTS (
+                SELECT p.id FROM Payment p
+                WHERE p.order.id = o.id
+                  AND p.status = :approvedPaymentStatus
+              )
+            ORDER BY o.createdAt ASC
+            """)
+    List<Order> findExpiredUnpaidPendingOrders(
+            @Param("tenantId") UUID tenantId,
+            @Param("pendingStatus") OrderStatus pendingStatus,
+            @Param("approvedPaymentStatus") PaymentStatus approvedPaymentStatus,
+            @Param("cutoff") OffsetDateTime cutoff
+    );
 }

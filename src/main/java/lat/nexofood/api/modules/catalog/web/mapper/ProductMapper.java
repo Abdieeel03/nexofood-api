@@ -13,6 +13,8 @@ import lat.nexofood.api.modules.store.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -46,6 +48,7 @@ public class ProductMapper {
                 .description(product.getDescription())
                 .price(pricingService.calculateCurrentPrice(product))
                 .basePrice(pricingService.getBasePrice(product))
+                .cost(product.getCost() != null ? product.getCost() : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .prices(prices)
                 .imageUrl(product.getImageUrl())
                 .stock(product.getStock() != null ? product.getStock() : 0)
@@ -71,6 +74,9 @@ public class ProductMapper {
                 .name(request.name())
                 .description(request.description())
                 .imageUrl(request.imageUrl())
+                .cost(request.cost() != null
+                        ? request.cost().setScale(2, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .stock(request.stock() != null ? request.stock() : 0)
                 .isAvailable(request.isAvailable() != null ? request.isAvailable() : true)
                 .prices(new ArrayList<>())
