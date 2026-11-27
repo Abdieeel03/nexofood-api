@@ -12,6 +12,7 @@ public record OrderDraftItem(
         UUID priceId,
         UUID taxId,
         BigDecimal unitPrice,
+        BigDecimal unitCost,
         Integer quantity,
         BigDecimal lineSubtotal,
         BigDecimal taxRate,

@@ -55,6 +55,10 @@ public interface OrderService {
 
     OrderResponse updateStatus(UUID tenantId, UUID orderId, OrderStatus newStatus);
 
+    OrderResponse releasePendingOrder(UUID tenantId, UUID orderId);
+
+    int releaseExpiredPendingOrdersForTenant(UUID tenantId, OffsetDateTime cutoff);
+
     void cancelPendingOrderFromRefund(Order order);
 
     OrderResponse assignDeliveryStaff(UUID tenantId, UUID orderId, UUID deliveryStaffUserId);

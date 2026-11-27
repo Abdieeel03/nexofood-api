@@ -15,6 +15,7 @@ import lat.nexofood.api.modules.order.web.dto.response.OrderItemResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Component
 public class OrderItemMapper {
@@ -97,6 +98,7 @@ public class OrderItemMapper {
                 .taxRate(calc != null && calc.taxRate() != null ? calc.taxRate() : BigDecimal.ZERO)
                 .taxAmount(calc != null && calc.taxAmount() != null ? calc.taxAmount() : BigDecimal.ZERO)
                 .unitPrice(calc != null ? calc.baseUnitPrice() : pricingService.calculateCurrentPrice(product))
+                .unitCost(product.getCost() != null ? product.getCost().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
                 .quantity(request.quantity())
                 .subtotal(calc != null ? calc.subtotal() : null)
                 .notes(request.notes())
